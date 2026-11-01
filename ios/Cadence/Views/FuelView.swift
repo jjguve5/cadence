@@ -24,6 +24,7 @@ struct FuelView: View {
                         row("Calories", "\(Int(f.kcal)) / \(Int(p.kcal))")
                         row("Protein", "\(Int(f.protein)) / \(Int(p.proteinTarget)) g")
                         if let burned = store.health[Day.today]?.calories { row("Burned", "\(Int(burned).formatted())") }
+                        if let fat = p.fatTarget, let carbs = p.carbTarget { row("Fat · carbs", "\(Int(f.fat))/\(Int(fat)) · \(Int(f.carbs))/\(Int(carbs)) g") }
                         if f.caffeine > 0 { row("Caffeine", "\(Int(f.caffeine)) mg") }
                     }
                 }

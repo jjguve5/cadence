@@ -7,6 +7,7 @@ struct TodayView: View {
     @State private var editing: PromiseItem?
     @State private var briefHidden = false
     @State private var loggingFood = false
+    @State private var settingUp = false
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -18,6 +19,15 @@ struct TodayView: View {
             Screen(glow: .mint) {
                 header
                 if store.needsGoogle { googleCard }
+                if !store.profile.setupDone {
+                    Button { settingUp = true } label: {
+                        Card(tint: .mint) {
+                            Eyebrow(text: "Smart setup · 1 minute", icon: "wand.and.stars", color: .mint)
+                            Text("Answer a few questions and Cadence sets your calories, protein, water, steps and sleep from the research, with the reason for each.").font(.geist(13.5)).foregroundStyle(Color.ink)
+                        }
+                    }
+                    .buttonStyle(Pressable())
+                }
                 if Day.minuteOfDay(store.tick) < 12 * 60, !briefHidden, !store.briefLines().isEmpty { brief }
                 if Day.minuteOfDay(store.tick) < 14 * 60 { WeatherCard() }
                 readinessCard
@@ -32,6 +42,7 @@ struct TodayView: View {
             .sheet(isPresented: $closing) { CloseDayView() }
             .sheet(item: $editing) { PromiseEditor(promise: $0) }
             .sheet(isPresented: $loggingFood) { FoodLogSheet() }
+            .sheet(isPresented: $settingUp) { SmartSetup() }
             .toolbar(.hidden, for: .navigationBar)
         }
     }
@@ -129,11 +140,13 @@ struct TodayView: View {
         let due = store.due()
         let done = due.filter { store.status($0).map { $0 != .skipped } ?? false }.count
         let fuel = store.fuel()
+        let kcalTarget = store.profile.kcal
         let items: [(String, Double, Area, String)] = [
-            ("Protein", fuel.protein / store.profile.proteinTarget, .fuel, "\(Int(fuel.protein))g"),
+            ("Calories", fuel.kcal / max(1, kcalTarget), .fuel, fuel.kcal >= 1000 ? String(format: "%.1fk", fuel.kcal / 1000) : "\(Int(fuel.kcal))"),
+            ("Protein", fuel.protein / store.profile.proteinTarget, .train, "\(Int(fuel.protein))g"),
             ("Water", fuel.water / store.waterGoal(), .water, String(format: "%.1fL", fuel.water / 1000)),
-            ("Move", (today?.steps ?? 0) / Double(store.profile.stepGoal), .train, today?.steps.map { "\(Int($0 / 100) / 10).\(Int($0 / 100) % 10)k" } ?? "–"),
-            ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .mint, "\(done)/\(due.count)"),
+            ("Move", (today?.steps ?? 0) / Double(store.profile.stepGoal), .mint, today?.steps.map { "\(Int($0 / 100) / 10).\(Int($0 / 100) % 10)k" } ?? "–"),
+            ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .mind, "\(done)/\(due.count)"),
         ]
         return Card {
             HStack {
@@ -157,7 +170,7 @@ struct TodayView: View {
                             Ring(progress: item.1, area: item.2, width: 6)
                             Text(item.3).font(.geist(11.5, .semibold)).minimumScaleFactor(0.7)
                         }
-                        .frame(width: 58, height: 58)
+                        .frame(width: 54, height: 54)
                         Text(item.0).font(.geist(11.5)).foregroundStyle(Color.soft)
                     }
                     .frame(maxWidth: .infinity)

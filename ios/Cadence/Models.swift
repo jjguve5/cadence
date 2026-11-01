@@ -165,6 +165,9 @@ struct Profile: Codable, Equatable {
     // Training
     var barKg = 20.0
     var plates: [Double] = [25, 20, 15, 10, 5, 2.5, 1.25]
+    var fatTarget: Double?
+    var carbTarget: Double?
+    var setupDone = false
     var areasOff: [String] = [] // areas switched off: fuel, training, care, money, wardrobe, kitchen, home, people, travel, learning
 
     init() {}
@@ -183,6 +186,9 @@ struct Profile: Codable, Equatable {
         kcalTarget = (try? c.decodeIfPresent(Double.self, forKey: .kcalTarget)) ?? nil
         proteinPerKg = v(.proteinPerKg, d.proteinPerKg); waterGoalMl = v(.waterGoalMl, d.waterGoalMl)
         barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates); areasOff = v(.areasOff, d.areasOff)
+        fatTarget = (try? c.decodeIfPresent(Double.self, forKey: .fatTarget)) ?? nil
+        carbTarget = (try? c.decodeIfPresent(Double.self, forKey: .carbTarget)) ?? nil
+        setupDone = v(.setupDone, d.setupDone)
     }
 
     /// Mifflin-St Jeor, times a light activity factor; the weekly check-in replaces it with what your weight shows
