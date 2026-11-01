@@ -36,6 +36,38 @@ struct GroomingItem: Record, Equatable {
     var freshness: Double { daysSince.map { 1 - min(1, Double($0) / Double(max(1, rhythm))) } ?? 0 }
 }
 
+struct Shower: Record, Equatable {
+    static let kind = "shower"
+    var id = UUID().uuidString
+    var at = nowMs()
+}
+
+/// One shower a day, taken that evening or the next morning. Pure, so the rules are testable.
+enum ShowerRules {
+    /// Which days the showers cover, in order: before noon it covers yesterday if yesterday had none, otherwise today
+    static func covered(_ times: [Date], calendar cal: Calendar = Day.calendar) -> Set<String> {
+        var days = Set<String>()
+        for t in times.sorted() {
+            let day = Day.key(t), morning = cal.component(.hour, from: t) < 12
+            let yesterday = Day.key(cal.date(byAdding: .day, value: -1, to: t) ?? t)
+            if morning && !days.contains(yesterday) { days.insert(yesterday) } else { days.insert(day) }
+        }
+        return days
+    }
+
+    enum When: String { case tonight, morning }
+
+    /// Tonight about 90 minutes before lights out (a warm shower 1–2 h before bed helps you fall asleep), unless the
+    /// evening is short or taken; tomorrow morning, unless you leave early. Returns the choice and why.
+    static func suggest(now: Int, windDown: Int, lightsOut: Int, eveningAfter: String?, movedToday: Bool, wake: Int, leaveTomorrow: Int?) -> (When, String) {
+        if let l = leaveTomorrow, l - wake < 60 { return (.tonight, "You leave at \(clock(l)) tomorrow, so the morning is tight") }
+        if movedToday { return (.tonight, "After today's workout") }
+        if let a = eveningAfter { return (.morning, "Back from \(a) close to bedtime: shower in the morning instead") }
+        if windDown - max(now, 0) < 30 { return (.morning, "Not much evening left: tomorrow morning works") }
+        return (.tonight, "About 1–2 h before bed a warm shower helps you fall asleep")
+    }
+}
+
 struct RoutineStep: Codable, Equatable, Identifiable {
     var id = UUID().uuidString
     var title: String
@@ -170,6 +202,43 @@ extension Store {
             for t in m.times { due += 1; if record(MedLog.self, "\(m.id)|\(d)|\(t)")?.taken == true { taken += 1 } }
         }
         return due == 0 ? nil : Double(taken) / Double(due)
+    }
+
+    // MARK: Showers
+
+    /// Logged showers plus finished gym sessions (you shower there), as times
+    var showerTimes: [Date] {
+        all(Shower.self).map { Date(timeIntervalSince1970: $0.at / 1000) }
+            + sessions().filter { $0.end != nil && records("noGymShower")[$0.id] == nil }.map { Date(timeIntervalSince1970: $0.end! / 1000) }
+    }
+
+    func showered(_ day: String) -> Bool { ShowerRules.covered(showerTimes).contains(day) }
+
+    /// Today's shower: done, or when it's planned (your pick, else the suggestion) and why
+    func showerPlan(for day: String = Day.today) -> (when: ShowerRules.When, at: Date, why: String)? {
+        guard !showered(day) else { return nil }
+        let plan = sleepPlan(for: day)
+        let tomorrow = Day.add(1, to: day)
+        // training right now: the gym shower will count
+        if sessions(on: day).contains(where: { $0.end == nil && nowMs() - $0.start < 3 * 3600 * 1000 }) { return nil }
+        let picked: ShowerRules.When? = { if case .string(let t) = records("showerWhen")[day] { return ShowerRules.When(rawValue: t) }; return nil }()
+        let auto = ShowerRules.suggest(now: day == Day.today ? Day.minuteOfDay() : 0, windDown: plan.windDown, lightsOut: plan.perform, eveningAfter: plan.after?.title,
+                                       movedToday: (health[day]?.azm ?? 0) >= 20, wake: profile.wakeMinute, leaveTomorrow: commutes(on: tomorrow).map(\.leave).min())
+        let when = picked ?? auto.0
+        let why = picked == nil ? auto.1 : (when == .tonight ? "You picked tonight" : "You picked tomorrow morning")
+        if when == .morning { return (.morning, Day.at(profile.wakeMinute + 20, on: tomorrow), why) }
+        let m = Engine.outside(min(plan.perform - 90, plan.windDown - 15), busy: busy(on: day))
+        return (.tonight, Day.at(max(m, day == Day.today ? Day.minuteOfDay() + 5 : 0), on: day), why)
+    }
+
+    func logShower() {
+        save(Shower())
+        Reminders.shared.reschedule()
+    }
+
+    func pickShower(_ when: ShowerRules.When, for day: String = Day.today) {
+        put("showerWhen", day, .string(when.rawValue))
+        Reminders.shared.reschedule()
     }
 
     // MARK: Travel

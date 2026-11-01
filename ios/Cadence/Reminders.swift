@@ -17,6 +17,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         center.setNotificationCategories([
             UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: "info", actions: [], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: "shower", actions: [UNNotificationAction(identifier: "done", title: "Showered ✓", options: []), UNNotificationAction(identifier: "morning", title: "Tomorrow morning", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
         ])
         if !TestMode.active { center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in } }
     }
@@ -28,6 +29,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         var body: String
         var priority: Int // 0 = always gets through
         var promise: Bool
+        var category: String?
     }
 
     private var pending: DispatchWorkItem?
@@ -119,6 +121,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 let m = Day.minuteOfDay(planned[i].at), moved = Engine.outside(m, busy: busy)
                 if moved != m { planned[i].at = Day.at(moved, on: day) }
             }
+            // The day's shower, tonight or tomorrow morning
+            if offset <= 1, let s = store.showerPlan(for: day) {
+                planned.append(Planned(id: "shower|\(day)|\(s.when.rawValue)", at: s.at, title: s.when == .morning ? "Shower (for yesterday)" : "Shower", body: s.why + ".", priority: 1, promise: false, category: s.when == .tonight ? "shower" : "info"))
+            }
             // Wind-down: holds until must-dos are answered
             let open = store.openMustDos(on: day)
             var body = open.isEmpty ? "Lights out by \(clock(plan.perform)). Reading slot is next." : "First: \(open.map(\.title).joined(separator: ", ")). Then screens away."
@@ -155,7 +161,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             content.title = item.title
             content.body = item.body
             content.sound = .default
-            content.categoryIdentifier = item.promise ? Self.category : "info"
+            content.categoryIdentifier = item.category ?? (item.promise ? Self.category : "info")
             content.threadIdentifier = item.promise ? "promises" : "day"
             let parts = Day.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.at)
             center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
@@ -191,6 +197,16 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 switch response.actionIdentifier {
                 case "done": store.take(med, minute: minute, on: parts[2])
                 case "skip": store.take(med, minute: minute, on: parts[2], taken: false)
+                default: break
+                }
+            }
+            return
+        }
+        if parts.count == 3, parts[0] == "shower" {
+            await MainActor.run {
+                switch response.actionIdentifier {
+                case "done": Store.shared.logShower()
+                case "morning": Store.shared.pickShower(.morning, for: parts[1])
                 default: break
                 }
             }
@@ -244,7 +260,7 @@ enum NotificationLearning {
     }
 
     static var summary: [(kind: String, rate: Double, n: Int)] {
-        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave"]
+        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave", "shower"]
         return names.compactMap { k in
             let list = UserDefaults.standard.array(forKey: key(k)) as? [Int] ?? []
             return list.isEmpty ? nil : (k, Double(list.filter { $0 == 0 }.count) / Double(list.count), list.count)

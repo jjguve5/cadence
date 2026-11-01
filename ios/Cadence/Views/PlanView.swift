@@ -39,6 +39,9 @@ extension Store {
             if let b = busy(on: day).first(where: { $0.start < start + t.minutes + 15 && $0.end > start }) { start = max(profile.wakeMinute + 60, b.start - t.minutes - 15) }
             items.append(PlanItem(id: "train-" + t.id, minute: start, end: start + t.minutes, title: t.name, detail: "\(t.exercises.count) exercises · about \(duration(t.minutes)) · hold a block to move it", icon: "dumbbell.fill", color: .train))
         }
+        if let s = showerPlan(for: day), s.when == .tonight {
+            items.append(PlanItem(id: "shower", minute: Day.minuteOfDay(s.at), title: "Shower", detail: s.why, icon: "shower.fill", color: .water))
+        }
         for c in commutes(on: day) {
             items.append(PlanItem(id: "c" + c.id, minute: c.leave, end: c.arrive, title: "To \(c.title)", detail: "leave \(clock(c.leave)) · \(c.travel) min + \(c.buffer) buffer", icon: "tram.fill", color: Color(hex: 0x6CC4FF)))
         }

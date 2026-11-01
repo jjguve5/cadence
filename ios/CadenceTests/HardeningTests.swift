@@ -343,3 +343,31 @@ final class WeightSourceTests: XCTestCase {
         XCTAssertEqual(health.source, "health")
     }
 }
+
+final class ShowerTests: XCTestCase {
+    func at(_ key: String, _ h: Int, _ m: Int = 0) -> Date { Day.at(h * 60 + m, on: key) }
+
+    func testEveningOrNextMorningCoversTheDay() {
+        // Sunday evening, then Tuesday morning for Monday: Sunday and Monday covered
+        let c = ShowerRules.covered([at("2026-11-01", 22, 30), at("2026-11-03", 7, 30)])
+        XCTAssertEqual(c, ["2026-11-01", "2026-11-02"])
+    }
+
+    func testMorningAfterAnEveningShowerCountsForToday() {
+        let c = ShowerRules.covered([at("2026-11-01", 21), at("2026-11-02", 8)])
+        XCTAssertEqual(c, ["2026-11-01", "2026-11-02"])
+    }
+
+    func testLateGymShowerCountsForThatDay() {
+        XCTAssertEqual(ShowerRules.covered([at("2026-11-02", 19, 40)]), ["2026-11-02"])
+    }
+
+    func testSuggestion() {
+        // tonight's real case: back from Porto 21:30, lights out 22:20
+        XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 21 * 60 + 45, lightsOut: 22 * 60 + 20, eveningAfter: "Porto", movedToday: false, wake: 420, leaveTomorrow: nil).0, .morning)
+        // an early leave tomorrow wins over a short evening
+        XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 21 * 60 + 45, lightsOut: 22 * 60 + 20, eveningAfter: "Porto", movedToday: false, wake: 420, leaveTomorrow: 450).0, .tonight)
+        XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil).0, .tonight)
+        XCTAssertEqual(ShowerRules.suggest(now: 21 * 60 + 50, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil).0, .morning)
+    }
+}

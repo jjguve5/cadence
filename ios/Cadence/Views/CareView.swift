@@ -25,6 +25,7 @@ struct CareView: View {
                 }
                 if store.brushHeadDue { SoftButton(title: "Changed it", icon: "checkmark") { store.put("brushhead", Day.today, .bool(true)) } }
             }
+            ShowerCard()
             Card {
                 Eyebrow(text: "Grooming", icon: "scissors")
                 ForEach(store.all(GroomingItem.self).sorted { $0.freshness < $1.freshness }) { g in
@@ -516,5 +517,50 @@ struct RoutinePlayer: View {
     private func say(_ text: String?) {
         guard let text else { return }
         speech.speak(AVSpeechUtterance(string: text))
+    }
+}
+
+/// One shower a day: that evening or the next morning. A finished gym session counts.
+struct ShowerCard: View {
+    @EnvironmentObject var store: Store
+
+    var body: some View {
+        let covered = ShowerRules.covered(store.showerTimes)
+        let week = (0..<7).reversed().map { Day.add(-$0, to: Day.today) }
+        let yesterdayOpen = Day.minuteOfDay() < 12 * 60 && !covered.contains(Day.add(-1, to: Day.today))
+        Card {
+            HStack {
+                Eyebrow(text: "Shower", icon: "shower.fill")
+                Spacer()
+                Text("\(week.dropLast().filter(covered.contains).count) of the last 6 days").font(.geist(11.5)).foregroundStyle(Color.faint)
+            }
+            HStack(spacing: 6) {
+                ForEach(week, id: \.self) { d in
+                    VStack(spacing: 3) {
+                        Circle().fill(covered.contains(d) ? Color.water : Color.white.opacity(0.08)).frame(width: 14, height: 14)
+                        Text(Day.date(d).formatted(.dateTime.weekday(.narrow))).font(.geist(10)).foregroundStyle(Color.faint)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement().accessibilityLabel("\(Day.date(d).formatted(.dateTime.weekday(.wide))): \(covered.contains(d) ? "showered" : "no shower")")
+                }
+            }
+            if covered.contains(Day.today) {
+                Text("Done for today").font(.geist(14)).foregroundStyle(Color.good)
+            } else if yesterdayOpen {
+                Text("Yesterday's shower is still open: one this morning counts for it.").font(.geist(13.5))
+            } else if let s = store.showerPlan() {
+                Text(s.when == .tonight ? "Tonight around \(clock(Day.minuteOfDay(s.at)))" : "Tomorrow morning around \(clock(Day.minuteOfDay(s.at)))").font(.geist(14, .medium))
+                Text(s.why).font(.geist(12)).foregroundStyle(Color.soft)
+                Picker("When", selection: Binding(get: { s.when }, set: { store.pickShower($0) })) {
+                    Text("Tonight").tag(ShowerRules.When.tonight)
+                    Text("Tomorrow morning").tag(ShowerRules.When.morning)
+                }
+                .pickerStyle(.segmented)
+            }
+            if !covered.contains(Day.today) || yesterdayOpen {
+                SoftButton(title: "Showered now", icon: "checkmark") { store.logShower() }.accessibilityIdentifier("shower.log")
+            }
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("shower.card")
     }
 }

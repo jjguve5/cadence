@@ -205,7 +205,7 @@ struct LearnedView: View {
 
     private func kindName(_ k: String) -> String {
         ["p": "Promises", "wind": "Wind-down", "close": "Close the day", "brief": "Morning brief", "protein": "Protein catch-up", "water": "Water", "plant": "Plants",
-         "dry": "Laundry", "bday": "Birthdays", "renew": "Renewals", "doc": "Documents", "touch": "Keep in touch", "groom": "Grooming", "m": "Medicines", "leave": "Leave-by"][k] ?? k
+         "dry": "Laundry", "bday": "Birthdays", "renew": "Renewals", "doc": "Documents", "touch": "Keep in touch", "groom": "Grooming", "m": "Medicines", "leave": "Leave-by", "shower": "Shower"][k] ?? k
     }
 
     private func calibration(_ title: String, _ pairs: [(predicted: Double, observed: Double)]) -> some View {
