@@ -336,6 +336,19 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Everything this phone knows, as one JSON document
+    func exportJSON() -> String {
+        var all: [String: JSONValue] = [:]
+        all["promises"] = JSONValue.from(Array(promises.values))
+        all["logs"] = JSONValue.from(Array(logs.values))
+        all["days"] = JSONValue.from(Array(days.values))
+        all["profile"] = JSONValue.from(profile)
+        all["health"] = JSONValue.from(Array(health.values))
+        for (type, records) in extra { all[type] = .array(Array(records.values)) }
+        guard let data = try? JSONEncoder().encode(all) else { return "{}" }
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
     func refreshAll() async {
         await sync()
         await refreshHealth()

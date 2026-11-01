@@ -134,8 +134,10 @@ extension Store {
 
     // MARK: Score, points, level
 
-    /// 0–100 from what's switched on: promises 40, sleep 25, movement 20, closing the day 15
+    /// 0–100 from what's switched on: promises, sleep, movement, protein and water, closing the day. Areas you
+    /// haven't switched on don't count, so adding one never makes old days look worse.
     func score(on day: String = Day.today) -> Int {
+        guard !profile.on("fuel") else { return scoreWithFuel(on: day) }
         var got = 0.0
         let due = self.due(on: day)
         if due.isEmpty { got += 40 } else {
@@ -145,6 +147,23 @@ extension Store {
         }
         if let s = health[day]?.sleep { got += 25 * min(1, Double(s.asleep) / Double(profile.sleepNeed)) }
         if let steps = health[day]?.steps { got += 20 * min(1, steps / Double(profile.stepGoal)) }
+        if self.day(day).closedAt != nil { got += 15 }
+        return Int(got.rounded())
+    }
+
+    private func scoreWithFuel(on day: String) -> Int {
+        var got = 0.0
+        let due = self.due(on: day)
+        if due.isEmpty { got += 30 } else {
+            let done = due.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count
+            let tiny = due.filter { status($0, on: day) == .tiny }.count
+            got += 30 * (Double(done) - Double(tiny) * 0.4) / Double(due.count)
+        }
+        if let s = health[day]?.sleep { got += 20 * min(1, Double(s.asleep) / Double(profile.sleepNeed)) }
+        if let steps = health[day]?.steps { got += 15 * min(1, steps / Double(profile.stepGoal)) }
+        let f = fuel(on: day)
+        got += 10 * min(1, f.protein / profile.proteinTarget)
+        got += 10 * min(1, f.water / max(1, waterGoal(on: day)))
         if self.day(day).closedAt != nil { got += 15 }
         return Int(got.rounded())
     }

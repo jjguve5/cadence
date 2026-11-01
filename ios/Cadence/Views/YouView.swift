@@ -26,6 +26,13 @@ struct YouView: View {
                     Eyebrow(text: "Last 4 weeks", icon: "square.grid.3x3.fill")
                     DaysGrid()
                 }
+                NavigationLink { YouGrowthView() } label: {
+                    Card(tint: .mind) {
+                        HStack { Eyebrow(text: "Growth", icon: "chart.line.uptrend.xyaxis", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                        Text("Journal, mood, goals, experiments, weekly review, Cadence age, badges · this week: \(store.challenge().text.lowercased())").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    }
+                }
+                .buttonStyle(.plain)
                 VStack(spacing: 0) {
                     link("Promises", "bell", PromisesView())
                     link("Learning", "graduationcap", LearningView())
@@ -140,6 +147,14 @@ struct SettingsView: View {
                     ForEach(store.healthErrors.sorted(by: { $0.key < $1.key }), id: \.key) { k, v in Text("\(k): \(v)").font(.caption2).foregroundStyle(Color.warn) }
                 }
             } header: { Text("Fitbit Air") } footer: { Text("While the Google app is in testing, its sign-in lasts 7 days: connect again when Today asks.") }
+            Section {
+                ForEach([("fuel", "Fuel and water"), ("training", "Training"), ("care", "Care and medicines"), ("money", "Money"), ("wardrobe", "Wardrobe and laundry"), ("kitchen", "Meal prep and shopping"), ("home", "Home and documents"), ("people", "People"), ("travel", "Travel"), ("learning", "Learning")], id: \.0) { key, name in
+                    Toggle(name, isOn: Binding(get: { store.profile.on(key) }, set: { on in store.update { p in p.areasOff.removeAll { $0 == key }; if !on { p.areasOff.append(key) } } }))
+                }
+            } header: { Text("Areas") } footer: { Text("Start small and switch areas on when you want them. The score only counts what's on.") }
+            Section("Your data") {
+                ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Export everything (JSON)", systemImage: "square.and.arrow.up") }
+            }
             Section("Server") {
                 LabeledContent("Address", value: store.connection.server)
                 Button("Sync now") { Task { await store.refreshAll(); await store.refreshHealth(force: true) } }

@@ -88,6 +88,54 @@ if (isset($_GET['raw'])) {
 	reply(api('GET', "dataTypes/$type/dataPoints?pageSize=5&filter=" . rawurlencode($filter))[1]);
 }
 
+// One day minute by minute: heart rate and steps rolled up by Google into 60-second windows, oxygen during the
+// night, and irregular rhythm alerts. Minutes count from local midnight; the night before is included (negative).
+//   GET health.php?intraday=2026-11-01  ->  {"date", "hr": {minute: bpm}, "steps": {minute: n}, "spo2": {minute: %}, "irn": [...]}
+if (isset($_GET['intraday'])) {
+	$date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['intraday']) ? $_GET['intraday'] : $today;
+	$name = 'intraday-' . $date;
+	$done = $date < date('Y-m-d', strtotime('-1 day'));
+	if ($done && ($cached = load($name, null))) reply($cached);
+	$midnight = strtotime("$date 00:00");
+	$from = $midnight - 6 * 3600;
+	$to = min(time(), $midnight + 86400);
+	$iso = fn($t) => gmdate('Y-m-d\TH:i:s\Z', $t);
+	$out = ['date' => $date, 'hr' => (object) [], 'steps' => (object) [], 'spo2' => (object) [], 'irn' => [], 'errors' => []];
+	foreach (['heart-rate' => ['hr', ['/avg|average|mean/i', '/./']], 'steps' => ['steps', ['/count|sum/i', '/./']]] as $type => [$field, $patterns]) {
+		[$status, $json] = api('POST', "dataTypes/$type/dataPoints:rollUp", ['range' => ['startTime' => $iso($from), 'endTime' => $iso($to)], 'windowSize' => '60s', 'pageSize' => 10000]);
+		if ($status !== 200) { $out['errors'][$type] = $json['error']['message'] ?? "HTTP $status"; continue; }
+		$series = [];
+		foreach ($json['rollupDataPoints'] ?? [] as $p) {
+			$t = strtotime($p['startTime'] ?? '');
+			unset($p['startTime'], $p['endTime']);
+			$v = pick(numbers($p), $patterns);
+			if ($t && $v !== null && $v > 0) $series[(string) intdiv($t - $midnight, 60)] = round($v, 1);
+		}
+		$out[$field] = (object) $series;
+	}
+	[$points, $error] = all_points('dataTypes/oxygen-saturation/dataPoints?pageSize=1000&filter=' . rawurlencode('oxygenSaturation.sample_time.physical_time >= "' . $iso($from) . '" AND oxygenSaturation.sample_time.physical_time < "' . $iso($to) . '"'));
+	if ($error) $out['errors']['oxygen-saturation'] = $error;
+	$spo2 = [];
+	foreach ($points as $p) {
+		$time = null;
+		array_walk_recursive($p, function ($v, $k) use (&$time) { if ($time === null && is_string($v) && preg_match('/time/i', (string) $k) && strtotime($v)) $time = strtotime($v); });
+		unset($p['dataSource'], $p['dataPointName']);
+		$v = pick(numbers($p), ['/percent|percentage|value/i', '/./']);
+		if ($time && $v) $spo2[(string) intdiv($time - $midnight, 60)] = round($v, 1);
+	}
+	$out['spo2'] = (object) $spo2;
+	[$points, $error] = all_points('dataTypes/irregular-rhythm-notification/dataPoints?pageSize=50&filter=' . rawurlencode('irregularRhythmNotification.interval.start_time >= "' . $iso(strtotime('-365 days')) . '"'));
+	if ($error) $out['errors']['irregular-rhythm-notification'] = $error;
+	foreach ($points as $p) {
+		$time = null;
+		array_walk_recursive($p, function ($v, $k) use (&$time) { if ($time === null && is_string($v) && preg_match('/startTime|time/i', (string) $k) && strtotime($v)) $time = $v; });
+		if ($time) $out['irn'][] = $time;
+	}
+	$out['errors'] = (object) $out['errors'];
+	if ($done) save($name, $out);
+	reply($out);
+}
+
 $cache = load('health');
 $from = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
 // Fetch from the oldest missing day, but never less than the last 3 days

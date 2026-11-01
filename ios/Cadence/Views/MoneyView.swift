@@ -13,8 +13,37 @@ struct MoneyView: View {
     @State private var scanning = false
 
     var body: some View {
-        let m = store.moneyMonth()
         Screen(glow: Color(hex: 0xFFD166)) {
+            safeSection
+            inboxSection
+            actionsSection
+            recurringSection
+            walletsSection
+            goalsSection
+            wishesSection
+            watchSection
+            NavigationLink { RecapView() } label: { Text("Monthly recap · \(store.noSpendDays()) no-spend days this month").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD166)) }
+            NavigationLink { MoneySetupView() } label: { Text("Bank sync and Apple Pay setup").font(.system(size: 13)).foregroundStyle(Color.soft) }
+        }
+        .navigationTitle("Money")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await store.pullBank() }
+        .sheet(item: $editingRecurring) { RecurringEditor(item: $0) }
+        .sheet(item: $editingWallet) { WalletEditor(wallet: $0) }
+        .sheet(item: $editingGoal) { GoalEditor(goal: $0) }
+        .sheet(item: $addingTx) { TransactionEditor(tx: $0) }
+        .sheet(isPresented: $scanning) {
+            QRScanner { text in
+                scanning = false
+                if let r = ReceiptQR(text) { addingTx = Transaction(date: r.date, amount: -r.total, merchant: "NIF \(r.nif)", source: "receipt", nif: r.nif, vat: r.vat) }
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    private var safeSection: some View {
+        Group {
+            let m = store.moneyMonth()
             Card(tint: Color(hex: 0xFFD166)) {
                 Eyebrow(text: "Safe to spend", icon: "eurosign.circle.fill", color: Color(hex: 0xFFD166))
                 HStack(alignment: .firstTextBaseline) {
@@ -28,6 +57,11 @@ struct MoneyView: View {
                 row("On track to save", euro(m.projectedSaving), color: m.projectedSaving >= m.goals ? .good : .warn)
                 if m.income == 0 { Text("Add your salary and fixed outs below to see this properly.").font(.system(size: 12)).foregroundStyle(Color.soft) }
             }
+        }
+    }
+
+    private var inboxSection: some View {
+        Group {
             let inbox = store.reviewInbox
             if !inbox.isEmpty {
                 NavigationLink { ReviewInbox() } label: {
@@ -38,12 +72,22 @@ struct MoneyView: View {
                 }
                 .buttonStyle(.plain)
             }
+        }
+    }
+
+    private var actionsSection: some View {
+        Group {
             HStack {
                 SoftButton(title: "Add", icon: "plus") { addingTx = Transaction(amount: 0, merchant: "") }
                 SoftButton(title: "Receipt QR", icon: "qrcode.viewfinder") { scanning = true }
                     .disabled(!(DataScannerViewController.isSupported && DataScannerViewController.isAvailable))
                 SoftButton(title: "Bank", icon: "building.columns") { Task { await store.pullBank() } }
             }
+        }
+    }
+
+    private var recurringSection: some View {
+        Group {
             Card {
                 HStack { Eyebrow(text: "Monthly ins and outs", icon: "arrow.left.arrow.right"); Spacer(); Button { editingRecurring = Recurring(title: "", amount: -10) } label: { Image(systemName: "plus") }.tint(Color(hex: 0xFFD166)) }
                 ForEach(store.all(Recurring.self).sorted { $0.amount > $1.amount }) { r in
@@ -63,6 +107,11 @@ struct MoneyView: View {
                     Text("\(r.title) renews \(Day.date(d).formatted(.dateTime.weekday(.wide)))" + (r.cancelBy.map { ": cancel by \(Day.date($0).formatted(.dateTime.day().month())) if you don't need it" } ?? "")).font(.system(size: 12)).foregroundStyle(Color.warn)
                 }
             }
+        }
+    }
+
+    private var walletsSection: some View {
+        Group {
             Card(tint: .mint) {
                 HStack { Eyebrow(text: "Benefit wallets · not your cash", icon: "creditcard.fill", color: .mint); Spacer(); Button { editingWallet = Wallet(name: "", balance: 0) } label: { Image(systemName: "plus") }.tint(.mint) }
                 ForEach(store.all(Wallet.self)) { w in
@@ -77,6 +126,11 @@ struct MoneyView: View {
                 }
                 if store.all(Wallet.self).contains(where: { $0.balance > 0 }) { Text("Spend these first: groceries and meals from the meal card keep your own money for goals.").font(.system(size: 12)).foregroundStyle(Color.soft) }
             }
+        }
+    }
+
+    private var goalsSection: some View {
+        Group {
             Card {
                 HStack { Eyebrow(text: "Saving for", icon: "target"); Spacer(); Button { editingGoal = SavingsGoal(title: "", price: 100) } label: { Image(systemName: "plus") }.tint(.mint) }
                 ForEach(store.all(SavingsGoal.self)) { g in
@@ -90,6 +144,11 @@ struct MoneyView: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    private var wishesSection: some View {
+        Group {
             Card {
                 Eyebrow(text: "Worth it? · 72-hour cool-off", icon: "hourglass")
                 HStack {
@@ -110,6 +169,11 @@ struct MoneyView: View {
                 let skipped = store.all(WishItem.self).filter { $0.decision == "skipped" }.map(\.price).reduce(0, +)
                 if skipped > 0 { Text("Skipped after waiting: \(euro(skipped)) kept").font(.system(size: 12)).foregroundStyle(Color.good) }
             }
+        }
+    }
+
+    private var watchSection: some View {
+        Group {
             let watch = store.subscriptionWatch()
             if !watch.isEmpty {
                 Card(tint: .warn) {
@@ -117,22 +181,6 @@ struct MoneyView: View {
                     ForEach(watch, id: \.self) { Text($0).font(.system(size: 13)) }
                 }
             }
-            NavigationLink { RecapView() } label: { Text("Monthly recap · \(store.noSpendDays()) no-spend days this month").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD166)) }
-            NavigationLink { MoneySetupView() } label: { Text("Bank sync and Apple Pay setup").font(.system(size: 13)).foregroundStyle(Color.soft) }
-        }
-        .navigationTitle("Money")
-        .navigationBarTitleDisplayMode(.inline)
-        .task { await store.pullBank() }
-        .sheet(item: $editingRecurring) { RecurringEditor(item: $0) }
-        .sheet(item: $editingWallet) { WalletEditor(wallet: $0) }
-        .sheet(item: $editingGoal) { GoalEditor(goal: $0) }
-        .sheet(item: $addingTx) { TransactionEditor(tx: $0) }
-        .sheet(isPresented: $scanning) {
-            QRScanner { text in
-                scanning = false
-                if let r = ReceiptQR(text) { addingTx = Transaction(date: r.date, amount: -r.total, merchant: "NIF \(r.nif)", source: "receipt", nif: r.nif, vat: r.vat) }
-            }
-            .ignoresSafeArea()
         }
     }
 

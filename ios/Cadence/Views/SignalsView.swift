@@ -69,6 +69,8 @@ struct SignalsView: View {
                         .font(.system(size: 12.5)).foregroundStyle(Color.warn)
                 }
             }
+            IntradayCard()
+            MoreSignalsCard()
             Card(tint: .sleep) {
                 Eyebrow(text: "Sleep regularity", icon: "clock.arrow.circlepath", color: .sleep)
                 if let sri = store.sleepRegularity() {

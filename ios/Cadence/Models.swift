@@ -160,8 +160,11 @@ struct Profile: Codable, Equatable {
     // Training
     var barKg = 20.0
     var plates: [Double] = [25, 20, 15, 10, 5, 2.5, 1.25]
+    var areasOff: [String] = [] // areas switched off: fuel, training, care, money, wardrobe, kitchen, home, people, travel, learning
 
     init() {}
+
+    func on(_ area: String) -> Bool { !areasOff.contains(area) }
 
     // Every field optional on the way in, so adding a field never loses saved data
     init(from decoder: Decoder) throws {
@@ -174,7 +177,7 @@ struct Profile: Codable, Equatable {
         goal = v(.goal, d.goal); weightKg = v(.weightKg, d.weightKg); heightCm = v(.heightCm, d.heightCm); age = v(.age, d.age); male = v(.male, d.male)
         kcalTarget = (try? c.decodeIfPresent(Double.self, forKey: .kcalTarget)) ?? nil
         proteinPerKg = v(.proteinPerKg, d.proteinPerKg); waterGoalMl = v(.waterGoalMl, d.waterGoalMl)
-        barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates)
+        barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates); areasOff = v(.areasOff, d.areasOff)
     }
 
     /// Mifflin-St Jeor, times a light activity factor; the weekly check-in replaces it with what your weight shows
