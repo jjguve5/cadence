@@ -202,25 +202,38 @@ struct PaydayPlanner: View {
     }
 }
 
-struct BackdropPicker: View {
+struct WardrobePicker: View {
     @EnvironmentObject var store: Store
     var body: some View {
-        Card {
-            Eyebrow(text: "Pip's backdrop · unlocked by level", icon: "paintpalette.fill")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(pipBackdrops, id: \.name) { b in
-                        let open = b.level <= store.level.level
-                        VStack(spacing: 4) {
-                            Circle().fill(LinearGradient(colors: b.colors.map { Color(hex: $0) }, startPoint: .top, endPoint: .bottom)).frame(width: 46, height: 46)
-                                .overlay(Circle().stroke(store.backdrop.name == b.name ? Color.mint : .clear, lineWidth: 2))
-                                .overlay(open ? nil : Image(systemName: "lock.fill").font(.system(size: 12)).foregroundStyle(Color.soft))
-                            Text(open ? b.name : "Lv \(b.level)").font(.system(size: 10.5)).foregroundStyle(open ? Color.ink : Color.faint)
+        Card(tint: .fuel) {
+            Eyebrow(text: "Pip's wardrobe · unlocked by level", icon: "tshirt.fill", color: .fuel)
+            ForEach(["head", "face", "neck"], id: \.self) { slot in
+                Text(slot.capitalized).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Color.soft)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        let worn = store.pipOutfit.first { $0.slot == slot }
+                        item(name: "None", icon: "xmark", open: true, on: worn == nil) { store.wear(nil, slot: slot) }
+                        ForEach(pipAccessories.filter { $0.slot == slot }) { a in
+                            let open = a.level <= store.level.level
+                            item(name: open ? a.name : "Level \(a.level)", icon: open ? a.icon : "lock.fill", open: open, on: worn?.id == a.id) { if open { store.wear(a, slot: slot) } }
                         }
-                        .onTapGesture { if open { store.put("pipLook", "backdrop", .string(b.name)) } }
                     }
                 }
             }
+            Text("Each piece stays on in every animation. More unlock as you level up.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
         }
+    }
+
+    private func item(name: String, icon: String, open: Bool, on: Bool, tap: @escaping () -> Void) -> some View {
+        Button(action: tap) {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 18)).foregroundStyle(open ? Color.ink : Color.faint).frame(width: 50, height: 50)
+                    .background(Circle().fill(.white.opacity(on ? 0.18 : 0.06)))
+                    .overlay(Circle().stroke(on ? Color.mint : .clear, lineWidth: 2))
+                Text(name).font(.system(size: 10.5)).foregroundStyle(open ? Color.ink : Color.faint).lineLimit(1)
+            }
+            .frame(width: 74)
+        }
+        .buttonStyle(.plain)
     }
 }

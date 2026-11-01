@@ -1,6 +1,6 @@
 // The rest of the concept: workouts the Air recorded, body progress, the rest-or-train forecast, reading and sleep,
 // where your time went, the weather-aware plan, and the money extras (payday plan, round-ups, e-Fatura,
-// cost per gram of protein, prep against eating out, travel budgets). And Pip's backdrops, unlocked by level.
+// cost per gram of protein, prep against eating out, travel budgets). And Pip's wardrobe, unlocked by level.
 import Foundation
 import SwiftUI
 
@@ -79,9 +79,25 @@ struct Payday: Record, Equatable {
     var jobs: [String: Double] // bucket → euros
 }
 
-let pipBackdrops: [(level: Int, name: String, colors: [UInt32])] = [
-    (1, "Night", [0x07090E, 0x0F1A2A]), (3, "Mint", [0x0F3B33, 0x07090E]), (5, "Sunrise", [0x4A3214, 0x2B1A2E]),
-    (8, "Forest", [0x123D24, 0x08140D]), (12, "Ocean", [0x0E2C45, 0x061423]), (16, "Aurora", [0x26173F, 0x0F3B33]), (20, "Gold", [0x4A3A10, 0x1A1205]),
+struct PipAccessory: Identifiable {
+    var id: String // the image suffix and the Lottie layer "Acc <name>"
+    var name: String
+    var slot: String // head, face, neck
+    var level: Int
+    var layer: String
+    var icon: String
+}
+
+/// Pip's wardrobe, unlocked by level: one piece per slot
+let pipAccessories: [PipAccessory] = [
+    PipAccessory(id: "scarf", name: "Red scarf", slot: "neck", level: 2, layer: "Acc Scarf", icon: "wind"),
+    PipAccessory(id: "sweatband", name: "Sweatband", slot: "head", level: 3, layer: "Acc Sweatband", icon: "figure.run"),
+    PipAccessory(id: "glasses", name: "Reading glasses", slot: "face", level: 5, layer: "Acc Glasses", icon: "eyeglasses"),
+    PipAccessory(id: "bow-tie", name: "Bow tie", slot: "neck", level: 7, layer: "Acc Bow tie", icon: "sparkles"),
+    PipAccessory(id: "sunglasses", name: "Sunglasses", slot: "face", level: 9, layer: "Acc Sunglasses", icon: "sunglasses.fill"),
+    PipAccessory(id: "leaf-crown", name: "Leaf crown", slot: "head", level: 12, layer: "Acc Leaf crown", icon: "laurel.leading"),
+    PipAccessory(id: "headphones", name: "Headphones", slot: "head", level: 15, layer: "Acc Headphones", icon: "headphones"),
+    PipAccessory(id: "medal", name: "Gold medal", slot: "neck", level: 20, layer: "Acc Medal", icon: "medal.fill"),
 ]
 
 @MainActor
@@ -214,10 +230,16 @@ extension Store {
 
     // MARK: Pip
 
-    var backdrop: (name: String, colors: [UInt32]) {
-        let chosen = records("pipLook")["backdrop"].flatMap { v -> String? in if case .string(let s) = v { return s }; return nil }
-        let unlocked = pipBackdrops.filter { $0.level <= level.level }
-        let pick = unlocked.first { $0.name == chosen } ?? unlocked.last ?? pipBackdrops[0]
-        return (pick.name, pick.colors)
+    /// What Pip is wearing: one unlocked piece per slot
+    var pipOutfit: [PipAccessory] {
+        let look = records("pipLook")
+        return pipAccessories.filter { a in
+            guard a.level <= level.level, case .string(let id)? = look[a.slot] else { return false }
+            return id == a.id
+        }
+    }
+
+    func wear(_ a: PipAccessory?, slot: String) {
+        put("pipLook", slot, a.map { .string($0.id) })
     }
 }

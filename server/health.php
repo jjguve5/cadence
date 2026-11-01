@@ -84,7 +84,7 @@ if (isset($_GET['raw'])) {
 	$type = preg_replace('/[^a-z0-9-]/', '', $_GET['raw']);
 	$camel = lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $type))));
 	$from = date('Y-m-d', strtotime('-3 days'));
-	$filter = $_GET['filter'] ?? (str_starts_with($type, 'daily-') ? "$camel.date >= \"$from\"" : "$camel.interval.start_time >= \"" . gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 day')) . '"');
+	$filter = $_GET['filter'] ?? ((strpos($type, 'daily-') === 0) ? "$camel.date >= \"$from\"" : "$camel.interval.start_time >= \"" . gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 day')) . '"');
 	reply(api('GET', "dataTypes/$type/dataPoints?pageSize=3" . ($filter === 'none' ? '' : '&filter=' . rawurlencode($filter)))[1]);
 }
 

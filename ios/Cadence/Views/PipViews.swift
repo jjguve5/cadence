@@ -4,18 +4,27 @@ import SwiftUI
 
 struct PipAnimation: View {
     var mood: PipMood
+    @ObservedObject private var store = Store.shared
+
     var body: some View {
-        LottieView(animation: .named(mood.rawValue))
-            .looping()
-            .id(mood.rawValue)
+        let worn = store.pipOutfit
+        var view = LottieView(animation: .named(mood.rawValue)).looping()
+        for a in worn { view = view.valueProvider(FloatValueProvider(100), for: AnimationKeypath(keypath: "\(a.layer).Transform.Opacity")) }
+        return view.id(mood.rawValue + worn.map(\.id).joined())
     }
 }
 
 struct PipHead: View {
     var mood: PipMood
     var size: CGFloat = 40
+    @ObservedObject private var store = Store.shared
+
     var body: some View {
-        Image(mood.head).resizable().scaledToFit().frame(width: size, height: size)
+        ZStack {
+            Image(mood.head).resizable().scaledToFit()
+            ForEach(store.pipOutfit.filter { $0.slot != "neck" }) { a in Image("\(mood.head)-\(a.id)").resizable().scaledToFit() }
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -31,7 +40,6 @@ struct PipPage: View {
             VStack(spacing: 4) {
                 PipAnimation(mood: tapped ? .tapped : mood)
                     .frame(width: 190, height: 190)
-                    .background(Circle().fill(LinearGradient(colors: store.backdrop.colors.map { Color(hex: $0) }, startPoint: .top, endPoint: .bottom)).frame(width: 200, height: 200))
                     .onTapGesture {
                         tapped = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { tapped = false }
@@ -73,12 +81,12 @@ struct PipPage: View {
                 HStack {
                     Eyebrow(text: "Level \(level.level) · \(store.totalPoints.formatted()) / \(level.next.formatted()) pts", color: .mint)
                     Spacer()
-                    Text("Level \(level.level + 1): a new leaf").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text(pipAccessories.first { $0.level > level.level }.map { "Level \($0.level): \($0.name.lowercased())" } ?? "Everything unlocked").font(.system(size: 12)).foregroundStyle(Color.soft)
                 }
                 Bar(progress: Double(level.into) / Double(max(1, level.span)), area: .mint)
             }
 
-            BackdropPicker()
+            WardrobePicker()
             Text("Pip's mood always comes from your real day. It never guilt-trips you: on a bad day it gets sleepy or a little sad and names one small thing that would help.")
                 .font(.system(size: 12)).foregroundStyle(Color.faint)
         }

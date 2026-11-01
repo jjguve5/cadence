@@ -10,7 +10,11 @@ $min = date('c', strtotime($from));
 $max = date('c', strtotime("$from +$days days"));
 $headers = ['Authorization: Bearer ' . access_token(CALENDAR_SCOPES)];
 [$status, $list] = http('GET', 'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader', $headers);
-if ($status === 403) fail(403, 'calendar not allowed: enable the Calendar API and connect Google again', ['reconnect' => true]);
+if ($status === 403 || $status === 401) {
+	$granted = load('google')['scope'] ?? '';
+	$reason = (strpos($granted, 'calendar') !== false) ? 'enable the Google Calendar API in your Cloud project' : 'connect Google again so it can include the calendar';
+	fail(403, 'calendar not allowed: ' . $reason, ['reconnect' => !(strpos($granted, 'calendar') !== false), 'google' => $list['error']['message'] ?? null]);
+}
 if ($status !== 200) fail(502, $list['error']['message'] ?? "calendar list $status");
 $events = [];
 foreach ($list['items'] ?? [] as $cal) {
