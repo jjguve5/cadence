@@ -84,8 +84,33 @@ if (isset($_GET['raw'])) {
 	$type = preg_replace('/[^a-z0-9-]/', '', $_GET['raw']);
 	$camel = lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $type))));
 	$from = date('Y-m-d', strtotime('-3 days'));
-	$filter = str_starts_with($type, 'daily-') ? "$camel.date >= \"$from\"" : "$camel.interval.start_time >= \"" . gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 day')) . '"';
-	reply(api('GET', "dataTypes/$type/dataPoints?pageSize=5&filter=" . rawurlencode($filter))[1]);
+	$filter = $_GET['filter'] ?? (str_starts_with($type, 'daily-') ? "$camel.date >= \"$from\"" : "$camel.interval.start_time >= \"" . gmdate('Y-m-d\TH:i:s\Z', strtotime('-1 day')) . '"');
+	reply(api('GET', "dataTypes/$type/dataPoints?pageSize=3" . ($filter === 'none' ? '' : '&filter=' . rawurlencode($filter)))[1]);
+}
+
+// Workouts the Air recorded (runs, walks, sessions with heart rate), for the last N days
+//   GET health.php?exercise=14  ->  {"exercises": [{start, end, type, minutes, avgHr, maxHr, calories, distance}]}
+if (isset($_GET['exercise'])) {
+	$n = max(1, min(60, (int) $_GET['exercise']));
+	[$points, $error] = all_points('dataTypes/exercise/dataPoints?pageSize=100&filter=' . rawurlencode('exercise.interval.civil_start_time >= "' . date('Y-m-d', strtotime("-$n days")) . '"'));
+	$out = [];
+	foreach ($points as $p) {
+		$e = $p['exercise'] ?? [];
+		$i = $e['interval'] ?? [];
+		if (empty($i['startTime'])) continue;
+		$nums = numbers($e);
+		$type = $e['exerciseType'] ?? $e['activityType'] ?? $e['type'] ?? ($e['displayName'] ?? 'Workout');
+		$out[] = [
+			'start' => $i['startTime'], 'end' => $i['endTime'] ?? $i['startTime'],
+			'type' => is_string($type) ? $type : 'Workout',
+			'minutes' => (int) round((strtotime($i['endTime'] ?? $i['startTime']) - strtotime($i['startTime'])) / 60),
+			'avgHr' => pick($nums, ['/averageHeartRate|avgHeartRate|heartRate.*(avg|average)/i']),
+			'maxHr' => pick($nums, ['/maxHeartRate|heartRate.*max/i']),
+			'calories' => pick($nums, ['/calor|kcal|energy/i']),
+			'distance' => pick($nums, ['/distance|meters|millimeters/i']),
+		];
+	}
+	reply(['exercises' => $out, 'error' => $error]);
 }
 
 // One day minute by minute: heart rate and steps rolled up by Google into 60-second windows, oxygen during the
@@ -113,7 +138,7 @@ if (isset($_GET['intraday'])) {
 		}
 		$out[$field] = (object) $series;
 	}
-	[$points, $error] = all_points('dataTypes/oxygen-saturation/dataPoints?pageSize=1000&filter=' . rawurlencode('oxygenSaturation.sample_time.physical_time >= "' . $iso($from) . '" AND oxygenSaturation.sample_time.physical_time < "' . $iso($to) . '"'));
+	[$points, $error] = all_points('dataTypes/oxygen-saturation/dataPoints?pageSize=1000&filter=' . rawurlencode('oxygen_saturation.sample_time.physical_time >= "' . $iso($from) . '" AND oxygen_saturation.sample_time.physical_time < "' . $iso($to) . '"'));
 	if ($error) $out['errors']['oxygen-saturation'] = $error;
 	$spo2 = [];
 	foreach ($points as $p) {
@@ -124,7 +149,7 @@ if (isset($_GET['intraday'])) {
 		if ($time && $v) $spo2[(string) intdiv($time - $midnight, 60)] = round($v, 1);
 	}
 	$out['spo2'] = (object) $spo2;
-	[$points, $error] = all_points('dataTypes/irregular-rhythm-notification/dataPoints?pageSize=50&filter=' . rawurlencode('irregularRhythmNotification.interval.start_time >= "' . $iso(strtotime('-365 days')) . '"'));
+	[$points, $error] = all_points('dataTypes/irregular-rhythm-notification/dataPoints?pageSize=50');
 	if ($error) $out['errors']['irregular-rhythm-notification'] = $error;
 	foreach ($points as $p) {
 		$time = null;
@@ -136,7 +161,7 @@ if (isset($_GET['intraday'])) {
 	reply($out);
 }
 
-$cache = load('health');
+$cache = isset($_GET['reset']) ? [] : load('health'); // reset=1 refetches every day
 $from = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
 // Fetch from the oldest missing day, but never less than the last 3 days
 $fetch = date('Y-m-d', strtotime('-3 days'));
@@ -210,12 +235,24 @@ if ($fetch <= $today) {
 	];
 	foreach ($daily as $type => [$field, $patterns]) {
 		$camel = lcfirst(str_replace(' ', '', ucwords(str_replace('-', ' ', $type))));
-		[$points, $error] = all_points("dataTypes/$type/dataPoints?pageSize=100&filter=" . rawurlencode("$camel.date >= \"$fetch\""));
-		if ($error) { $errors[$type] = $error; continue; }
+		// Daily types refuse a date filter: they come newest first, so page back until we pass $fetch
+		$points = [];
+		$token = '';
+		for ($page = 0; $page < 10; $page++) {
+			[$status, $json] = api('GET', "dataTypes/$type/dataPoints?pageSize=50" . ($token ? '&pageToken=' . rawurlencode($token) : ''));
+			if ($status !== 200) { $errors[$type] = $json['error']['message'] ?? "HTTP $status"; break; }
+			$batch = $json['dataPoints'] ?? [];
+			$points = array_merge($points, $batch);
+			$oldest = $batch ? find_date(end($batch)) : null;
+			$token = $json['nextPageToken'] ?? '';
+			if (!$token || !$oldest || $oldest < $fetch) break;
+		}
 		foreach ($points as $point) {
 			$date = find_date($point);
 			if (!$date || !isset($fresh[$date])) continue;
 			unset($point['dataSource'], $point['dataPointName']);
+			$t = $point['dailySleepTemperatureDerivations'] ?? null;
+			if ($t && isset($t['nightlyTemperatureCelsius'], $t['baselineTemperatureCelsius'])) { $fresh[$date][$field] = round($t['nightlyTemperatureCelsius'] - $t['baselineTemperatureCelsius'], 2); continue; }
 			$value = pick(numbers($point), $patterns);
 			if ($value !== null) $fresh[$date][$field] = round($value, 1);
 		}

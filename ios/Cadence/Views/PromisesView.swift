@@ -8,7 +8,7 @@ struct PromisesView: View {
     var body: some View {
         List {
             ForEach([PromiseKind.mustDo, .routine], id: \.self) { kind in
-                let items = store.promises.values.filter { $0.kind == kind }.sorted { $0.schedule.minute < $1.schedule.minute }
+                let items = store.promises.values.filter { $0.kind == kind }.sorted { store.time(of: $0) < store.time(of: $1) }
                 if !items.isEmpty {
                     Section(kind == .mustDo ? "Must-dos" : "Routines") {
                         ForEach(items) { p in
@@ -18,7 +18,7 @@ struct PromisesView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(p.title).foregroundStyle(p.active ? Color.ink : Color.faint)
                                         let w = store.week(p)
-                                        Text("\(p.timeLabel) · \(p.schedule.summary) · \(w.done)/\(w.total) this week").font(.caption).foregroundStyle(Color.soft)
+                                        Text(store.timeLabel(p) + (p.schedule.anchor.map { " (\(Schedule.anchors[$0] ?? $0))" } ?? "") + (p.schedule.weekendMinute.map { ", weekends \(clock($0))" } ?? "") + " · \(p.schedule.summary) · \(w.done)/\(w.total) this week").font(.caption).foregroundStyle(Color.soft)
                                     }
                                     Spacer()
                                     if !p.active { Text("paused").font(.caption).foregroundStyle(Color.faint) }
@@ -80,7 +80,7 @@ struct PromiseEditor: View {
                             }
                         }
                     }
-                    DatePicker("Time", selection: $time, displayedComponents: .hourAndMinute)
+                    TimeChoice(promise: $promise, time: $time)
                 }
                 Section {
                     TextField("Tiny version (e.g. two pages)", text: Binding(get: { promise.tiny ?? "" }, set: { promise.tiny = $0.isEmpty ? nil : $0 }))
@@ -115,6 +115,42 @@ struct PromiseEditor: View {
                 }
             }
             .onAppear { time = Day.at(promise.schedule.minute, on: Day.today) }
+        }
+    }
+}
+
+/// Same time every day, a different weekend time, or anchored to waking, wind-down or lights out
+struct TimeChoice: View {
+    @EnvironmentObject var store: Store
+    @Binding var promise: PromiseItem
+    @Binding var time: Date
+
+    private var mode: Binding<String> {
+        Binding(get: { promise.schedule.anchor ?? (promise.schedule.weekendMinute == nil ? "fixed" : "weekend") }, set: { v in
+            if v == "fixed" { promise.schedule.anchor = nil; promise.schedule.weekendMinute = nil }
+            else if v == "weekend" { promise.schedule.anchor = nil; promise.schedule.weekendMinute = promise.schedule.weekendMinute ?? Day.minuteOfDay(time) + 120 }
+            else { promise.schedule.anchor = v; promise.schedule.offset = promise.schedule.offset ?? (v == "lightsOut" ? -10 : 0) }
+        })
+    }
+
+    var body: some View {
+        Picker("Time", selection: mode) {
+            Text("Same time every day").tag("fixed")
+            Text("Different on weekends").tag("weekend")
+            Text("After waking").tag("wake")
+            Text("At wind-down").tag("windDown")
+            Text("Before lights out").tag("lightsOut")
+        }
+        if let a = promise.schedule.anchor {
+            let off = promise.schedule.offset ?? 0
+            let name = a == "wake" ? "waking" : a == "lightsOut" ? "lights out" : "wind-down"
+            Stepper("\(abs(off)) min \(off < 0 ? "before" : "after") \(name)", value: Binding(get: { promise.schedule.offset ?? 0 }, set: { promise.schedule.offset = $0 }), in: -180...240, step: 5)
+            Text("Today: \(store.timeLabel(promise)). It moves when your bedtime moves.").font(.footnote).foregroundStyle(Color.soft)
+        } else {
+            DatePicker(promise.schedule.weekendMinute == nil ? "Time" : "Weekdays", selection: $time, displayedComponents: .hourAndMinute)
+            if promise.schedule.weekendMinute != nil {
+                DatePicker("Weekends", selection: Binding(get: { Day.at(promise.schedule.weekendMinute ?? 0, on: Day.today) }, set: { promise.schedule.weekendMinute = Day.minuteOfDay($0) }), displayedComponents: .hourAndMinute)
+            }
         }
     }
 }

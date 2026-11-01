@@ -52,7 +52,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         for offset in 0...2 {
             let day = Day.add(offset, to: Day.today)
             for promise in store.due(on: day) where store.status(promise, on: day) == nil {
-                let at = Day.at(promise.schedule.minute, on: day)
+                let at = Day.at(store.time(of: promise, on: day), on: day)
                 if promise.kind == .mustDo {
                     let asks: [(Int, String)] = [(0, "\(promise.title) · now"), (90, "\(promise.title) not taken yet"), (150, "\(promise.title): last ask before wind-down")]
                     for (k, (after, title)) in asks.enumerated() {

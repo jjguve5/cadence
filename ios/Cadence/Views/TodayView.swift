@@ -101,7 +101,7 @@ struct TodayView: View {
 
     private var nextUp: some View {
         let minute = Day.minuteOfDay(store.tick)
-        let next = store.due().first { store.status($0) == nil && $0.schedule.minute + 90 >= minute }
+        let next = store.due().first { store.status($0) == nil && store.time(of: $0) + 90 >= minute }
         return Group {
             if let next {
                 Card {
@@ -109,7 +109,7 @@ struct TodayView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Eyebrow(text: "Next up", icon: "play")
                             Text(next.title).font(.system(size: 16, weight: .bold))
-                            Text("\(next.timeLabel) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.system(size: 12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
                         Button { store.log(next, .done) } label: {
@@ -241,7 +241,7 @@ struct PromiseRow: View {
             Image(systemName: promise.icon).foregroundStyle(Color.soft).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(promise.title).font(.system(size: 14.5, weight: .medium)).strikethrough(status == .skipped)
-                Text("\(promise.timeLabel) · \(w.done)/\(w.total) this week").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) this week").font(.system(size: 11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
             if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }

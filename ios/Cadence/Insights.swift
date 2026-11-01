@@ -193,7 +193,7 @@ extension Store {
         let allDone = !dueToday.isEmpty && dueToday.allSatisfy { status($0, on: today).map { $0 != .skipped } ?? false }
         if minute < 11 * 60, let s = health[today]?.sleep, Double(s.asleep) < Double(profile.sleepNeed) * 0.8 { return .sleepy }
         if minute >= min(plan.windDown, 1439) || minute < 4 * 60 { return openMustDos().isEmpty ? .sleepy : .eat }
-        if !openMustDos().isEmpty && minute >= (openMustDos().first?.schedule.minute ?? 0) { return .eat }
+        if let m = openMustDos().first, minute >= time(of: m) { return .eat }
         if allDone { return .celebrate }
         let yesterday = Day.add(-1, to: today)
         if !due(on: yesterday).filter({ $0.kind == .mustDo && status($0, on: yesterday) == nil }).isEmpty { return .sad }
@@ -219,15 +219,15 @@ extension Store {
     func pipLine() -> String {
         let minute = Day.minuteOfDay()
         let open = openMustDos()
-        if let m = open.first, minute >= m.schedule.minute { return "\(m.title) first, then we rest." }
+        if let m = open.first, minute >= time(of: m) { return "\(m.title) first, then we rest." }
         switch pipMood() {
         case .sleepy: return minute < 12 * 60 ? "Short night. Let's keep today gentle." : "Wind-down time. Screens away, book out."
         case .celebrate: return "Everything done. Proud of you."
         case .sad: return "Yesterday slipped. One small thing today and we're back."
         case .happy: return "Good day so far. Keep it rolling."
         default:
-            let next = due().first { status($0) == nil && $0.schedule.minute >= minute }
-            return next.map { "Next: \($0.title.lowercased()) at \($0.timeLabel)." } ?? "Morning! Let's make today count."
+            let next = due().first { status($0) == nil && time(of: $0) >= minute }
+            return next.map { "Next: \($0.title.lowercased()) at \(timeLabel($0))." } ?? "Morning! Let's make today count."
         }
     }
 
@@ -242,9 +242,35 @@ extension Store {
         for p in due(on: yesterday) where status(p, on: yesterday) == nil {
             let t = p.title.lowercased()
             guard t.contains("bed") || t.contains("lights out"), let s = health[today]?.sleep else { continue }
-            let start = Day.minuteOfDay(s.startDate), planned = p.schedule.minute
+            let start = Day.minuteOfDay(s.startDate), planned = time(of: p, on: yesterday)
             let a = start < 12 * 60 ? start + 1440 : start, b = planned < 12 * 60 ? planned + 1440 : planned
             if a <= b + 15 { log(p, on: yesterday, .done) }
+        }
+    }
+
+    /// When a promise happens on a day: its anchor (wake, wind-down, lights out), its weekend time, or its clock time
+    func time(of p: PromiseItem, on day: String = Day.today) -> Int {
+        let s = p.schedule
+        if let a = s.anchor {
+            let plan = sleepPlan(for: day)
+            let base = a == "wake" ? profile.wakeMinute : a == "lightsOut" ? plan.perform : plan.windDown
+            return base + (s.offset ?? 0)
+        }
+        let wd = Day.weekday(day)
+        if wd == 1 || wd == 7, let w = s.weekendMinute { return w }
+        return s.minute
+    }
+
+    func timeLabel(_ p: PromiseItem, on day: String = Day.today) -> String { clock(time(of: p, on: day)) }
+
+    /// Promises seeded with fixed evening times now follow wind-down and lights out
+    func migrateAnchors() {
+        guard !UserDefaults.standard.bool(forKey: "anchors1") else { return }
+        UserDefaults.standard.set(true, forKey: "anchors1")
+        for var p in promises.values where p.schedule.anchor == nil {
+            let t = p.title.lowercased()
+            if t.hasPrefix("read") && p.schedule.minute >= 22 * 60 { p.schedule.anchor = "windDown"; p.schedule.offset = 0; save(p) }
+            else if t.contains("brush") && p.schedule.minute >= 22 * 60 { p.schedule.anchor = "lightsOut"; p.schedule.offset = -10; save(p) }
         }
     }
 
@@ -260,7 +286,7 @@ extension Store {
         if let t = health[Day.today]?.temp, t >= 0.8, let rhr = health[Day.today]?.rhr, let b = baseline({ $0.rhr }), rhr > b.mean + 4 {
             out.append(MoodReason(text: "Temperature and resting HR are both up: you may be getting sick. Take it easy.", good: false))
         }
-        for m in openMustDos() { out.append(MoodReason(text: "\(m.title) is a must-do today, at \(m.timeLabel).", good: nil)) }
+        for m in openMustDos() { out.append(MoodReason(text: "\(m.title) is a must-do today, at \(timeLabel(m)).", good: nil)) }
         return out
     }
 }

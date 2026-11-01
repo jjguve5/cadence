@@ -8,7 +8,7 @@ $from = preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'] ?? '') ? $_GET['from']
 $days = max(1, min(14, (int) ($_GET['days'] ?? 2)));
 $min = date('c', strtotime($from));
 $max = date('c', strtotime("$from +$days days"));
-$headers = ['Authorization: Bearer ' . access_token()];
+$headers = ['Authorization: Bearer ' . access_token(CALENDAR_SCOPES)];
 [$status, $list] = http('GET', 'https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader', $headers);
 if ($status === 403) fail(403, 'calendar not allowed: enable the Calendar API and connect Google again', ['reconnect' => true]);
 if ($status !== 200) fail(502, $list['error']['message'] ?? "calendar list $status");

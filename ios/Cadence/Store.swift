@@ -108,8 +108,8 @@ final class Store: ObservableObject {
     private func seed() {
         let creatine = PromiseItem(title: "Creatine", icon: "pills.fill", kind: .mustDo, schedule: Schedule(rule: .daily, minute: 20 * 60 + 30), tiny: nil)
         let shake = PromiseItem(title: "Protein shake", icon: "takeoutbag.and.cup.and.straw.fill", schedule: Schedule(rule: .everyNDays, every: 2, minute: 17 * 60), kcal: 180, protein: 32)
-        let read = PromiseItem(title: "Read 30 min", icon: "book.fill", schedule: Schedule(rule: .daily, minute: 23 * 60 + 15), tiny: "Read two pages")
-        let brush = PromiseItem(title: "Brush teeth, night", icon: "mouth.fill", schedule: Schedule(rule: .daily, minute: 23 * 60 + 25))
+        let read = PromiseItem(title: "Read 30 min", icon: "book.fill", schedule: Schedule(rule: .daily, minute: 23 * 60 + 15, anchor: "windDown", offset: 0), tiny: "Read two pages")
+        let brush = PromiseItem(title: "Brush teeth, night", icon: "mouth.fill", schedule: Schedule(rule: .daily, minute: 23 * 60 + 25, anchor: "lightsOut", offset: -10))
         for p in [creatine, shake, read, brush] { promises[p.id] = p; dirty["promise:\(p.id)"] = 1 }
         dirty["profile:me"] = 1
         persist()
@@ -135,7 +135,7 @@ final class Store: ObservableObject {
         Reminders.shared.clear(promise: promise.id, day: day)
         // Routines that log food: ticking the 17:00 shake adds its calories and protein
         if status != .skipped, promise.kcal != nil || promise.protein != nil {
-            save(FoodEntry(id: "promise-\(promise.id)-\(day)", date: day, minute: promise.schedule.minute, name: promise.title, kcal: promise.kcal ?? 0, protein: promise.protein ?? 0, promiseId: promise.id))
+            save(FoodEntry(id: "promise-\(promise.id)-\(day)", date: day, minute: time(of: promise, on: day), name: promise.title, kcal: promise.kcal ?? 0, protein: promise.protein ?? 0, promiseId: promise.id))
         }
     }
 
@@ -149,7 +149,7 @@ final class Store: ObservableObject {
 
     func status(_ promise: PromiseItem, on day: String = Day.today) -> LogStatus? { logs["\(promise.id)|\(day)"]?.status }
 
-    var activePromises: [PromiseItem] { promises.values.filter(\.active).sorted { $0.schedule.minute < $1.schedule.minute } }
+    var activePromises: [PromiseItem] { promises.values.filter(\.active).sorted { time(of: $0) < time(of: $1) } }
 
     func due(on day: String = Day.today) -> [PromiseItem] { activePromises.filter { $0.schedule.isDue(on: day) } }
 
@@ -294,7 +294,7 @@ final class Store: ObservableObject {
     func refreshHealth(force: Bool = false) async {
         guard connection.configured else { return }
         if !force, let last = lastHealth, Date().timeIntervalSince(last) < 15 * 60 { return }
-        let days = health.count < 30 ? 90 : 14
+        let days = health.count < 30 || UserDefaults.standard.integer(forKey: "healthSchema") < 2 ? 90 : 14
         guard let req = request("health.php?days=\(days)") else { return }
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
@@ -302,6 +302,7 @@ final class Store: ObservableObject {
             if code == 409 { needsGoogle = true; return }
             guard code == 200 else { return }
             let reply = try JSONDecoder().decode(HealthReply.self, from: data)
+            if UserDefaults.standard.integer(forKey: "healthSchema") < 2 { health = [:]; UserDefaults.standard.set(2, forKey: "healthSchema") }
             for d in reply.days { health[d.date] = d }
             device = reply.device
             healthErrors = reply.errors ?? [:]

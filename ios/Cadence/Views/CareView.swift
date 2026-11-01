@@ -248,7 +248,7 @@ struct BrushingView: View {
                     Toggle("Mouthwash", isOn: $mouthwash).tint(.mint)
                     PrimaryButton(title: "Save") {
                         store.save(BrushLog(seconds: Int(total), floss: floss, mouthwash: mouthwash))
-                        if let p = store.due().first(where: { $0.title.lowercased().contains("brush") && store.status($0) == nil && abs($0.schedule.minute - Day.minuteOfDay()) < 180 }) { store.log(p, .done) }
+                        if let p = store.due().first(where: { $0.title.lowercased().contains("brush") && store.status($0) == nil && abs(store.time(of: $0) - Day.minuteOfDay()) < 180 }) { store.log(p, .done) }
                         dismiss()
                     }
                 }

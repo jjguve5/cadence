@@ -70,6 +70,11 @@ struct Schedule: Codable, Equatable {
     var start: String = Day.today
     var weekdays: [Int] = [2, 4, 6] // Calendar weekdays: 1 = Sunday
     var minute: Int = 9 * 60
+    var weekendMinute: Int? // a different time on Saturday and Sunday
+    var anchor: String? // wake, windDown, lightsOut: follows your day instead of a clock time
+    var offset: Int? // minutes after (or before, negative) the anchor
+
+    static let anchors = ["wake": "after waking", "windDown": "at wind-down", "lightsOut": "before lights out"]
 
     func isDue(on day: String) -> Bool {
         switch rule {
