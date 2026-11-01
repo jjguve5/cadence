@@ -11,6 +11,7 @@ struct CadenceApp: App {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.jjguve5.cadence.refresh", using: nil) { task in
             Task { @MainActor in
                 await Store.shared.refreshAll()
+                await PipNudge.shared.refresh()
                 Reminders.shared.reschedule()
                 CadenceApp.scheduleRefresh()
                 task.setTaskCompleted(success: true)
@@ -66,5 +67,12 @@ struct RootView: View {
             }
         }
         .onReceive(timer) { store.tick = $0 }
+        .fullScreenCover(item: $store.openWorkout) { s in
+            NavigationStack {
+                WorkoutView(sessionId: s.id)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { store.openWorkout = nil } } }
+            }
+            .environmentObject(store)
+        }
     }
 }

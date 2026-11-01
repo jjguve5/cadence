@@ -9,6 +9,7 @@ import WidgetKit
 struct CadenceWidgets: WidgetBundle {
     var body: some Widget {
         WorkoutLiveActivity()
+        PipLiveActivity()
         CadenceHomeWidget()
     }
 }
@@ -22,6 +23,7 @@ struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutAttributes.self) { context in
             LockScreenWorkout(context: context)
+                .widgetURL(URL(string: "cadence://workout?id=\(context.attributes.sessionId)"))
                 .activityBackgroundTint(Color(red: 0.12, green: 0.09, blue: 0.13).opacity(0.9))
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
@@ -55,6 +57,7 @@ struct WorkoutLiveActivity: Widget {
             } minimal: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(coral)
             }
+            .widgetURL(URL(string: "cadence://workout?id=\(context.attributes.sessionId)"))
         }
     }
 }

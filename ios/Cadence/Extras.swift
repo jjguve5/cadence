@@ -55,6 +55,13 @@ struct Measurement: Record, Equatable {
     var id: String { date }
     var date = Day.today
     var values: [String: Double] = [:] // waist, chest, hips, arm, thigh, calf, neck, shoulders, forearm, body fat
+
+    init(date: String = Day.today, values: [String: Double] = [:]) { self.date = date; self.values = values }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        date = (try? c.decode(String.self, forKey: .date)) ?? Day.today
+        values = (try? c.decode([String: Double].self, forKey: .values)) ?? [:]
+    }
 }
 
 let measurementNames = ["Waist", "Chest", "Hips", "Arm", "Thigh", "Calf", "Neck", "Shoulders", "Forearm", "Body fat %"]
@@ -77,6 +84,13 @@ struct Payday: Record, Equatable {
     var id: String { month }
     var month: String
     var jobs: [String: Double] // bucket → euros
+
+    init(month: String, jobs: [String: Double]) { self.month = month; self.jobs = jobs }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        month = try c.decode(String.self, forKey: .month)
+        jobs = (try? c.decode([String: Double].self, forKey: .jobs)) ?? [:]
+    }
 }
 
 struct PipAccessory: Identifiable {

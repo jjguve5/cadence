@@ -16,6 +16,41 @@ struct WorkoutAttributes: ActivityAttributes {
     }
     var sessionName: String
     var started: Date
+    var sessionId: String = ""
+}
+
+/// Pip on the Dynamic Island and the lock screen: the one thing you're forgetting right now
+struct PipAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        var message: String
+        var short: String // for the compact island
+        var mood: String // head image name
+        var promiseId: String?
+        var icon: String
+    }
+    var started: Date
+}
+
+enum PipAction: String, AppEnum {
+    case done, later
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Pip action"
+    static var caseDisplayRepresentations: [PipAction: DisplayRepresentation] = [.done: "Done", .later: "Later"]
+}
+
+struct PipIntent: LiveActivityIntent {
+    static var title: LocalizedStringResource = "Answer Pip"
+    @Parameter(title: "Action") var action: PipAction
+    @Parameter(title: "Promise") var promiseId: String
+
+    init() {}
+    init(_ action: PipAction, promiseId: String) { self.action = action; self.promiseId = promiseId }
+
+    func perform() async throws -> some IntentResult {
+        #if CADENCE_APP
+        await PipNudge.shared.handle(action, promiseId: promiseId)
+        #endif
+        return .result()
+    }
 }
 
 enum WorkoutAction: String, AppEnum {

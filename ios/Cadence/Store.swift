@@ -68,6 +68,7 @@ final class Store: ObservableObject {
     @Published private(set) var syncError: String?
     @Published private(set) var needsGoogle = false
     @Published var tick = Date() // redraws time-based views
+    @Published var openWorkout: OpenSession?
 
     var recordCache: [String: Any] = [:] // decoded typed records, per type (see Records.swift)
     private var dirty: [String: Int] = [:]
@@ -337,6 +338,9 @@ final class Store: ObservableObject {
             Task { await sync(); await refreshHealth(force: true) }
         } else if url.host == "google" {
             googleConnected()
+        } else if url.host == "workout" {
+            let id = value("id").flatMap { $0.isEmpty ? nil : $0 } ?? activeSession?.id
+            if let id { openWorkout = OpenSession(id: id) }
         }
     }
 
@@ -358,6 +362,7 @@ final class Store: ObservableObject {
         await refreshHealth()
         await Agenda.shared.refresh()
         await Agenda.shared.pullDeskEvents()
+        await PipNudge.shared.refresh()
         tick = Date()
     }
 }

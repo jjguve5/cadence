@@ -4,11 +4,14 @@
 // revision it last saw. Deletes stay as records (deleted: true) so they reach the other devices.
 //   POST {"since", "changes": [{"type", "id", "deleted"?, "data"?, "updated"?}]}  ->  {"rev", "changes": [records]}
 // When two devices change the same record, the later "updated" (ms since 1970, set by the device) wins.
+// Record bodies are kept as JSON text, so empty objects stay {} (PHP arrays would turn them into []).
 require __DIR__ . '/lib.php';
 require_token();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail(405, 'POST only');
 
-$request = json_decode(file_get_contents('php://input', false, null, 0, 8000000), true);
+$raw = file_get_contents('php://input', false, null, 0, 8000000);
+$request = json_decode($raw, true);
+$objects = json_decode($raw); // the same request with objects kept as objects
 if (!is_array($request)) fail(400, 'bad request');
 $since = (int) ($request['since'] ?? 0);
 $changes = $request['changes'] ?? [];
@@ -22,13 +25,14 @@ $store = json_decode(substr(stream_get_contents($handle), strlen(GUARD)), true);
 if (!is_array($store)) $store = ['rev' => 0, 'records' => []];
 
 $changed = false;
-foreach ($changes as $change) {
+foreach ($changes as $n => $change) {
 	$type = $change['type'] ?? '';
 	$id = $change['id'] ?? '';
 	if (!is_string($type) || !preg_match('/^[a-z][a-zA-Z0-9]{0,31}$/', $type)) continue;
 	if (!is_string($id) || !preg_match('/^[A-Za-z0-9_.:-]{1,80}$/', $id)) continue;
-	$data = $change['data'] ?? null;
-	if ($data !== null && (!is_array($data) || strlen(json_encode($data)) > 200000)) continue;
+	$data = $objects->changes[$n]->data ?? null;
+	$json = $data === null ? null : json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+	if ($json !== null && (!is_object($data) || strlen($json) > 200000)) continue;
 	$updated = (int) ($change['updated'] ?? 0);
 	$key = "$type:$id";
 	$old = $store['records'][$key] ?? null;
@@ -41,7 +45,7 @@ foreach ($changes as $change) {
 		'rev' => $store['rev'],
 		'updated' => $updated,
 		'deleted' => $deleted,
-		'data' => $deleted ? null : $data,
+		'json' => $deleted ? null : $json,
 	];
 	$changed = true;
 }
@@ -57,5 +61,13 @@ fclose($handle);
 
 // A device ahead of the server (the store was reset) gets everything
 if ($since > $store['rev']) $since = 0;
-$newer = array_values(array_filter($store['records'], fn($record) => $record['rev'] > $since));
+$newer = [];
+foreach ($store['records'] as $record) {
+	if ($record['rev'] <= $since) continue;
+	// Older records (and server-made ones) still hold "data"; new ones hold the JSON text
+	if (array_key_exists('json', $record)) $record['data'] = $record['json'] === null ? null : json_decode($record['json']);
+	else $record['data'] = $record['data'] === null ? null : json_decode(json_encode($record['data']));
+	unset($record['json']);
+	$newer[] = $record;
+}
 reply(['rev' => $store['rev'], 'changes' => $newer]);

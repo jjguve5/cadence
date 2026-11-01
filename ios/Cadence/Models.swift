@@ -195,6 +195,8 @@ struct Profile: Codable, Equatable {
     var proteinTarget: Double { (weightKg * proteinPerKg).rounded() }
 }
 
+struct OpenSession: Identifiable, Equatable { var id: String }
+
 struct Connection: Codable, Equatable {
     var server = ""
     var token = ""

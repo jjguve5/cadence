@@ -226,6 +226,8 @@ struct PromiseRow: View {
     var promise: PromiseItem
     var day: String = Day.today
     var edit: () -> Void = {}
+    @State private var brushing = false
+    @State private var reading = false
 
     var body: some View {
         let status = store.status(promise, on: day)
@@ -244,9 +246,15 @@ struct PromiseRow: View {
                 Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) this week").font(.system(size: 11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
-            if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
+            if status == nil, promise.title.lowercased().contains("brush") {
+                Button { brushing = true } label: { Image(systemName: "play.circle.fill").font(.system(size: 24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
+            } else if status == nil, promise.title.lowercased().hasPrefix("read") {
+                Button { reading = true } label: { Image(systemName: "play.circle.fill").font(.system(size: 24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
+            } else if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
             else { Chip(text: promise.schedule.summary, color: .soft) }
         }
+        .fullScreenCover(isPresented: $brushing) { BrushingView() }
+        .fullScreenCover(isPresented: $reading) { ReadingMode() }
         .contentShape(Rectangle())
         .contextMenu {
             if let tiny = promise.tiny, status == nil { Button("Tiny version: \(tiny)", systemImage: "leaf") { store.log(promise, on: day, .tiny) } }

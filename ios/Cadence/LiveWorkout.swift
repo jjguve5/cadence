@@ -39,7 +39,8 @@ final class LiveWorkout {
         if let activity, activity.activityState == .active {
             await activity.update(content)
         } else {
-            activity = try? Activity.request(attributes: WorkoutAttributes(sessionName: session.name, started: Date(timeIntervalSince1970: session.start / 1000)), content: content)
+            await PipNudge.shared.end() // the workout takes the island
+            activity = try? Activity.request(attributes: WorkoutAttributes(sessionName: session.name, started: Date(timeIntervalSince1970: session.start / 1000), sessionId: session.id), content: content)
         }
     }
 

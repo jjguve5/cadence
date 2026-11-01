@@ -130,6 +130,24 @@ struct WorkoutSession: Record, Equatable {
     var notes: [String: String] = [:]
 
     var volume: Double { sets.filter { $0.done && $0.kind != .warmup }.map { $0.weight * Double($0.reps) }.reduce(0, +) }
+
+    init(id: String = UUID().uuidString, date: String = Day.today, templateId: String? = nil, name: String, start: Double = nowMs(), end: Double? = nil, order: [TemplateExercise], sets: [SetLog] = [], notes: [String: String] = [:]) {
+        self.id = id; self.date = date; self.templateId = templateId; self.name = name; self.start = start; self.end = end; self.order = order; self.sets = sets; self.notes = notes
+    }
+
+    // An empty notes object may have come back from the server as [], so every field is optional on the way in
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        date = (try? c.decode(String.self, forKey: .date)) ?? Day.today
+        templateId = try? c.decodeIfPresent(String.self, forKey: .templateId)
+        name = (try? c.decode(String.self, forKey: .name)) ?? "Workout"
+        start = (try? c.decode(Double.self, forKey: .start)) ?? nowMs()
+        end = try? c.decodeIfPresent(Double.self, forKey: .end)
+        order = (try? c.decode([TemplateExercise].self, forKey: .order)) ?? []
+        sets = (try? c.decode([SetLog].self, forKey: .sets)) ?? []
+        notes = (try? c.decode([String: String].self, forKey: .notes)) ?? [:]
+    }
 }
 
 /// Epley estimated one-rep max
