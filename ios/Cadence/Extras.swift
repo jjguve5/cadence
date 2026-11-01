@@ -156,7 +156,8 @@ extension Store {
     /// An outdoor block (run, walk) inside a rain window: the nearest dry hour instead
     func weatherMoves(on day: String = Day.today) -> [(PlanBlock, Int)] {
         guard day == Day.today, let w = WeatherStore.shared.today else { return [] }
-        let outdoor = all(PlanBlock.self).filter { $0.date == day && ["run", "walk", "bike", "outside", "corrida", "caminhada"].contains { k in $0.title.lowercased().contains(k) } }
+        let words = ["run", "walk", "bike", "outside", "corrida", "caminhada"]
+        let outdoor = all(PlanBlock.self).filter { b in b.date == day && words.contains { b.title.lowercased().contains($0) } }
         return outdoor.compactMap { b -> (PlanBlock, Int)? in
             let wet = w.hours.filter { $0.minute >= b.start - 30 && $0.minute < b.start + b.minutes && $0.rain >= 50 }
             guard !wet.isEmpty else { return nil }
@@ -197,7 +198,7 @@ extension Store {
     func efatura(year: String = String(Day.today.prefix(4))) -> [(String, Double, String)] {
         let tx = transactions.filter { $0.date.hasPrefix(year) && $0.amount < 0 }
         func total(_ cats: [String]) -> Double { tx.filter { cats.contains(category(for: $0)) }.map { -$0.amount }.reduce(0, +) }
-        let vat = { (cats: [String]) in tx.filter { cats.contains(category(for: $0)) }.compactMap(\.vat).reduce(0, +) }
+        let vat = { (cats: [String]) -> Double in tx.filter { cats.contains(self.category(for: $0)) }.compactMap(\.vat).reduce(0, +) }
         let general = min(250, total(["Groceries", "Clothes", "Other", "Fun", "Subscriptions", "Bills"]) * 0.35)
         let health = min(1000, total(["Health"]) * 0.15)
         let housing = min(502, total(["Rent / house"]) * 0.15)
