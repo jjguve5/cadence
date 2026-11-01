@@ -57,13 +57,19 @@ enum ShowerRules {
 
     enum When: String { case tonight, morning }
 
-    /// Tonight about 90 minutes before lights out (a warm shower 1–2 h before bed helps you fall asleep), unless the
-    /// evening is short or taken; tomorrow morning, unless you leave early. Returns the choice and why.
-    static func suggest(now: Int, windDown: Int, lightsOut: Int, eveningAfter: String?, movedToday: Bool, wake: Int, leaveTomorrow: Int?) -> (When, String) {
-        if let l = leaveTomorrow, l - wake < 60 { return (.tonight, "You leave at \(clock(l)) tomorrow, so the morning is tight") }
+    /// Tonight about 90 minutes before lights out (a warm shower 1–2 h before bed helps you fall asleep), unless it's
+    /// too late, the evening is taken, or the night is hot enough to sweat through it; then tomorrow morning, unless
+    /// you leave too early for one. Returns the choice and why.
+    static func suggest(now: Int, windDown: Int, lightsOut: Int, eveningAfter: String?, movedToday: Bool, wake: Int, leaveTomorrow: Int?, nightFeels: Double? = nil) -> (When, String) {
+        let tightMorning = leaveTomorrow.map { $0 - wake < 60 } ?? false
+        if windDown - now < 30 { return (.morning, "Too late for one tonight" + (tightMorning ? ": a quick one before you leave at \(clock(leaveTomorrow!))" : ", so tomorrow morning")) }
+        if let f = nightFeels, f >= 24 {
+            let why = "It stays around \(Int(f.rounded()))° tonight, so you'd sweat through the night"
+            return tightMorning ? (.tonight, why + ", but you leave at \(clock(leaveTomorrow!)): a cool one tonight") : (.morning, why + ": shower in the morning")
+        }
+        if tightMorning { return (.tonight, "You leave at \(clock(leaveTomorrow!)) tomorrow, so the morning is tight") }
         if movedToday { return (.tonight, "After today's workout") }
         if let a = eveningAfter { return (.morning, "Back from \(a) close to bedtime: shower in the morning instead") }
-        if windDown - max(now, 0) < 30 { return (.morning, "Not much evening left: tomorrow morning works") }
         return (.tonight, "About 1–2 h before bed a warm shower helps you fall asleep")
     }
 }
@@ -223,12 +229,18 @@ extension Store {
         if sessions(on: day).contains(where: { $0.end == nil && nowMs() - $0.start < 3 * 3600 * 1000 }) { return nil }
         let picked: ShowerRules.When? = { if case .string(let t) = records("showerWhen")[day] { return ShowerRules.When(rawValue: t) }; return nil }()
         let auto = ShowerRules.suggest(now: day == Day.today ? Day.minuteOfDay() : 0, windDown: plan.windDown, lightsOut: plan.perform, eveningAfter: plan.after?.title,
-                                       movedToday: (health[day]?.azm ?? 0) >= 20, wake: profile.wakeMinute, leaveTomorrow: commutes(on: tomorrow).map(\.leave).min())
+                                       movedToday: (health[day]?.azm ?? 0) >= 20, wake: profile.wakeMinute, leaveTomorrow: commutes(on: tomorrow).map(\.leave).min(),
+                                       nightFeels: day == Day.today ? nightFeels(from: plan.perform, to: profile.wakeMinute + 1440) : nil)
         let when = picked ?? auto.0
         let why = picked == nil ? auto.1 : (when == .tonight ? "You picked tonight" : "You picked tomorrow morning")
         if when == .morning { return (.morning, Day.at(profile.wakeMinute + 20, on: tomorrow), why) }
         let m = Engine.outside(min(plan.perform - 90, plan.windDown - 15), busy: busy(on: day))
         return (.tonight, Day.at(max(m, day == Day.today ? Day.minuteOfDay() + 5 : 0), on: day), why)
+    }
+
+    /// The warmest it feels outside between lights out and waking, from the forecast
+    func nightFeels(from: Int, to: Int) -> Double? {
+        WeatherStore.shared.today?.hours.filter { $0.minute >= from && $0.minute <= to }.map(\.feels).max()
     }
 
     func logShower() {

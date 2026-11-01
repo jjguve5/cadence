@@ -370,6 +370,19 @@ final class ShowerTests: XCTestCase {
         XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil).0, .tonight)
         XCTAssertEqual(ShowerRules.suggest(now: 21 * 60 + 50, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil).0, .morning)
     }
+
+    func testTooLateOrTooHotMeansTomorrowMorning() {
+        let late = ShowerRules.suggest(now: 22 * 60 + 30, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: true, wake: 420, leaveTomorrow: nil)
+        XCTAssertEqual(late.0, .morning)
+        XCTAssertTrue(late.1.hasPrefix("Too late"), late.1)
+        let hot = ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: true, wake: 420, leaveTomorrow: nil, nightFeels: 26.4)
+        XCTAssertEqual(hot.0, .morning)
+        XCTAssertTrue(hot.1.contains("26°"), hot.1)
+        // a mild night keeps the evening shower
+        XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil, nightFeels: 18).0, .tonight)
+        // hot, but leaving at 7:30: a cool one tonight
+        XCTAssertEqual(ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: 450, nightFeels: 27).0, .tonight)
+    }
 }
 
 final class HealthSourceTests: XCTestCase {
