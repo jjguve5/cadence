@@ -100,6 +100,7 @@ final class Store: ObservableObject {
         version += 1
         dirty[key] = version
         persist()
+        writeSnapshot()
         Reminders.shared.reschedule()
         scheduleSync()
     }
@@ -310,6 +311,7 @@ final class Store: ObservableObject {
             needsGoogle = false
             persist()
             autoComplete()
+            writeSnapshot()
         } catch {}
     }
 

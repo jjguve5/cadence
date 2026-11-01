@@ -33,6 +33,9 @@ extension Store {
             let icon = ["deep": "brain.head.profile", "admin": "tray.full", "reading": "book.fill", "training": "dumbbell.fill"][b.type] ?? "square.fill"
             items.append(PlanItem(id: "b" + b.id, minute: b.start, end: b.start + b.minutes, title: b.title, detail: "\(duration(b.minutes)) · placed by you", icon: icon, color: .mint, block: b))
         }
+        if let t = templates.first(where: { $0.weekdays.contains(Day.weekday(day)) }), !all(PlanBlock.self).contains(where: { $0.date == day && $0.type == "training" }) {
+            items.append(PlanItem(id: "train-" + t.id, minute: 18 * 60, end: 18 * 60 + t.minutes, title: t.name, detail: "\(t.exercises.count) exercises · about \(duration(t.minutes)) · hold a block to move it", icon: "dumbbell.fill", color: .train))
+        }
         for c in commutes(on: day) {
             items.append(PlanItem(id: "c" + c.id, minute: c.leave, end: c.arrive, title: "To \(c.title)", detail: "leave \(clock(c.leave)) · \(c.travel) min + \(c.buffer) buffer", icon: "tram.fill", color: Color(hex: 0x6CC4FF)))
         }

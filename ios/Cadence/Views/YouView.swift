@@ -152,6 +152,9 @@ struct SettingsView: View {
                     Toggle(name, isOn: Binding(get: { store.profile.on(key) }, set: { on in store.update { p in p.areasOff.removeAll { $0 == key }; if !on { p.areasOff.append(key) } } }))
                 }
             } header: { Text("Areas") } footer: { Text("Start small and switch areas on when you want them. The score only counts what's on.") }
+            Section {
+                LabeledContent("Widgets", value: store.widgetsAvailable ? "working" : "not available with this signing")
+            } footer: { Text(store.widgetsAvailable ? "Long-press the home screen and add Cadence." : "The widgets need an App Group, which this install didn't get.") }
             Section("Your data") {
                 ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Export everything (JSON)", systemImage: "square.and.arrow.up") }
             }

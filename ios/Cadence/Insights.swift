@@ -274,6 +274,71 @@ extension Store {
         }
     }
 
+    /// Brushing at the start of wind-down, then reading until lights out; brushing after waking too
+    func migrateEvenings() {
+        guard !UserDefaults.standard.bool(forKey: "evenings2") else { return }
+        UserDefaults.standard.set(true, forKey: "evenings2")
+        for var p in promises.values {
+            let t = p.title.lowercased()
+            if t.contains("brush") && (t.contains("night") || p.schedule.anchor == "lightsOut") { p.schedule.anchor = "windDown"; p.schedule.offset = 0; save(p) }
+            else if t.hasPrefix("read") && p.schedule.anchor == "windDown" { p.schedule.offset = 5; save(p) }
+        }
+        if !promises.values.contains(where: { $0.title.lowercased().contains("brush") && $0.schedule.anchor == "wake" }) {
+            save(PromiseItem(title: "Brush teeth, morning", icon: "mouth.fill", schedule: Schedule(rule: .daily, minute: 7 * 60 + 30, anchor: "wake", offset: 10)))
+        }
+        if profile.windDownLead == 30 { update { $0.windDownLead = 35 } } // 5 minutes brushing + 30 reading
+    }
+
+    /// The training plan you sent: four days, Monday and Friday swapped
+    func seedPlan() {
+        guard !UserDefaults.standard.bool(forKey: "plan1") else { return }
+        UserDefaults.standard.set(true, forKey: "plan1")
+        func t(_ id: String, _ name: String, _ sets: Int = 3, _ lo: Int = 8, _ hi: Int = 12, _ rest: Int = 90, _ inc: Double = 2.5) -> TemplateExercise {
+            TemplateExercise(exerciseId: id, name: name, sets: sets, repLow: lo, repHigh: hi, rest: rest, increment: inc)
+        }
+        let plan = [
+            WorkoutTemplate(name: "Monday · chest, back, arms", exercises: [
+                t("incline-bench-press", "Incline Bench Press", 3, 6, 10, 150), t("pec-deck", "Pec Deck Fly", 3, 10, 15), t("lat-pulldown", "Lat Pulldown", 4, 8, 12, 120),
+                t("zottman-curl", "Zottman Hammer Curl", 3, 10, 12, 75, 1), t("cable-overhead-tricep-extension", "Cable Overhead Extension", 3, 10, 15, 75),
+                t("seated-dumbbell-lateral-raise", "Front & Back Seated DB Lateral Raises", 3, 12, 15, 60, 1),
+            ], weekdays: [2], minutes: 70),
+            WorkoutTemplate(name: "Wednesday · legs and core, low intensity", exercises: [
+                t("squat", "High Bar Squat", 3, 6, 10, 150), t("db-shrug", "Shrugs", 3, 10, 15, 75), t("reverse-curl", "Reverse Grip Curl", 3, 10, 15, 60, 1),
+                t("dragon-flag", "Dragon Flags", 3, 5, 10, 90, 0), t("treadmill-running", "Run / walk mix, low and high, 20–30 min", 1, 1, 1, 0, 0),
+            ], weekdays: [4], minutes: 70),
+            WorkoutTemplate(name: "Friday · back, chest, arms", exercises: [
+                t("pull-up", "Pull Ups", 3, 6, 10, 150, 1.25), t("chest-supported-db-row", "Chest Supported Row", 3, 8, 12, 120), t("incline-db-press", "Inclined DB Press", 3, 8, 12, 120, 2),
+                t("tricep-pushdown", "Cable Press Down", 3, 10, 15, 75), t("cable-curl", "Cable Curl / Face-Away Cable Curl", 3, 10, 15, 75),
+                t("cable-lateral-raise", "Cable Lateral Raises", 3, 12, 15, 60, 1),
+            ], weekdays: [6], minutes: 70),
+            WorkoutTemplate(name: "Saturday · legs", exercises: [
+                t("treadmill-running", "Run, 7 min warm-up", 1, 1, 1, 0, 0), t("stiff-leg-deadlift", "DB Stiff-Legged Deadlift (glute bias)", 3, 8, 12, 120),
+                t("leg-extension", "Leg Extensions", 4, 10, 15, 75), t("standing-calf-raise", "Standing Calf Raise", 3, 10, 15, 60),
+                t("leg-curl", "Hamstring Curl", 3, 10, 15, 75), t("hip-abduction", "Abductors", 2, 12, 20, 60), t("hip-adduction", "Adductors", 2, 12, 20, 60),
+            ], weekdays: [7], minutes: 75),
+        ]
+        // The starter templates go unless you've trained with them
+        let used = Set(sessions().compactMap(\.templateId))
+        for old in templates where ["Legs A", "Push A", "Pull A"].contains(old.name) && !used.contains(old.id) { remove(old) }
+        for p in plan { save(p) }
+    }
+
+    var todaysTemplate: WorkoutTemplate? { templates.first { $0.weekdays.contains(Day.weekday(Day.today)) } }
+
+    /// Feeds the widgets; does nothing when the App Group isn't available (free signing may not allow it)
+    func writeSnapshot() {
+        let minute = Day.minuteOfDay()
+        let next = due().first { status($0) == nil && time(of: $0) + 60 >= minute }
+        let f = fuel()
+        let r = readiness()
+        let s = Snapshot(score: score(), readiness: r?.score, readinessLabel: r?.label, next: next?.title, nextTime: next.map { timeLabel($0) },
+                         mustDos: openMustDos().map(\.title), water: f.water, waterGoal: waterGoal(), protein: f.protein, proteinGoal: profile.proteinTarget,
+                         mood: pipMood().head, level: level.level, updated: Date())
+        if SharedBox.write(s) { WidgetReload.now() }
+    }
+
+    var widgetsAvailable: Bool { SharedBox.container() != nil }
+
     // MARK: Brief and check-ins
 
     func briefLines() -> [MoodReason] {

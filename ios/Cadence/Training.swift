@@ -239,6 +239,7 @@ extension Store {
 
     /// Default templates so training works before you build your own
     func seedTemplates() {
+        seedPlan()
         guard templates.isEmpty else { return }
         func t(_ id: String, _ name: String, _ sets: Int = 3, _ lo: Int = 8, _ hi: Int = 10, _ rest: Int = 120, _ inc: Double = 2.5) -> TemplateExercise {
             TemplateExercise(exerciseId: id, name: name, sets: sets, repLow: lo, repHigh: hi, rest: rest, increment: inc)

@@ -11,6 +11,7 @@ struct MoneyView: View {
     @State private var wish = ""
     @State private var wishPrice = ""
     @State private var scanning = false
+    @State private var bankMessage: String?
 
     var body: some View {
         Screen(glow: Color(hex: 0xFFD166)) {
@@ -29,6 +30,7 @@ struct MoneyView: View {
         .navigationTitle("Money")
         .navigationBarTitleDisplayMode(.inline)
         .task { await store.pullBank() }
+        .alert("Bank", isPresented: Binding(get: { bankMessage != nil }, set: { if !$0 { bankMessage = nil } })) { Button("OK") { bankMessage = nil } } message: { Text(bankMessage ?? "") }
         .sheet(item: $editingRecurring) { RecurringEditor(item: $0) }
         .sheet(item: $editingWallet) { WalletEditor(wallet: $0) }
         .sheet(item: $editingGoal) { GoalEditor(goal: $0) }
@@ -82,7 +84,7 @@ struct MoneyView: View {
                 SoftButton(title: "Add", icon: "plus") { addingTx = Transaction(amount: 0, merchant: "") }
                 SoftButton(title: "Receipt QR", icon: "qrcode.viewfinder") { scanning = true }
                     .disabled(!(DataScannerViewController.isSupported && DataScannerViewController.isAvailable))
-                SoftButton(title: "Bank", icon: "building.columns") { Task { await store.pullBank() } }
+                SoftButton(title: "Bank", icon: "building.columns") { Task { bankMessage = await store.pullBank() } }
             }
         }
     }

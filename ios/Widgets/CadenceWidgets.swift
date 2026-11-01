@@ -7,7 +7,10 @@ import WidgetKit
 
 @main
 struct CadenceWidgets: WidgetBundle {
-    var body: some Widget { WorkoutLiveActivity() }
+    var body: some Widget {
+        WorkoutLiveActivity()
+        CadenceHomeWidget()
+    }
 }
 
 private let coral = Color(red: 1, green: 0.48, blue: 0.52)

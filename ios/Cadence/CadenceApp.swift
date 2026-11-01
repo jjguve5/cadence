@@ -34,6 +34,8 @@ struct CadenceApp: App {
         .onChange(of: phase) { _, now in
             if now == .active {
                 store.migrateAnchors()
+                store.migrateEvenings()
+                store.seedPlan()
                 Task { await store.refreshAll() }
                 Reminders.shared.reschedule()
             } else if now == .background {

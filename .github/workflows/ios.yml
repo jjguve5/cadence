@@ -26,7 +26,16 @@ jobs:
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Cadence.app Payload/
           zip -qr Cadence.ipa Payload
+      # The same app signed ad hoc with the App Group entitlement, to test whether widgets survive free signing
+      - run: |
+          rm -rf WPayload && mkdir WPayload
+          cp -R build/Build/Products/Release-iphoneos/Cadence.app WPayload/
+          codesign -f -s - --entitlements Widgets/Widgets.entitlements WPayload/Cadence.app/PlugIns/CadenceWidgets.appex
+          codesign -f -s - --entitlements Cadence/Cadence.entitlements WPayload/Cadence.app
+          mv WPayload Payload.w && mkdir wtmp && mv Payload.w wtmp/Payload && (cd wtmp && zip -qr ../Cadence-widgets-test.ipa Payload)
       - uses: actions/upload-artifact@v4
         with:
           name: Cadence-ipa
-          path: ios/Cadence.ipa
+          path: |
+            ios/Cadence.ipa
+            ios/Cadence-widgets-test.ipa

@@ -255,10 +255,19 @@ extension Store {
         return (0...max(0, Day.between(start, Day.today))).filter { !spentDays.contains(Day.add($0, to: start)) }.count
     }
 
-    func pullBank() async {
-        guard let req = request("bank.php?pull=1") else { return }
-        _ = try? await URLSession.shared.data(for: req)
+    /// Pulls new bank transactions and says what happened
+    @discardableResult
+    func pullBank() async -> String {
+        guard let req = request("bank.php?pull=1") else { return "Not connected to your server." }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req) else { return "Offline: try again later." }
+        let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        struct R: Decodable { var added: Int?; var banks: [String: String]?; var error: String? }
+        let r = try? JSONDecoder().decode(R.self, from: data)
+        if code == 409 { return "Bank sync isn't set up yet. It needs a free Enable Banking application on your server: see \"Bank sync and Apple Pay setup\" at the bottom." }
+        guard code == 200, let r else { return r?.error ?? "The bank didn't answer (\(code))." }
         await sync()
         matchApplePay()
+        if (r.banks ?? [:]).isEmpty { return "No bank connected yet: connect one in the setup at the bottom." }
+        return "\(r.added ?? 0) new transactions. " + (r.banks ?? [:]).map { "\($0.key): \($0.value)" }.joined(separator: " · ")
     }
 }
