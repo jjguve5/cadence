@@ -114,6 +114,19 @@ jobs:
             n=$(basename "$r" .xcresult)
             mkdir -p "screenshots/$n"
             xcrun xcresulttool export attachments --path "$r" --output-path "screenshots/$n" || true
+            # readable names: <test>__<screenshot>.png, failures marked
+            python3 - "screenshots/$n" <<'EOF' || true
+          import json, os, re, sys
+          d = sys.argv[1]
+          for t in json.load(open(os.path.join(d, "manifest.json"))):
+              test = re.sub(r"\W+", "", t.get("testIdentifier", "").split("/")[-1])
+              for a in t.get("attachments", []):
+                  src = os.path.join(d, a["exportedFileName"])
+                  if not os.path.exists(src): continue
+                  name = re.sub(r"_\d+_[0-9A-F-]{36}", "", a.get("suggestedHumanReadableName", a["exportedFileName"]))
+                  name = re.sub(r"[^\w.\-]+", "_", name)
+                  os.rename(src, os.path.join(d, ("FAILED_" if a.get("isAssociatedWithFailure") else "") + test + "__" + name))
+          EOF
             xcrun xcresulttool get test-results summary --path "$r" --format json > "results/$n-summary.json" 2>/dev/null || true
             xcrun xcresulttool get test-results tests --path "$r" --format json > "results/$n-tests.json" 2>/dev/null || true
           done

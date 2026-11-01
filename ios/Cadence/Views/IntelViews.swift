@@ -143,7 +143,8 @@ struct QuickCaptureSheet: View {
                 }
                 if let done {
                     HStack {
-                        Label(done, systemImage: "checkmark.circle.fill").font(.geist(14)).foregroundStyle(Color.good).accessibilityIdentifier("capture.done")
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.good).accessibilityHidden(true)
+                        Text(done).font(.geist(14)).foregroundStyle(Color.good).accessibilityIdentifier("capture.done")
                         Spacer()
                         if let undo {
                             Button("Undo") { undo(); self.undo = nil; self.done = "Undone" }
