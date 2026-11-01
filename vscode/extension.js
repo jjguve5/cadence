@@ -49,7 +49,8 @@ function show() {
 async function prompt(context, kind) {
   const text = kind === "eyes" ? "20-20-20: look at something 6 m away for 20 seconds." : "Stand up, stretch, walk for two minutes.";
   const answer = await vscode.window.showInformationMessage(`Cadence · ${text}`, "Done", "Skip");
-  await call(context, { event: { kind, answer: answer === "Done" ? "done" : "skipped", at: Date.now() } });
+  // a pop-up that hides itself unanswered counts as nothing, not as skipped
+  if (answer) await call(context, { event: { kind, answer: answer === "Done" ? "done" : "skipped", at: Date.now() } });
 }
 
 async function refresh(context) {
