@@ -40,6 +40,7 @@ final class LiveWorkout: ObservableObject {
     }
 
     func update(session: WorkoutSession) async {
+        if TestMode.active { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled, session.end == nil else { return }
         if sessionId != session.id { restEnd = nil }
         sessionId = session.id

@@ -1,46 +1,176 @@
-name: Build iPhone app (unsigned IPA)
+name: iOS tests and build
 on:
   push:
+    branches: [main]
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  pull_request:
     paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  # Unit tests and UI tests on an iOS simulator. The app runs in its test mode (CADENCE_UITEST): its own data file,
+  # no network, fixed scenarios. Results, screenshots and logs are uploaded even when something fails.
+  simulator-tests:
     runs-on: macos-15
+    timeout-minutes: 75
     defaults:
       run:
         working-directory: ios
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - run: brew install xcodegen
-      - run: xcodegen generate
-      # The pure calculations are tested on a simulator before the device build
-      - run: |
-          SIM=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone 1[0-9]( Pro)?' | head -1)
-          xcodebuild test -project Cadence.xcodeproj -scheme Cadence -destination "platform=iOS Simulator,name=$SIM"             -derivedDataPath buildtest -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO             | tee test.log | grep -E "Test Case .*(passed|failed)|error:|TEST (SUCCEEDED|FAILED)|Executed" ; exit ${PIPESTATUS[0]}
+
+      - name: Pick the newest stable Xcode
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          echo "SDK=$(xcrun --sdk iphonesimulator --show-sdk-version)" >> "$GITHUB_ENV"
+
+      - name: Pick a simulator
+        run: |
+          xcrun simctl list devices available -j > devices.json
+          python3 - <<'EOF' >> "$GITHUB_ENV"
+          import json, os
+          sdk = tuple(int(x) for x in os.environ["SDK"].split("."))
+          found = []
+          for runtime, devices in json.load(open("devices.json"))["devices"].items():
+              if "iOS-" not in runtime: continue
+              ver = tuple(int(x) for x in runtime.split("iOS-")[1].split("-"))
+              if ver > sdk or ver < (17, 0): continue
+              for d in devices:
+                  if d.get("isAvailable") and d["name"].startswith("iPhone"):
+                      found.append((ver, d["name"], d["udid"]))
+          if not found: raise SystemExit("no iPhone simulator for SDK %s" % os.environ["SDK"])
+          newest = max(v for v, _, _ in found)
+          here = [f for f in found if f[0] == newest]
+          # a regular-size Pro for the main run, the smallest phone for the small-screen screenshots
+          main = next((f for f in here if f[1].endswith(" Pro")), here[0])
+          small = next((f for f in here if "SE" in f[1] or f[1].endswith("e") or "mini" in f[1]), None)
+          print("SIM_ID=%s" % main[2]); print("SIM_NAME=%s (iOS %s)" % (main[1], ".".join(map(str, newest))))
+          if small: print("SMALL_ID=%s" % small[2]); print("SMALL_NAME=%s" % small[1])
+          EOF
+          cat "$GITHUB_ENV"
+
+      - name: Generate the project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          mkdir -p logs results screenshots
+
+      - name: Boot the simulator
+        run: |
+          xcrun simctl boot "$SIM_ID" || true
+          xcrun simctl bootstatus "$SIM_ID" -b
+          echo "Booted $SIM_NAME"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing -project Cadence.xcodeproj -scheme Cadence -destination "id=$SIM_ID" \
+            -derivedDataPath DD -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO \
+            > logs/build-for-testing.log 2>&1 || { grep -B2 -A8 "error:" logs/build-for-testing.log | head -200; exit 1; }
+          tail -3 logs/build-for-testing.log
+
+      - name: Unit tests
+        run: |
+          set +e
+          xcodebuild test-without-building -project Cadence.xcodeproj -scheme Cadence -destination "id=$SIM_ID" \
+            -derivedDataPath DD -only-testing:CadenceTests -resultBundlePath results/UnitTests.xcresult \
+            > logs/unit-tests.log 2>&1
+          echo "UNIT_EXIT=$?" >> "$GITHUB_ENV"
+          grep -E "Test Case .*(passed|failed)|error:|Executed|TEST (EXECUTE )?(SUCCEEDED|FAILED)" logs/unit-tests.log | tail -120
+
+      - name: UI tests
+        run: |
+          set +e
+          xcodebuild test-without-building -project Cadence.xcodeproj -scheme Cadence -destination "id=$SIM_ID" \
+            -derivedDataPath DD -only-testing:CadenceUITests -resultBundlePath results/UITests.xcresult \
+            -parallel-testing-enabled NO -test-timeouts-enabled YES -default-test-execution-time-allowance 300 \
+            > logs/ui-tests.log 2>&1
+          echo "UI_EXIT=$?" >> "$GITHUB_ENV"
+          grep -E "Test Case .*(passed|failed)|error:|Executed|TEST (EXECUTE )?(SUCCEEDED|FAILED)" logs/ui-tests.log | tail -120
+
+      - name: Small-screen screenshots
+        if: env.SMALL_ID != ''
+        run: |
+          set +e
+          xcrun simctl boot "$SMALL_ID" || true
+          xcrun simctl bootstatus "$SMALL_ID" -b
+          xcodebuild test-without-building -project Cadence.xcodeproj -scheme Cadence -destination "id=$SMALL_ID" \
+            -derivedDataPath DD -only-testing:CadenceUITests/CadenceUITests/testLaunchShowsToday \
+            -only-testing:CadenceUITests/CadenceUITests/testPoorSleepOffersMinimumDayAndActionTurnsItOn \
+            -resultBundlePath results/UITests-small.xcresult > logs/ui-tests-small.log 2>&1
+          echo "SMALL_EXIT=$?" >> "$GITHUB_ENV"
+          grep -E "Test Case .*(passed|failed)|Executed" logs/ui-tests-small.log | tail -20
+
+      - name: Export screenshots, summaries and simulator logs
+        if: always()
+        run: |
+          for r in results/*.xcresult; do
+            n=$(basename "$r" .xcresult)
+            mkdir -p "screenshots/$n"
+            xcrun xcresulttool export attachments --path "$r" --output-path "screenshots/$n" || true
+            xcrun xcresulttool get test-results summary --path "$r" --format json > "results/$n-summary.json" 2>/dev/null || true
+            xcrun xcresulttool get test-results tests --path "$r" --format json > "results/$n-tests.json" 2>/dev/null || true
+          done
+          xcrun simctl spawn "$SIM_ID" log show --last 60m --style compact --predicate 'process == "Cadence"' > logs/simulator-cadence.log 2>&1 || true
+          mkdir -p logs/crashes; cp ~/Library/Logs/DiagnosticReports/Cadence* logs/crashes/ 2>/dev/null || true
+          python3 - <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, glob, os
+          print("### Simulator: %s\n" % os.environ.get("SIM_NAME", "?"))
+          print("| Run | Passed | Failed | Skipped | Result |\n|---|---|---|---|---|")
+          for f in sorted(glob.glob("results/*-summary.json")):
+              try: s = json.load(open(f))
+              except Exception: continue
+              print("| %s | %s | %s | %s | %s |" % (os.path.basename(f)[:-13], s.get("passedTests"), s.get("failedTests"), s.get("skippedTests"), s.get("result")))
+              for t in s.get("testFailures", []):
+                  print("\n- **%s**: %s" % (t.get("testName"), t.get("failureText", "").replace("\n", " ")[:300]))
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulator-test-results
+          path: |
+            ios/results/
+            ios/screenshots/
+            ios/logs/
+          if-no-files-found: warn
+
+      - name: Fail when tests failed
+        if: always()
+        run: |
+          echo "unit=$UNIT_EXIT ui=$UI_EXIT small=${SMALL_EXIT:-skipped}"
+          [ "$UNIT_EXIT" = "0" ] && [ "$UI_EXIT" = "0" ] && [ "${SMALL_EXIT:-0}" = "0" ]
+
+  # The unsigned app for Sideloadly
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ios
         shell: bash
-      - run: >
-          xcodebuild -project Cadence.xcodeproj -scheme Cadence
-          -configuration Release -sdk iphoneos -destination generic/platform=iOS
-          -derivedDataPath build -skipPackagePluginValidation
-          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
-          | tee build.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" ; exit ${PIPESTATUS[0]}
-        shell: bash
-      - if: failure()
-        run: grep -B2 -A6 "error:" build.log | head -200
+    steps:
+      - uses: actions/checkout@v4
       - run: |
+          XC=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XC"
+          brew install xcodegen
+          xcodegen generate
+      - run: |
+          set -o pipefail
+          xcodebuild -project Cadence.xcodeproj -scheme Cadence -configuration Release -sdk iphoneos -destination generic/platform=iOS \
+            -derivedDataPath build -skipPackagePluginValidation CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build \
+            > build.log 2>&1 || { grep -B2 -A6 "error:" build.log | head -200; exit 1; }
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Cadence.app Payload/
           zip -qr Cadence.ipa Payload
-      # The same app signed ad hoc with the App Group entitlement, to test whether widgets survive free signing
-      - run: |
-          rm -rf WPayload && mkdir WPayload
-          cp -R build/Build/Products/Release-iphoneos/Cadence.app WPayload/
-          codesign -f -s - --entitlements Widgets/Widgets.entitlements WPayload/Cadence.app/PlugIns/CadenceWidgets.appex
-          codesign -f -s - --entitlements Cadence/Cadence.entitlements WPayload/Cadence.app
-          mv WPayload Payload.w && mkdir wtmp && mv Payload.w wtmp/Payload && (cd wtmp && zip -qr ../Cadence-widgets-test.ipa Payload)
       - uses: actions/upload-artifact@v4
         with:
           name: Cadence-ipa
-          path: |
-            ios/Cadence.ipa
-            ios/Cadence-widgets-test.ipa
+          path: ios/Cadence.ipa

@@ -33,10 +33,14 @@ final class Agenda: ObservableObject {
         if let d = try? Data(contentsOf: file), let e = try? JSONDecoder().decode([CalendarEvent].self, from: d) { events = e }
     }
 
+    /// UI-test scenarios only
+    func seed(_ list: [CalendarEvent]) { events = list }
+
     func events(on day: String) -> [CalendarEvent] { events.filter { !$0.allDay && $0.day == day }.sorted { $0.start < $1.start } }
     func allDay(on day: String) -> [CalendarEvent] { events.filter { $0.allDay && $0.start <= day && $0.end > day } }
 
     func refresh(force: Bool = false) async {
+        if TestMode.active { return }
         if !force, let last, Date().timeIntervalSince(last) < 10 * 60 { return }
         guard let req = Store.shared.request("calendar.php?from=\(Day.add(-1, to: Day.today))&days=9") else { return }
         guard let (data, resp) = try? await URLSession.shared.data(for: req) else { return }

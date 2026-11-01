@@ -113,6 +113,7 @@ enum FoodSearch {
 
     /// Packaged products by name from Open Food Facts, Portuguese first
     static func products(_ q: String) async -> [OFFResult] {
+        if TestMode.active { return [] }
         guard q.count >= 3, let enc = q.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
               let url = URL(string: "https://world.openfoodfacts.org/cgi/search.pl?search_terms=\(enc)&search_simple=1&action=process&json=1&page_size=15&sort_by=unique_scans_n&fields=code,product_name,brands,nutriments,serving_quantity") else { return [] }
         var req = URLRequest(url: url, timeoutInterval: 12)

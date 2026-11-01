@@ -70,11 +70,24 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence.tests
         GENERATE_INFOPLIST_FILE: YES
+  # Drives the real app on a simulator in its test mode: own data file, no network, fixed scenarios
+  CadenceUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [CadenceUITests]
+    dependencies:
+      - target: Cadence
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Cadence
 schemes:
   Cadence:
     build:
       targets:
         Cadence: all
         CadenceTests: [test]
+        CadenceUITests: [test]
     test:
-      targets: [CadenceTests]
+      targets: [CadenceTests, CadenceUITests]

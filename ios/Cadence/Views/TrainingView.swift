@@ -36,7 +36,9 @@ struct TrainingView: View {
                         Button { editing = t } label: { Image(systemName: "pencil").foregroundStyle(Color.soft) }.buttonStyle(.plain).padding(.trailing, 6)
                         Button { open = start(t) } label: {
                             Image(systemName: "play.fill").font(.geist(13, .bold)).foregroundStyle(Color(hex: 0x2A0610)).frame(width: 36, height: 36).background(Circle().fill(Area.train.gradient))
+                                .frame(width: 44, height: 44).contentShape(Rectangle())
                         }
+                        .accessibilityLabel("Start \(t.name)").accessibilityIdentifier("training.start.\(t.name)")
                     }
                 }
                 Button { editing = WorkoutTemplate(name: "New template", exercises: []) } label: { Label("New template", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.train)
@@ -166,6 +168,7 @@ struct WorkoutView: View {
                                         .background(RoundedRectangle(cornerRadius: 10).fill(feel == n ? Color.train.opacity(0.5) : .white.opacity(0.07)))
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityAddTraits(feel == n ? .isSelected : []).accessibilityIdentifier("workout.feel.\(n)")
                             }
                         }
                         Text("Used to check whether readiness predicts your sessions.").font(.geist(11)).foregroundStyle(Color.faint)
@@ -179,6 +182,7 @@ struct WorkoutView: View {
                         Task { await LiveWorkout.shared.end() }
                         dismiss()
                     }
+                    .accessibilityIdentifier("workout.finish")
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

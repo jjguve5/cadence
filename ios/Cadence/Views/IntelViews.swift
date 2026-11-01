@@ -21,6 +21,7 @@ struct FocusCard: View {
                         row(r, open: i == 0 || expanded == r.id)
                     }
                 }
+                .accessibilityElement(children: .contain).accessibilityIdentifier("focus.card")
             } else if let note = store.freshnessNote {
                 Card { Label(note, systemImage: "clock.arrow.circlepath").font(.geist(13)).foregroundStyle(Color.soft) }
             }
@@ -40,6 +41,7 @@ struct FocusCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("rec.\(r.kind)")
             if open {
                 Text(r.why).font(.geist(13.5)).foregroundStyle(Color.ink.opacity(0.9))
                 VStack(alignment: .leading, spacing: 3) {
@@ -48,9 +50,10 @@ struct FocusCard: View {
                     }
                 }
                 HStack(spacing: 8) {
-                    if r.action != .none { SoftButton(title: r.actionLabel, icon: icon(r.action)) { act(r) } }
+                    if r.action != .none { SoftButton(title: r.actionLabel, icon: icon(r.action)) { act(r) }.accessibilityIdentifier("rec.\(r.kind).action") }
                     Spacer()
                     Button("Not useful") { store.feedback(r, useful: false) }.font(.geist(12.5)).foregroundStyle(Color.faint)
+                        .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle()).accessibilityIdentifier("rec.\(r.kind).dismiss")
                 }
             }
         }
@@ -99,9 +102,11 @@ struct MinimumDayBanner: View {
                     Eyebrow(text: "Minimum viable day", icon: "leaf.fill", color: .good)
                     Spacer()
                     Button("Turn off") { store.setMinimumDay(false) }.font(.geist(12.5, .semibold)).tint(.soft)
+                        .frame(minHeight: 44).accessibilityIdentifier("mvd.off")
                 }
                 Text("Essentials only: must-dos, medicines, water and an early night. Optional routines can wait, and doing the essentials is a full day.").font(.geist(13)).foregroundStyle(Color.ink.opacity(0.9))
             }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("mvd.banner")
         }
     }
 }
@@ -111,6 +116,7 @@ struct QuickCaptureSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var done: String?
+    @State private var undo: (() -> Void)?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -119,19 +125,32 @@ struct QuickCaptureSheet: View {
                 TextField("Ate a banana · spent 12 € on groceries · remind me…", text: $text, axis: .vertical)
                     .font(.geist(17)).focused($focused)
                     .padding(14).background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.07)))
+                    .accessibilityIdentifier("capture.field")
                 if !text.trimmingCharacters(in: .whitespaces).isEmpty {
                     let intent = QuickCapture.parse(text)
                     Card {
                         Eyebrow(text: "Understood as", icon: "text.magnifyingglass")
-                        Text(intent.summary).font(.geist(15, .medium))
-                        if case .food(let f, let missing) = intent, !missing.isEmpty { Text(f.isEmpty ? "Not in the common foods: use Log food to search products." : "Some items need numbers: add them in Log food.").font(.geist(12)).foregroundStyle(Color.warn) }
+                        Text(intent.summary).font(.geist(15, .medium)).accessibilityIdentifier("capture.summary")
                     }
                     PrimaryButton(title: "Confirm") {
-                        done = store.apply(intent)
+                        let r = store.apply(intent)
+                        done = r.message
+                        undo = r.undo
                         text = ""
                     }
+                    .disabled(!intent.savesSomething).opacity(intent.savesSomething ? 1 : 0.4)
+                    .accessibilityIdentifier("capture.confirm")
                 }
-                if let done { Label(done, systemImage: "checkmark.circle.fill").font(.geist(14)).foregroundStyle(Color.good) }
+                if let done {
+                    HStack {
+                        Label(done, systemImage: "checkmark.circle.fill").font(.geist(14)).foregroundStyle(Color.good).accessibilityIdentifier("capture.done")
+                        Spacer()
+                        if let undo {
+                            Button("Undo") { undo(); self.undo = nil; self.done = "Undone" }
+                                .font(.geist(14, .semibold)).frame(minWidth: 44, minHeight: 44).accessibilityIdentifier("capture.undo")
+                        }
+                    }
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Try").font(.geist(12, .semibold)).foregroundStyle(Color.faint)
                     ForEach(["Ate Greek yogurt and a banana", "Spent 12 euros on groceries", "Remind me to wash my clothes tomorrow at 18:00", "Move studying to tomorrow", "Felt exhausted after lunch"], id: \.self) { s in
@@ -144,7 +163,7 @@ struct QuickCaptureSheet: View {
             .background(Color.bg.ignoresSafeArea())
             .navigationTitle("Quick capture")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("capture.close") } }
             .onAppear { focused = true }
         }
     }
@@ -156,7 +175,7 @@ struct LearnedView: View {
     var body: some View {
         Screen(glow: .mind) {
             Text("Each prediction is written down before the day happens, then checked against what you reported. Under 10 pairs Cadence says so instead of guessing.")
-                .font(.geist(13)).foregroundStyle(Color.soft).padding(.top, 6)
+                .font(.geist(13)).foregroundStyle(Color.soft).padding(.top, 6).accessibilityIdentifier("learned.screen")
             calibration("Morning readiness → your energy that evening", store.energyPairs())
             calibration("Readiness → how the session felt", store.trainingPairs())
             calibration("Energy curve → focus session quality", store.focusPairs())
@@ -194,7 +213,7 @@ struct LearnedView: View {
             Eyebrow(text: title)
             HStack(alignment: .firstTextBaseline) {
                 Text(c.spearman.map { String(format: "%.2f", $0) } ?? "–").font(.mono(24, .medium))
-                Text("rank correlation · \(c.n) pairs").font(.geist(12)).foregroundStyle(Color.soft)
+                Text("rank correlation · \(c.n) pairs").font(.geist(12)).foregroundStyle(Color.soft).accessibilityIdentifier("calibration.pairs")
             }
             Text(c.verdict).font(.geist(13.5, .semibold)).foregroundStyle(c.verdict.hasPrefix("Useful") ? Color.good : Color.soft)
             if let m = c.modelError, let b = c.baselineError { Text(String(format: "Average miss %.2f points, against %.2f from guessing your own average", m, b)).font(.geist(11.5)).foregroundStyle(Color.faint) }

@@ -75,9 +75,24 @@ final class Store: ObservableObject {
     private var tombstones: [String] = []
     private var rev: Int?
     private var version = 0
-    private let file = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json")
+    // UI tests use their own file in a temporary folder; the real file is never touched in that mode
+    private let file = TestMode.active ? TestMode.storeFile : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json")
 
     private init() {
+        if TestMode.active {
+            if TestMode.reset { try? FileManager.default.removeItem(at: file) }
+            let fresh = !FileManager.default.fileExists(atPath: file.path)
+            loadSaved()
+            if fresh {
+                connection = Connection(server: "https://uitest.invalid", token: "uitest")
+                TestSeed.apply(self, scenario: TestMode.scenario ?? "normal")
+            }
+            return
+        }
+        loadSaved()
+    }
+
+    private func loadSaved() {
         if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             promises = saved.promises; logs = saved.logs; days = saved.days; profile = saved.profile
             feedback = saved.feedback; extra = saved.extra; health = saved.health; device = saved.device
@@ -114,6 +129,14 @@ final class Store: ObservableObject {
         let brush = PromiseItem(title: "Brush teeth, night", icon: "mouth.fill", schedule: Schedule(rule: .daily, minute: 23 * 60 + 25, anchor: "lightsOut", offset: -10))
         for p in [creatine, shake, read, brush] { promises[p.id] = p; dirty["promise:\(p.id)"] = 1 }
         dirty["profile:me"] = 1
+        persist()
+    }
+
+    /// UI-test scenarios only
+    func loadTestHealth(_ list: [HealthDay], device: Device) {
+        for d in list { health[d.date] = d }
+        self.device = device
+        lastHealth = Date()
         persist()
     }
 
@@ -222,7 +245,7 @@ final class Store: ObservableObject {
     }
 
     func request(_ path: String, body: Data? = nil) -> URLRequest? {
-        guard connection.configured, let url = URL(string: connection.server.trimmingCharacters(in: .whitespaces) + "/" + path) else { return nil }
+        guard !TestMode.active, connection.configured, let url = URL(string: connection.server.trimmingCharacters(in: .whitespaces) + "/" + path) else { return nil }
         var r = URLRequest(url: url, timeoutInterval: 90)
         r.setValue("Bearer \(connection.token)", forHTTPHeaderField: "Authorization")
         r.setValue(connection.token, forHTTPHeaderField: "X-Cadence-Token")

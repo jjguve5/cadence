@@ -61,6 +61,7 @@ struct TodayView: View {
                     .frame(width: 40, height: 40).background(Circle().fill(.white.opacity(0.09)).overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1)))
             }
             .buttonStyle(Pressable())
+            .accessibilityLabel("Quick capture").accessibilityIdentifier("capture.open")
             .padding(.trailing, 6)
             NavigationLink { PipPage() } label: {
                 ZStack(alignment: .bottomTrailing) {
@@ -172,9 +173,10 @@ struct TodayView: View {
                 }
                 .buttonStyle(Pressable())
                 Button { withAnimation(.easeOut(duration: 0.2)) { allRings.toggle() } } label: {
-                    Image(systemName: allRings ? "chevron.up" : "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.soft).frame(width: 30, height: 28)
+                    Image(systemName: allRings ? "chevron.up" : "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.soft).frame(width: 44, height: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(allRings ? "Show fewer rings" : "Show all rings").accessibilityIdentifier("rings.toggle")
                 Button { store.addWater(250) } label: {
                     Label("250 ml", systemImage: "drop.fill").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x03202A))
                         .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.water.gradient))
@@ -192,6 +194,7 @@ struct TodayView: View {
                         Text(item.0).font(.geist(11.5)).foregroundStyle(Color.soft)
                     }
                     .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(item.0.lowercased())")
                 }
             }
         }
@@ -239,12 +242,12 @@ struct TodayView: View {
 
     private var closeCard: some View {
         let closed = store.day().closedAt != nil
-        let late = Day.minuteOfDay(store.tick) >= 19 * 60
+        let late = (TestMode.minute ?? Day.minuteOfDay(store.tick)) >= 19 * 60
         return Group {
             if closed {
-                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Day closed · \(store.day().score ?? store.score()) / 100").font(.geist(14, .semibold)) } }
+                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Day closed · \(store.day().score ?? store.score()) / 100").font(.geist(14, .semibold)) }.accessibilityElement(children: .combine).accessibilityIdentifier("closeday.closed") }
             } else if late {
-                PrimaryButton(title: "Close the day") { closing = true }
+                PrimaryButton(title: "Close the day") { closing = true }.accessibilityIdentifier("closeday.open")
             }
         }
     }

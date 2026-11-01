@@ -38,6 +38,7 @@ final class PipNudge {
     }
 
     func refresh() async {
+        if TestMode.active { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         guard let n = pick() else { await end(); return }
         let state = PipAttributes.ContentState(message: n.message, short: n.short, mood: Store.shared.pipMood() == .sleepy ? "pip-sleepy" : "pip-neutral", promiseId: n.promiseId, icon: n.icon)

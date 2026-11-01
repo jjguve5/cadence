@@ -32,6 +32,7 @@ struct YouView: View {
                         Text("Journal, mood, goals, experiments, weekly review, Cadence age, badges · this week: \(store.challenge().text.lowercased())").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
+                .accessibilityIdentifier("you.growth")
                 .buttonStyle(.plain)
                 VStack(spacing: 0) {
                     link("Promises", "bell", PromisesView())

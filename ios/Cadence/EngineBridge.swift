@@ -48,7 +48,7 @@ extension Store {
     /// What's known about this morning, said plainly
     var freshnessNote: String? {
         let today = health[Day.today]
-        if today?.sleep == nil, Day.minuteOfDay() < 14 * 60 { return "Last night's sleep hasn't synced yet" + (syncAgeHours.map { ": the Air last synced \(Int($0)) h ago" } ?? "") + "." }
+        if today?.sleep == nil, Clock.minute() < 14 * 60 { return "Last night's sleep hasn't synced yet" + (syncAgeHours.map { ": the Air last synced \(Int($0)) h ago" } ?? "") + "." }
         if today?.hrv == nil, today?.sleep != nil { return "Today's HRV hasn't synced; readiness uses sleep and resting HR." }
         return nil
     }
@@ -65,14 +65,10 @@ extension Store {
     /// On a minimum viable day only the essentials count: must-dos and medicines, sleep, water. Doing them is a full day.
     func minimumScore(on day: String) -> Int {
         let musts = due(on: day).filter { $0.kind == .mustDo }
-        let mustDone = musts.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count
         let doses = self.doses(on: day)
-        let taken = doses.filter { $0.log?.taken == true }.count
-        let essentials = musts.count + doses.count
-        var got = essentials == 0 ? 50.0 : 50 * Double(mustDone + taken) / Double(essentials)
-        if let s = health[day]?.sleep { got += 25 * min(1, Double(s.asleep) / Double(profile.sleepNeed)) } else { got += 25 }
-        got += 25 * min(1, fuel(on: day).water / max(1, waterGoal(on: day) * 0.7))
-        return Int(got.rounded())
+        return Engine.minimumScore(essentials: musts.count + doses.count,
+                                   essentialsDone: musts.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count + doses.filter { $0.log?.taken == true }.count,
+                                   sleep: health[day]?.sleep?.asleep, sleepNeed: profile.sleepNeed, water: fuel(on: day).water, waterGoal: waterGoal(on: day))
     }
 
     // MARK: Context and recommendations
@@ -80,7 +76,7 @@ extension Store {
     func dayContext() -> DayContext {
         let today = Day.today
         let h = health[today]
-        let minute = Day.minuteOfDay()
+        let minute = Clock.minute()
         let nights = (0..<7).compactMap { health[Day.add(-$0, to: today)]?.sleep?.asleep }
         let project = all(Project.self).filter { !$0.archived }.min { $0.deadline < $1.deadline }
         let deadline = project.map { p -> (title: String, daysLeft: Int, behind: Bool) in
@@ -105,7 +101,10 @@ extension Store {
                           readinessUseful: calibration.n >= 10 ? (calibration.spearman ?? 0) >= 0.15 : nil)
     }
 
-    func recommendations() -> [Recommendation] { Engine.recommendations(dayContext()) }
+    func recommendations() -> [Recommendation] {
+        let answered = Set(all(RecFeedback.self).filter { $0.date == Day.today }.map(\.rec))
+        return Engine.recommendations(dayContext()).filter { $0.kind == "mustdo" || !answered.contains($0.kind) }
+    }
 
     func feedback(_ r: Recommendation, useful: Bool) {
         save(RecFeedback(date: Day.today, rec: r.kind, response: useful ? "useful" : "dismissed"))
@@ -128,13 +127,15 @@ extension Store {
     /// Written once in the morning, before the day can be rated
     func recordMorningPrediction() {
         let id = "energy|\(Day.today)"
-        guard record(Prediction.self, id) == nil, let r = readinessResult(), r.confidence >= .moderate else { return }
+        // only in the morning and before the day is rated, so the outcome can't leak into the prediction
+        guard Clock.minute() < 14 * 60, day().energy == nil, day().closedAt == nil,
+              record(Prediction.self, id) == nil, let r = readinessResult(), r.confidence >= .moderate else { return }
         save(Prediction(id: id, kind: "energy", date: Day.today, predicted: 1 + 4 * Double(r.score) / 100, basis: "readiness \(r.score)"))
     }
 
     func recordTrainingPrediction(session: WorkoutSession) {
         let id = "training|\(session.id)"
-        guard record(Prediction.self, id) == nil, let r = readinessResult() else { return }
+        guard session.end == nil, session.feel == nil, session.date == Day.today, record(Prediction.self, id) == nil, let r = readinessResult() else { return }
         save(Prediction(id: id, kind: "training", date: session.date, predicted: 1 + 4 * Double(r.score) / 100, basis: "readiness \(r.score)"))
     }
 
@@ -144,7 +145,11 @@ extension Store {
     }
 
     func energyPairs() -> [(predicted: Double, observed: Double)] {
-        all(Prediction.self).filter { $0.kind == "energy" }.compactMap { p in days[p.date]?.energy.map { (p.predicted, Double($0)) } }
+        // matched by day, and only when the prediction was written before the day was rated
+        all(Prediction.self).filter { $0.kind == "energy" }.compactMap { p in
+            guard let d = days[p.date], p.made <= (d.closedAt ?? .infinity) else { return nil }
+            return d.energy.map { (p.predicted, Double($0)) }
+        }
     }
 
     func trainingPairs() -> [(predicted: Double, observed: Double)] {

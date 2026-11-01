@@ -60,6 +60,7 @@ final class WeatherStore: NSObject, ObservableObject, CLLocationManagerDelegate 
     }
 
     func refresh(force: Bool = false) async {
+        if TestMode.active { return }
         if !force, let t = today, nowMs() - t.fetched < 45 * 60 * 1000, t.date == Day.today { return }
         let loc = await location()
         let lat = loc.coordinate.latitude, lon = loc.coordinate.longitude

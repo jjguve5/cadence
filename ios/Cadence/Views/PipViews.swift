@@ -8,7 +8,7 @@ struct PipAnimation: View {
 
     var body: some View {
         let worn = store.pipOutfit
-        var view = LottieView(animation: .named(mood.rawValue)).looping()
+        var view = TestMode.active ? LottieView(animation: .named(mood.rawValue)).currentProgress(0.3) : LottieView(animation: .named(mood.rawValue)).looping()
         for a in worn { view = view.valueProvider(FloatValueProvider(100), for: AnimationKeypath(keypath: "\(a.layer).Transform.Opacity")) }
         return view.id(mood.rawValue + worn.map(\.id).joined())
     }

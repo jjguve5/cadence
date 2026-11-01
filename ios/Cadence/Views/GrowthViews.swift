@@ -17,6 +17,7 @@ struct YouGrowthView: View {
                 }
             }
             .buttonStyle(Pressable())
+            .accessibilityIdentifier("growth.learned")
             JournalCard()
             MoodGrid()
             challengeCard

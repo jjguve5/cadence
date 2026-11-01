@@ -18,7 +18,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: "info", actions: [], intentIdentifiers: [], options: [.customDismissAction]),
         ])
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        if !TestMode.active { center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in } }
     }
 
     private struct Planned {
@@ -119,7 +119,6 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         }
 
         // Within the daily budget, must-dos always first
-        var perDay: [String: Int] = [:]
         // Kinds you keep swiping away drop in priority, then stop; priority 0 (must-dos, medicines, leave-by) never does
         planned = planned.compactMap { item in
             guard item.priority > 0 else { return item }
@@ -134,12 +133,9 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             if store.isMinimumDay(Day.key(item.at)), item.priority >= 2 { return nil }
             return x
         }
-        let queue = planned.filter { $0.at > now && $0.at < horizon }.sorted { ($0.priority, $0.at) < ($1.priority, $1.at) }.filter {
-            if $0.priority == 0 { return true }
-            let d = Day.key($0.at)
-            perDay[d, default: 0] += 1
-            return perDay[d]! <= p.notificationBudget
-        }.prefix(60)
+        let picked = NotificationPlanner.select(planned.map { NotificationPlanner.Item(id: $0.id, at: $0.at, priority: $0.priority) }, now: now, horizon: horizon, budget: p.notificationBudget)
+        let byId = Dictionary(planned.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let queue = picked.compactMap { byId[$0.id] }
 
         center.removeAllPendingNotificationRequests()
         for item in queue {
@@ -151,6 +147,16 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             content.threadIdentifier = item.promise ? "promises" : "day"
             let parts = Day.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.at)
             center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+        }
+    }
+
+    /// iOS reports a dismissal only when you clear a notification yourself; one that's simply ignored produces no
+    /// callback. So on each launch, notifications still sitting unanswered after 2 hours count as ignored, then go.
+    func collectIgnored() {
+        center.getDeliveredNotifications { list in
+            let old = list.filter { Date().timeIntervalSince($0.date) > 2 * 3600 }
+            for n in old { NotificationLearning.record(String(n.request.identifier.split(separator: "|").first ?? ""), engaged: false) }
+            self.center.removeDeliveredNotifications(withIdentifiers: old.map(\.request.identifier))
         }
     }
 
@@ -231,5 +237,24 @@ enum NotificationLearning {
             let list = UserDefaults.standard.array(forKey: key(k)) as? [Int] ?? []
             return list.isEmpty ? nil : (k, Double(list.filter { $0 == 0 }.count) / Double(list.count), list.count)
         }
+    }
+}
+
+/// Which notifications get scheduled: priority 0 (must-dos, medicines, leave-by) always, the rest by priority within
+/// the daily budget, everything inside the next 48 hours and under iOS's 64-request limit (60, leaving room).
+enum NotificationPlanner {
+    struct Item: Equatable { var id: String; var at: Date; var priority: Int }
+
+    static func select(_ items: [Item], now: Date, horizon: Date, budget: Int, limit: Int = 60) -> [Item] {
+        var perDay: [String: Int] = [:]
+        let sorted = items.filter { $0.at > now && $0.at < horizon }.sorted { ($0.priority, $0.at) < ($1.priority, $1.at) }
+        let essentials = sorted.filter { $0.priority == 0 }
+        var rest: [Item] = []
+        for i in sorted where i.priority > 0 {
+            let d = Day.key(i.at)
+            perDay[d, default: 0] += 1
+            if perDay[d]! <= budget { rest.append(i) }
+        }
+        return Array((essentials + rest).prefix(limit))
     }
 }

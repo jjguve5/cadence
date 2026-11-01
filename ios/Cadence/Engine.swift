@@ -141,7 +141,21 @@ enum Engine {
         return min(600, max(0, total))
     }
 
+    /// A slide that the day-to-day blend would smooth away: most of the last week's values well under the usual
+    static func sustainedDecline(week: [Double], baseline: RobustBaseline) -> Bool {
+        week.count >= 5 && median(week) < baseline.median - baseline.spread
+    }
+
     // MARK: Minimum viable day
+
+    /// Essentials only: must-dos and medicines 50, sleep 25, water 25 (70% of the goal is enough). Missing sleep
+    /// data doesn't count against you.
+    static func minimumScore(essentials: Int, essentialsDone: Int, sleep: Int?, sleepNeed: Int, water: Double, waterGoal: Double) -> Int {
+        var got = essentials == 0 ? 50.0 : 50 * Double(min(essentialsDone, essentials)) / Double(essentials)
+        got += sleep.map { 25 * min(1, Double($0) / Double(max(1, sleepNeed))) } ?? 25
+        got += 25 * min(1, water / max(1, waterGoal * 0.7))
+        return Int(got.rounded())
+    }
 
     static func minimumDayReasons(_ c: DayContext) -> [String] {
         var out: [String] = []
@@ -215,7 +229,10 @@ enum Engine {
         }
 
         // Data that hasn't arrived
-        if stale, c.sleepMinutes == nil, morning {
+        if let h = c.lastSyncHours, h >= 24 {
+            let days = Int(h / 24)
+            out.append(Recommendation(kind: "sync", title: "Your Air hasn't synced for \(days) day\(days == 1 ? "" : "s")", why: "Readiness, sleep debt and the plan are working from older data until it syncs. Open the Fitbit app near the band.", evidence: ["Last sync \(Int(h)) hours ago"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 85))
+        } else if stale, c.sleepMinutes == nil, morning {
             out.append(Recommendation(kind: "sync", title: "Sync your Air", why: "Today's sleep and HRV haven't arrived, so readiness and the plan are running on yesterday.", evidence: [c.lastSyncHours.map { "Last sync \(Int($0)) hours ago" } ?? "No sync yet"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 60))
         }
         if let b = c.airBattery, b <= 15 {
@@ -229,7 +246,12 @@ enum Engine {
                 out[i].evidence.append("Air data is \(Int(c.lastSyncHours ?? 0)) hours old")
             }
         }
-        return Array(out.filter { !c.suppressedKinds.contains($0.kind) || $0.kind == "mustdo" }.sorted { $0.priority > $1.priority }.prefix(3))
+        // A light day drops the push-harder advice; an offered light day drops deadline pressure
+        if c.minimumDay { out.removeAll { ["focus", "deadline", "trainfeel"].contains($0.kind) } }
+        if out.contains(where: { $0.kind == "minimumday" }) { out.removeAll { $0.kind == "deadline" } }
+        // Dismissing quiets a kind, but never must-dos, a missing sync of a day or more, or a light day offered for illness signals
+        let protected: (Recommendation) -> Bool = { r in r.kind == "mustdo" || (r.kind == "sync" && (c.lastSyncHours ?? 0) >= 24) || (r.kind == "minimumday" && c.illnessSigns.count >= 2) }
+        return Array(out.filter { !c.suppressedKinds.contains($0.kind) || protected($0) }.sorted { $0.priority > $1.priority }.prefix(3))
     }
 
     // MARK: Calibration

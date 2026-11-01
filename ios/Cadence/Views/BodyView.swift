@@ -12,7 +12,7 @@ struct BodyView: View {
                     .padding(.top, 8)
                 if store.profile.on("fuel") { NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain) }
                 if store.profile.on("training") {
-                    NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain)
+                    NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain).accessibilityIdentifier("body.training")
                     NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
                 }
                 if store.profile.on("care") { NavigationLink { CareView() } label: { careCard }.buttonStyle(.plain) }

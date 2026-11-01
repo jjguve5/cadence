@@ -30,9 +30,16 @@ enum Day {
         let wd = weekday(key)
         return add(-((wd + 5) % 7), to: key) // back to Monday
     }
-    /// A time of day on a given day, from minutes after midnight
-    static func at(_ minute: Int, on key: String) -> Date {
-        calendar.date(byAdding: .minute, value: minute, to: calendar.startOfDay(for: date(key))) ?? Date()
+    /// A time of day on a given day, from minutes after midnight (past 1440 is the next day, negative the day before).
+    /// Wall-clock time, so 8:00 stays 8:00 on the days the clocks change.
+    static func at(_ minute: Int, on key: String) -> Date { at(minute, on: key, in: calendar) }
+
+    static func at(_ minute: Int, on key: String, in cal: Calendar) -> Date {
+        let p = key.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3, let noon = cal.date(from: DateComponents(year: p[0], month: p[1], day: p[2], hour: 12)) else { return Date() }
+        let days = Int((Double(minute) / 1440).rounded(.down)), m = minute - days * 1440
+        let day = cal.date(byAdding: .day, value: days, to: noon) ?? noon
+        return cal.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: day) ?? day
     }
     static func minuteOfDay(_ date: Date = Date()) -> Int {
         let c = calendar.dateComponents([.hour, .minute], from: date)

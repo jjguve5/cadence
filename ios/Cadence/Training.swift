@@ -58,6 +58,7 @@ final class Catalog: ObservableObject {
     func exercise(_ id: String) -> CatalogExercise? { byId[id] }
 
     func load(force: Bool = false) async {
+        if TestMode.active { return }
         guard force || exercises.isEmpty, !loading, let url = URL(string: "https://raw.githubusercontent.com/RepDB/exercise-dataset/main/exercises.json") else { return }
         loading = true
         defer { loading = false }

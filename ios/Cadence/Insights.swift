@@ -94,9 +94,12 @@ extension Store {
         if let t = today.temp, abs(t) >= 0.5 {
             parts.append(ReadinessPart(name: "Skin temp", value: String(format: "%+.1f°", t), detail: "Off your baseline: alcohol, a warm room, stress or a coming cold can all do this", score: 50, good: false))
         }
+        var notes = r.notes
+        let week = (0..<7).compactMap { health[Day.add(-$0, to: day)]?.hrv }
+        if week.count >= 5, let b = robust({ $0.hrv }, before: day), Engine.sustainedDecline(week: week, baseline: b) { notes.append("HRV has been below your usual for most of the week") }
         let score = r.score
         let label = score >= 80 ? "Primed" : score >= 65 ? "Good to go" : score >= 50 ? "Steady" : score >= 35 ? "Go easy" : "Take it easy"
-        return Readiness(score: score, label: label, parts: parts, summary: parts.map { "\($0.name) \($0.value)" }.joined(separator: " · "), confidence: r.confidence, notes: r.notes)
+        return Readiness(score: score, label: label, parts: parts, summary: parts.map { "\($0.name) \($0.value)" }.joined(separator: " · "), confidence: r.confidence, notes: notes)
     }
 
     // MARK: Sleep

@@ -47,8 +47,13 @@ struct CloseDayView: View {
                         Text("Energy").font(.geist(13)).foregroundStyle(Color.soft)
                         Spacer()
                         ForEach(1...5, id: \.self) { n in
-                            Image(systemName: n <= (entry.energy ?? 0) ? "bolt.fill" : "bolt").foregroundStyle(Color.fuel).font(.system(size: 18))
-                                .onTapGesture { entry.energy = n }
+                            Button { entry.energy = n } label: {
+                                Image(systemName: n <= (entry.energy ?? 0) ? "bolt.fill" : "bolt").foregroundStyle(Color.fuel).font(.system(size: 18))
+                                    .frame(width: 36, height: 44).contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Energy \(n) of 5").accessibilityAddTraits(n == entry.energy ? .isSelected : [])
+                            .accessibilityIdentifier("energy.\(n)")
                         }
                     }
                     TextField("One line about today (optional)", text: $entry.note, axis: .vertical).font(.geist(14))
@@ -82,6 +87,7 @@ struct CloseDayView: View {
                     store.save(t)
                     withAnimation { done = true }
                 }
+                .accessibilityIdentifier("closeday.save")
             }
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") { dismiss() } } }
             .onAppear {

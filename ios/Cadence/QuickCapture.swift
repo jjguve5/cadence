@@ -11,13 +11,25 @@ enum CaptureIntent: Equatable {
     case feeling(word: String, energy: Double, pleasant: Double)
     case task(String)
 
+    /// Whether confirming would save anything
+    var savesSomething: Bool {
+        if case .food(let f, _) = self { return !f.isEmpty }
+        if case .move(let k, _) = self { return !k.isEmpty }
+        if case .reminder(let t, _, _) = self { return !t.isEmpty }
+        if case .task(let t) = self { return !t.trimmingCharacters(in: .whitespaces).isEmpty }
+        return true
+    }
+
     var summary: String {
         switch self {
         case .food(let foods, let rest):
+            if foods.isEmpty { return "Not found in the common foods: " + rest.joined(separator: ", ") + ". Nothing will be saved; use Log food to search products." }
             let names = foods.map { "\($0.name) (\(Int($0.kcal)) kcal, \(Int($0.protein)) g protein)" }
-            return "Log " + (names + rest.map { "\($0) (needs numbers)" }).joined(separator: " and ")
+            return "Log " + names.joined(separator: " and ") + (rest.isEmpty ? "" : ". Not saved: " + rest.joined(separator: ", "))
         case .spend(let a, let c, let m): return "Spending \(euro(a, decimals: true)) · \(c)" + (m.isEmpty ? "" : " · \(m)")
-        case .reminder(let t, let d, let m): return "Reminder: \(t) · \(Day.date(d).formatted(.dateTime.weekday(.wide)))" + (m.map { " at \(clock($0))" } ?? "")
+        case .reminder(let t, let d, let m):
+            let day = Day.date(d).formatted(.dateTime.weekday(.wide))
+            return m.map { "Reminder: \(t) · \(day) at \(clock($0))" } ?? "Task for \(day): \(t) (no time given, so no notification)"
         case .move(let k, let d): return "Move “\(k)” to \(Day.date(d).formatted(.dateTime.weekday(.wide).day().month()))"
         case .feeling(let w, _, _): return "Feeling: \(w.lowercased())"
         case .task(let t): return "New task: \(t)"
@@ -58,8 +70,8 @@ enum QuickCapture {
             let day = dayWord(in: lower, today: today) ?? today
             let minute = timeOfDay(in: lower)
             var what = rest
-            for w in [" tomorrow", " today", " amanha", " hoje", " on monday", " on tuesday", " on wednesday", " on thursday", " on friday", " on saturday", " on sunday"] { what = what.replacingOccurrences(of: w, with: "", options: .caseInsensitive) }
-            what = what.replacingOccurrences(of: #" at \d{1,2}([:h]\d{2})?"#, with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            for w in [" tomorrow", " today", " amanha", " hoje", " on monday", " on tuesday", " on wednesday", " on thursday", " on friday", " on saturday", " on sunday"] { what = what.replacingOccurrences(of: w, with: "", options: [.caseInsensitive, .diacriticInsensitive]) }
+            what = what.replacingOccurrences(of: #" (at|as|às) \d{1,2}([:h]\d{2})?h?"#, with: "", options: [.regularExpression, .caseInsensitive]).trimmingCharacters(in: .whitespaces)
             return .reminder(text: what.prefix(1).uppercased() + what.dropFirst(), day: day, minute: minute)
         }
 
@@ -75,19 +87,33 @@ enum QuickCapture {
         // Food: "ate ...", "had ...", "comi ..."
         if let rest = after(["ate ", "had ", "eaten ", "comi ", "bebi ", "drank "]) {
             let pieces = rest.lowercased().replacingOccurrences(of: " and ", with: ",").replacingOccurrences(of: " e ", with: ",").replacingOccurrences(of: " with ", with: ",")
-                .components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: #"^(a|an|some|um|uma|two|2) "#, with: "", options: .regularExpression) }.filter { !$0.isEmpty }
+                .components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
             var found: [CommonFood] = [], missing: [String] = []
-            for p in pieces {
-                if let f = FoodSearch.local(p).first { found.append(f) } else { missing.append(p) }
+            let counts = ["two": 2, "three": 3, "dois": 2, "duas": 2, "tres": 3]
+            for raw in pieces {
+                // "2 eggs", "two bananas": the count repeats the item, up to 5
+                var n = 1, p = raw
+                if let first = raw.split(separator: " ").first, let k = Int(first) ?? counts[String(first)] { n = min(5, max(1, k)); p = String(raw.dropFirst(first.count)).trimmingCharacters(in: .whitespaces) }
+                p = p.replacingOccurrences(of: #"^(a|an|some|um|uma|of) "#, with: "", options: .regularExpression)
+                // "2 eggs" is two of one egg, not two plates of scrambled eggs
+                if p.hasSuffix("s"), n > 1 || FoodSearch.local(p).isEmpty, !FoodSearch.local(String(p.dropLast())).isEmpty { p = String(p.dropLast()) }
+                if let f = FoodSearch.local(p).first { found += Array(repeating: f, count: n) } else { missing.append(raw) }
             }
             return .food(found, unmatched: missing)
         }
         return .task(text)
     }
 
+    /// "12", "12,50", "12.50", "1.234,56" and "1,234.56"
     static func number(in s: String) -> Double? {
-        guard let r = s.range(of: #"\d+([.,]\d{1,2})?"#, options: .regularExpression) else { return nil }
-        return Double(s[r].replacingOccurrences(of: ",", with: "."))
+        guard let r = s.range(of: #"\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?"#, options: .regularExpression) else { return nil }
+        var t = String(s[r])
+        if let last = t.lastIndex(where: { $0 == "," || $0 == "." }), t.distance(from: last, to: t.endIndex) == 4 { t.removeAll { $0 == "," || $0 == "." } } // only thousands
+        else if let last = t.lastIndex(where: { $0 == "," || $0 == "." }) {
+            let decimals = t[t.index(after: last)...]
+            t = t[..<last].filter(\.isNumber) + "." + decimals
+        }
+        return Double(t)
     }
 
     static func dayWord(in s: String, today: String) -> String? {
@@ -112,34 +138,48 @@ enum QuickCapture {
 @MainActor
 extension Store {
     /// Carries out a confirmed capture; returns what happened, for the undo line
+    /// Carries out a confirmed capture; returns what happened and how to undo it
     @discardableResult
-    func apply(_ intent: CaptureIntent) -> String {
+    func apply(_ intent: CaptureIntent) -> (message: String, undo: () -> Void) {
         switch intent {
         case .food(let foods, _):
-            for f in foods { logFood(FoodEntry(name: f.name, kcal: f.kcal, protein: f.protein)) }
-            return "Logged \(foods.count) food\(foods.count == 1 ? "" : "s")"
+            let entries = foods.map { FoodEntry(name: $0.name, kcal: $0.kcal, protein: $0.protein) }
+            entries.forEach(logFood)
+            return ("Logged \(foods.count) food\(foods.count == 1 ? "" : "s")", { entries.forEach { self.remove($0) } })
         case .spend(let a, let c, let m):
-            save(Transaction(amount: -a, merchant: m.isEmpty ? c : m.capitalized, category: c, reviewed: true))
-            return "Spending saved"
+            let t = Transaction(amount: -a, merchant: m.isEmpty ? c : m.capitalized, category: c, reviewed: true)
+            save(t)
+            return ("Spending saved", { self.remove(t) })
         case .reminder(let t, let d, let m):
             if let m {
-                save(PromiseItem(title: t, icon: "bell", schedule: Schedule(rule: .everyNDays, every: 9999, start: d, minute: m)))
-                return "Reminder set"
+                let p = PromiseItem(title: t, icon: "bell", schedule: Schedule(rule: .everyNDays, every: 9999, start: d, minute: m))
+                save(p)
+                return ("Reminder set", { self.delete(p) })
             }
-            save(TaskItem(title: t, due: d))
-            return "Added to tasks"
+            let task = TaskItem(title: t, due: d)
+            save(task)
+            return ("Added to tasks", { self.remove(task) })
         case .move(let k, let d):
             let key = k.lowercased()
-            if var b = all(PlanBlock.self).filter({ $0.date >= Day.today && $0.title.lowercased().contains(key) }).min(by: { $0.date < $1.date }) { b.date = d; save(b); return "Moved \(b.title)" }
-            if var t = all(TaskItem.self).first(where: { !$0.done && $0.title.lowercased().contains(key) }) { t.due = d; save(t); return "Moved \(t.title)" }
-            save(TaskItem(title: k.prefix(1).uppercased() + k.dropFirst(), due: d))
-            return "Nothing matched, so it's a task for that day"
+            if let b = all(PlanBlock.self).filter({ $0.date >= Day.today && $0.title.lowercased().contains(key) }).min(by: { $0.date < $1.date }) {
+                var moved = b; moved.date = d; save(moved)
+                return ("Moved \(b.title)", { self.save(b) })
+            }
+            if let t = all(TaskItem.self).first(where: { !$0.done && $0.title.lowercased().contains(key) }) {
+                var moved = t; moved.due = d; save(moved)
+                return ("Moved \(t.title)", { self.save(t) })
+            }
+            let task = TaskItem(title: k.prefix(1).uppercased() + k.dropFirst(), due: d)
+            save(task)
+            return ("Nothing matched, so it's a task for that day", { self.remove(task) })
         case .feeling(let w, let e, let p):
-            save(MoodEntry(energy: e, pleasant: p, word: w))
-            return "Feeling saved"
+            let m = MoodEntry(energy: e, pleasant: p, word: w)
+            save(m)
+            return ("Feeling saved", { self.remove(m) })
         case .task(let t):
-            save(TaskItem(title: t))
-            return "Added to tasks"
+            let task = TaskItem(title: t)
+            save(task)
+            return ("Added to tasks", { self.remove(task) })
         }
     }
 }
