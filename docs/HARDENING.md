@@ -98,7 +98,13 @@ The `ipa` job builds the unsigned IPA (`Cadence-ipa`).
   - daily energy and closing the day surviving a relaunch
   - the minimum viable day surviving a relaunch
 
-Results are in the CI run linked in the report.
+Results from [run 41313820684](https://github.com/jjguve5/cadence/actions/runs/41313820684), on Xcode with the iOS 26.2 simulator:
+
+- Unit tests: 72 of 72 passed on the iPhone 17 Pro.
+- UI tests: 16 of 16 passed on the iPhone 17 Pro.
+- Small-screen screenshot tests: 2 of 2 passed on the iPhone 16e.
+
+The first run, [41310631271](https://github.com/jjguve5/cadence/actions/runs/41310631271), had 2 UI failures. The capture confirmation exposed its icon's accessibility label ("Selected") instead of its text, so VoiceOver read the wrong thing too. That is fixed.
 
 ## Still needs a physical device
 
