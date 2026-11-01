@@ -170,8 +170,8 @@ extension Store {
         let minute = Day.minuteOfDay(now)
         let plan = sleepPlan()
         let today = Day.today
-        let due = self.due(on: today)
-        let allDone = !due.isEmpty && due.allSatisfy { status($0, on: today).map { $0 != .skipped } ?? false }
+        let dueToday = self.due(on: today)
+        let allDone = !dueToday.isEmpty && dueToday.allSatisfy { status($0, on: today).map { $0 != .skipped } ?? false }
         if minute < 11 * 60, let s = health[today]?.sleep, Double(s.asleep) < Double(profile.sleepNeed) * 0.8 { return .sleepy }
         if minute >= min(plan.windDown, 1439) || minute < 4 * 60 { return openMustDos().isEmpty ? .sleepy : .eat }
         if !openMustDos().isEmpty && minute >= (openMustDos().first?.schedule.minute ?? 0) { return .eat }
