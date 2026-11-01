@@ -13,6 +13,11 @@ struct FuelView: View {
         let f = store.fuel()
         let p = store.profile
         Screen(glow: .fuel) {
+            HStack {
+                GoalMenu()
+                Spacer()
+                NavigationLink { SmartSetup() } label: { Label("Setup", systemImage: "wand.and.stars").font(.geist(13, .semibold)) }.tint(.mint)
+            }
             Card {
                 HStack(spacing: 16) {
                     ZStack {

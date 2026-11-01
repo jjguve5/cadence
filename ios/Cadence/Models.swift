@@ -168,6 +168,7 @@ struct Profile: Codable, Equatable {
     var fatTarget: Double?
     var carbTarget: Double?
     var setupDone = false
+    var setup: SetupInputs? // the smart setup answers, so a goal change recalculates everything
     var areasOff: [String] = [] // areas switched off: fuel, training, care, money, wardrobe, kitchen, home, people, travel, learning
 
     init() {}
@@ -189,6 +190,7 @@ struct Profile: Codable, Equatable {
         fatTarget = (try? c.decodeIfPresent(Double.self, forKey: .fatTarget)) ?? nil
         carbTarget = (try? c.decodeIfPresent(Double.self, forKey: .carbTarget)) ?? nil
         setupDone = v(.setupDone, d.setupDone)
+        setup = (try? c.decodeIfPresent(SetupInputs.self, forKey: .setup)) ?? nil
     }
 
     /// Mifflin-St Jeor, times a light activity factor; the weekly check-in replaces it with what your weight shows

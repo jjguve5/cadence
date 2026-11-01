@@ -125,6 +125,7 @@ struct SettingsView: View {
         Form {
             Section {
                 NavigationLink { SmartSetup() } label: { Label("Smart setup: targets from your body and goal", systemImage: "wand.and.stars") }
+                HStack { Text("Goal"); Spacer(); GoalMenu() }
             }
             Section("You") {
                 TextField("Name", text: Binding(get: { store.profile.name }, set: { v in store.update { $0.name = v } }))
