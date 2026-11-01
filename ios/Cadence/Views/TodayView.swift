@@ -202,10 +202,17 @@ struct TodayView: View {
         }
     }
 
+    @Environment(\.openURL) private var openURL
+
+    /// The Air only syncs through the Fitbit app; tapping here opens it so it syncs, then pull to refresh
     private var syncLine: some View {
+        Button { openURL(URL(string: "fitbit://")!) } label: { syncLabel }.buttonStyle(.plain)
+    }
+
+    private var syncLabel: some View {
         HStack(spacing: 6) {
             Circle().fill(store.syncError == nil && !store.needsGoogle ? Color.good : Color.warn).frame(width: 7, height: 7)
-            Text(syncText).font(.system(size: 11.5)).foregroundStyle(Color.faint)
+            Text(syncText + " · tap to sync the Air").font(.system(size: 11.5)).foregroundStyle(Color.faint)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)

@@ -32,6 +32,7 @@ targets:
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.jjguve5.cadence.refresh]
         NSSupportsLiveActivities: true
+        LSApplicationQueriesSchemes: [fitbit]
         NSCameraUsageDescription: Scan food barcodes and receipt QR codes to log them.
         NSLocationWhenInUseUsageDescription: Live travel time for leave-by alerts and the weather where you are.
     settings:
