@@ -33,6 +33,9 @@ extension Store {
             let icon = ["deep": "brain.head.profile", "admin": "tray.full", "reading": "book.fill", "training": "dumbbell.fill"][b.type] ?? "square.fill"
             items.append(PlanItem(id: "b" + b.id, minute: b.start, end: b.start + b.minutes, title: b.title, detail: "\(duration(b.minutes)) · placed by you", icon: icon, color: .mint, block: b))
         }
+        for c in commutes(on: day) {
+            items.append(PlanItem(id: "c" + c.id, minute: c.leave, end: c.arrive, title: "To \(c.title)", detail: "leave \(clock(c.leave)) · \(c.travel) min + \(c.buffer) buffer", icon: "tram.fill", color: Color(hex: 0x6CC4FF)))
+        }
         for p in due(on: day) {
             let st = status(p, on: day)
             items.append(PlanItem(id: p.id, minute: p.schedule.minute, title: p.title, detail: st == nil ? (p.kind == .mustDo ? "must-do" : p.schedule.summary) : st == .skipped ? "skipped" : "done", icon: p.icon, color: p.kind == .mustDo ? .warn : .mint, promise: p))
@@ -79,6 +82,7 @@ struct PlanView: View {
                     NavigationLink { TasksView() } label: { tile("Tasks", "tray.full", "\(store.all(TaskItem.self).filter { !$0.done }.count) open") }
                     NavigationLink { ProjectsView() } label: { tile("Projects", "flag.fill", "\(store.all(Project.self).filter { !$0.archived }.count) active") }
                     NavigationLink { BooksView() } label: { tile("Reading", "book.fill", "\(store.readingMinutes()) min today") }
+                    NavigationLink { TravelView() } label: { tile("Travel", "airplane", store.nextTrip.map { $0.destination } ?? "\(store.all(RegularTrip.self).count) regular") }
                 }
                 .buttonStyle(.plain)
             }

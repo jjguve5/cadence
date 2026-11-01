@@ -64,6 +64,18 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                     planned.append(Planned(id: "p|\(promise.id)|\(day)|0", at: at, title: promise.title, body: body, priority: 2, promise: true))
                 }
             }
+            // Medicines and products: always get through when they're must-dos
+            for d in store.doses(on: day) where d.log == nil {
+                planned.append(Planned(id: "m|\(d.med.id)|\(day)|\(d.minute)", at: Day.at(d.minute, on: day), title: d.med.name, body: [d.med.dose, d.med.how].filter { !$0.isEmpty }.joined(separator: " · "), priority: d.med.mustDo ? 0 : 2, promise: true))
+            }
+            // Leave-by alerts for regular trips
+            for c in store.commutes(on: day) {
+                planned.append(Planned(id: "leave|\(c.id)|\(day)", at: Day.at(c.leave, on: day), title: "Leave for \(c.title) now", body: "\(c.travel) min door to door, at \(clock(c.arrive)) there.", priority: 0, promise: false))
+            }
+            // Grooming that's due, in the evening
+            if offset == 0 || offset == 1, let g = store.groomingDue.first {
+                planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: "\(g.daysSince ?? 0) days since last time; you usually do it every \(g.rhythm).", priority: 2, promise: false))
+            }
             // Wind-down: holds until must-dos are answered
             let plan = store.sleepPlan(for: day)
             let wind = Day.at(plan.windDown, on: day)
@@ -106,6 +118,18 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let parts = response.notification.request.identifier.split(separator: "|").map(String.init)
+        if parts.count == 4, parts[0] == "m", let minute = Int(parts[3]) {
+            await MainActor.run {
+                let store = Store.shared
+                guard let med = store.record(Medicine.self, parts[1]) else { return }
+                switch response.actionIdentifier {
+                case "done": store.take(med, minute: minute, on: parts[2])
+                case "skip": store.take(med, minute: minute, on: parts[2], taken: false)
+                default: break
+                }
+            }
+            return
+        }
         guard parts.count >= 3, parts[0] == "p" || parts[0] == "s" else { return }
         let (promiseId, day) = (parts[1], parts[2])
         await MainActor.run {

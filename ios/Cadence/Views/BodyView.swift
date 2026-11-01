@@ -13,6 +13,7 @@ struct BodyView: View {
                 NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain)
                 NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain)
                 NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
+                NavigationLink { CareView() } label: { careCard }.buttonStyle(.plain)
                 NavigationLink { SleepView() } label: { lastNightCard }.buttonStyle(.plain)
                 NavigationLink { TrendsView() } label: { trendsCard }.buttonStyle(.plain)
                 NavigationLink { SignalsView() } label: { signalsCard }.buttonStyle(.plain)
@@ -31,6 +32,15 @@ struct BodyView: View {
                 mini("Protein", f.protein / p.proteinTarget, .train, "\(Int(f.protein)) g")
                 mini("Water", f.water / store.waterGoal(), .water, String(format: "%.1f L", f.water / 1000))
             }
+        }
+    }
+
+    private var careCard: some View {
+        let doses = store.doses().filter { $0.log == nil }.count
+        let groom = store.groomingDue.count
+        return Card(tint: .mind) {
+            HStack { Eyebrow(text: "Care", icon: "sparkles", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+            Text([doses > 0 ? "\(doses) doses to take" : "Medicines done", groom > 0 ? "\(groom) grooming due" : nil, store.brushes().isEmpty ? "not brushed yet" : "brushed \(store.brushes().count)×"].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13.5))
         }
     }
 
