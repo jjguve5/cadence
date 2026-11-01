@@ -176,6 +176,12 @@ extension Store {
 
     func commutes(on day: String = Day.today) -> [RegularTrip] { all(RegularTrip.self).filter { $0.weekdays.contains(Day.weekday(day)) && !onTrip(day) } }
 
+    /// Regular trips door to door and timed calendar events: the plan keeps promises and the evening out of them
+    func busy(on day: String = Day.today) -> [Busy] {
+        commutes(on: day).map { Busy(start: $0.leave, end: $0.arrive, title: $0.title) }
+            + Agenda.shared.events(on: day).map { Busy(start: $0.startMinute, end: $0.endMinute, title: $0.title) }
+    }
+
     func onTrip(_ day: String) -> Bool { all(Trip.self).contains { day >= $0.start && day <= $0.end } }
 
     var nextTrip: Trip? { all(Trip.self).filter { $0.end >= Day.today }.min { $0.start < $1.start } }

@@ -44,6 +44,7 @@ struct WeightEntry: Record, Equatable {
     var id: String { date }
     var date = Day.today
     var kg: Double
+    var source: String? // "health" when it came from Apple Health through the Shortcut; typed ones win
 }
 
 /// Common caffeine sources, since there's no coffee to track

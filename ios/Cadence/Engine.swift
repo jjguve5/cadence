@@ -68,6 +68,14 @@ struct DayContext {
     var suppressedKinds: Set<String>
     var minimumDay: Bool
     var readinessUseful: Bool? // from calibration: nil = not enough evidence yet
+    var eveningAfter: (title: String, back: Int, lightsOut: Int)? = nil // out until late: the evening starts when you're back
+}
+
+/// Time you're away or committed (a regular trip door to door, a calendar event), minutes after midnight
+struct Busy: Equatable {
+    var start: Int
+    var end: Int
+    var title: String
 }
 
 enum RecAction: Equatable {
@@ -132,6 +140,22 @@ enum Engine {
 
     /// Conservative: the last 7 nights, each shortfall capped at 2 h, extra sleep repays at most 1 h a night,
     /// the total capped at 10 h. An estimate from wearable sleep, which is good at duration and rough at stages.
+    /// The evening routine (close the day, wind-down, lights out) can't start while you're still out. Anything that
+    /// overlaps it, from 15 minutes before wind-down to lights out, moves the evening to when you're back.
+    static func eveningAfter(windDown: Int, perform: Int, busy: [Busy]) -> Busy? {
+        busy.filter { $0.end > windDown - 15 && $0.start < perform }.max { $0.end < $1.end }
+    }
+
+    /// A time that falls while you're out moves to just after you're back (following back-to-back commitments)
+    static func outside(_ minute: Int, busy: [Busy], after: Int = 10) -> Int {
+        var m = minute
+        for _ in 0..<busy.count {
+            guard let b = busy.first(where: { m >= $0.start && m < $0.end }) else { break }
+            m = b.end + after
+        }
+        return m
+    }
+
     static func sleepDebt(nights: [Int], need: Int) -> Int {
         let recent = nights.prefix(7)
         let total = recent.map { n -> Int in
@@ -218,7 +242,9 @@ enum Engine {
         }
 
         // Sleep debt: a small, realistic change tonight
-        if c.sleepDebt >= 180 {
+        if let e = c.eveningAfter, c.sleepDebt >= 180 {
+            out.append(Recommendation(kind: "bedtime", title: "Straight to wind-down after \(e.title)", why: "You're back at \(clock(e.back)), so lights out can't be much before \(clock(e.lightsOut)). Keep the evening short: brush, two pages, bed. Tomorrow is the night to pay back.", evidence: ["About \(duration(c.sleepDebt)) short over the last 7 nights (an estimate)", "\(e.title) until \(clock(e.back))"], confidence: .high, action: .none, actionLabel: "", priority: 75))
+        } else if c.sleepDebt >= 180 {
             let earlier = c.sleepDebt >= 360 ? 30 : 20
             out.append(Recommendation(kind: "bedtime", title: "Lights out \(earlier) minutes earlier tonight", why: "Small, regular paybacks work better than one long lie-in, which shifts your body clock.", evidence: ["About \(duration(c.sleepDebt)) short over the last 7 nights (an estimate)"], confidence: c.sleepBaseline != nil ? .moderate : .low, action: .earlierBedtime(earlier), actionLabel: "Set it", priority: evening ? 75 : 55))
         }

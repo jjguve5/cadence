@@ -296,3 +296,50 @@ final class SavedDataTests: XCTestCase {
         XCTAssertEqual(back, p)
     }
 }
+
+/// Tonight's real case: back from Porto at 21:30, when the short night wanted wind-down at 21:40 and lights out at 22:15
+final class EveningAfterTripTests: XCTestCase {
+    let porto = Busy(start: 19 * 60 + 10, end: 21 * 60 + 30, title: "Porto")
+
+    func testTripOverlappingTheEveningMovesIt() {
+        let late = Engine.eveningAfter(windDown: 21 * 60 + 40, perform: 22 * 60 + 15, busy: [porto])
+        XCTAssertEqual(late, porto)
+        // an earlier bedtime makes it overlap even more, and still moves to after the trip
+        XCTAssertEqual(Engine.eveningAfter(windDown: 21 * 60 + 10, perform: 21 * 60 + 45, busy: [porto]), porto)
+    }
+
+    func testTripsThatEndEarlyOrStartAfterLightsOutLeaveTheEvening() {
+        let morning = Busy(start: 7 * 60 + 30, end: 9 * 60, title: "Work")
+        let afterBed = Busy(start: 23 * 60, end: 23 * 60 + 50, title: "Night train")
+        XCTAssertNil(Engine.eveningAfter(windDown: 21 * 60 + 40, perform: 22 * 60 + 15, busy: [morning, afterBed]))
+        // back 30 minutes before wind-down: enough time, nothing moves
+        XCTAssertNil(Engine.eveningAfter(windDown: 22 * 60, perform: 22 * 60 + 35, busy: [porto]))
+    }
+
+    func testTimesDuringTheTripMoveToJustAfterIt() {
+        XCTAssertEqual(Engine.outside(20 * 60 + 30, busy: [porto]), 21 * 60 + 40) // creatine at 20:30
+        XCTAssertEqual(Engine.outside(17 * 60, busy: [porto]), 17 * 60) // protein shake at 17:00 stays
+        XCTAssertEqual(Engine.outside(21 * 60 + 30, busy: [porto]), 21 * 60 + 30) // the moment you're back is free
+        let dinner = Busy(start: 21 * 60 + 30, end: 22 * 60 + 30, title: "Dinner")
+        XCTAssertEqual(Engine.outside(20 * 60, busy: [porto, dinner]), 22 * 60 + 40) // back to back
+    }
+
+    func testBedtimeAdviceIsRealisticAfterATrip() {
+        let c = FreshnessAndConflictTests().context { $0.sleepDebt = 600; $0.minute = 17 * 60; $0.eveningAfter = (title: "Porto", back: 21 * 60 + 30, lightsOut: 22 * 60 + 20) }
+        let bed = Engine.recommendations(c).first { $0.kind == "bedtime" }
+        XCTAssertEqual(bed?.title, "Straight to wind-down after Porto")
+        XCTAssertEqual(bed?.action, RecAction.none)
+        XCTAssertTrue(bed?.why.contains("22:20") == true, bed?.why ?? "")
+        let normal = Engine.recommendations(FreshnessAndConflictTests().context { $0.sleepDebt = 600; $0.minute = 17 * 60 }).first { $0.kind == "bedtime" }
+        XCTAssertEqual(normal?.title, "Lights out 30 minutes earlier tonight")
+    }
+}
+
+final class WeightSourceTests: XCTestCase {
+    func testOldWeightRecordsStillDecode() throws {
+        let old = try JSONDecoder().decode(WeightEntry.self, from: Data(#"{"date":"2026-11-01","kg":78}"#.utf8))
+        XCTAssertNil(old.source)
+        let health = try JSONDecoder().decode(WeightEntry.self, from: Data(#"{"date":"2026-11-01","kg":77.6,"source":"health"}"#.utf8))
+        XCTAssertEqual(health.source, "health")
+    }
+}

@@ -73,8 +73,8 @@ function self_url($file) {
 }
 
 // Adds records to the sync store from the server side (Apple Pay entries, bank transactions), so they reach the
-// app like any other change. Records the app already has are never overwritten.
-function store_put($records) {
+// app like any other change. Records the app already has are never overwritten, unless $replace($old) says so.
+function store_put($records, $replace = null) {
 	$handle = fopen(data_path('store'), 'c+');
 	if (!$handle) fail(500, 'cannot open the store');
 	flock($handle, LOCK_EX);
@@ -82,7 +82,8 @@ function store_put($records) {
 	if (!is_array($store)) $store = ['rev' => 0, 'records' => []];
 	$added = 0;
 	foreach ($records as [$type, $id, $data]) {
-		if (isset($store['records']["$type:$id"])) continue;
+		$old = $store['records']["$type:$id"] ?? null;
+		if ($old && !(empty($old['deleted']) && $replace && $replace($old))) continue;
 		$store['rev']++;
 		$store['records']["$type:$id"] = ['type' => $type, 'id' => $id, 'rev' => $store['rev'], 'updated' => (int) (microtime(true) * 1000), 'deleted' => false, 'data' => $data];
 		$added++;

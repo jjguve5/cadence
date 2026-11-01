@@ -34,6 +34,7 @@ struct SleepPlan {
     var perform: Int
     var getBy: Int
     var windDown: Int
+    var after: Busy? = nil // the trip or event that pushed the evening later
 }
 
 enum PipMood: String {
@@ -115,7 +116,11 @@ extension Store {
         let fallAsleep = 15
         let shift = records("bedshift")[day].flatMap { v -> Int? in if case .number(let n) = v { return Int(n) }; return nil } ?? 0 // "lights out earlier tonight"
         let perform = wake - need - fallAsleep - shift
-        return SleepPlan(need: need, debt: debt, peak: perform - 30, perform: perform, getBy: perform + 60, windDown: perform - profile.windDownLead)
+        let plan = SleepPlan(need: need, debt: debt, peak: perform - 30, perform: perform, getBy: perform + 60, windDown: perform - profile.windDownLead)
+        // Still out at wind-down: the evening starts 15 minutes after you're back, and the night is that much shorter
+        guard let late = Engine.eveningAfter(windDown: plan.windDown, perform: perform, busy: busy(on: day)) else { return plan }
+        let windDown = late.end + 15, lightsOut = windDown + profile.windDownLead
+        return SleepPlan(need: min(need, wake - lightsOut - fallAsleep), debt: debt, peak: lightsOut, perform: lightsOut, getBy: lightsOut + 60, windDown: windDown, after: late)
     }
 
     func shortNightsInARow() -> Int {
@@ -263,11 +268,11 @@ extension Store {
         if let a = s.anchor {
             let plan = sleepPlan(for: day)
             let base = a == "wake" ? profile.wakeMinute : a == "lightsOut" ? plan.perform : plan.windDown
-            return base + (s.offset ?? 0)
+            return Engine.outside(base + (s.offset ?? 0), busy: busy(on: day))
         }
         let wd = Day.weekday(day)
-        if wd == 1 || wd == 7, let w = s.weekendMinute { return w }
-        return s.minute
+        if wd == 1 || wd == 7, let w = s.weekendMinute { return Engine.outside(w, busy: busy(on: day)) }
+        return Engine.outside(s.minute, busy: busy(on: day))
     }
 
     func timeLabel(_ p: PromiseItem, on day: String = Day.today) -> String { clock(time(of: p, on: day)) }

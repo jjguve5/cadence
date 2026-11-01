@@ -305,6 +305,7 @@ final class Store: ObservableObject {
             for (key, v) in sent where dirty[key] == v { dirty[key] = nil }
             tombstones.removeAll { sent[$0] != nil && dirty[$0] == nil }
             for c in reply.changes where dirty["\(c.type):\(c.id)"] == nil { apply(c) }
+            if reply.changes.contains(where: { $0.type == WeightEntry.kind }) { followLatestWeight() }
             rev = reply.rev
             syncError = nil
             persist()
@@ -312,6 +313,12 @@ final class Store: ObservableObject {
         } catch {
             syncError = "Offline: changes wait on the phone"
         }
+    }
+
+    /// Targets use the profile weight, so it follows the newest weigh-in, typed or from Apple Health
+    func followLatestWeight() {
+        guard let w = all(WeightEntry.self).max(by: { $0.date < $1.date }), abs(w.kg - profile.weightKg) > 0.01 else { return }
+        update { $0.weightKg = w.kg }
     }
 
     // MARK: - Health

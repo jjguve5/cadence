@@ -98,7 +98,8 @@ extension Store {
                           deepWorkPlanned: all(PlanBlock.self).contains { $0.date == today && $0.type == "deep" }, meetingsMinutes: meetings,
                           deadline: deadline, openMustDos: mustDos, proteinGap: gap, airBattery: device?.battery, recentEnergy: energy,
                           suppressedKinds: suppressed, minimumDay: isMinimumDay(),
-                          readinessUseful: calibration.n >= 10 ? (calibration.spearman ?? 0) >= 0.15 : nil)
+                          readinessUseful: calibration.n >= 10 ? (calibration.spearman ?? 0) >= 0.15 : nil,
+                          eveningAfter: { let s = sleepPlan(); return s.after.map { (title: $0.title, back: $0.end, lightsOut: s.perform) } }())
     }
 
     func recommendations() -> [Recommendation] {

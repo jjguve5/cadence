@@ -54,11 +54,15 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
         for offset in 0...2 {
             let day = Day.add(offset, to: Day.today)
+            let first = planned.count
+            let plan = store.sleepPlan(for: day)
+            let wind = Day.at(plan.windDown, on: day)
             for promise in store.due(on: day) where store.status(promise, on: day) == nil {
                 let at = Day.at(store.time(of: promise, on: day), on: day)
                 if promise.kind == .mustDo {
                     let asks: [(Int, String)] = [(0, "\(promise.title) · now"), (90, "\(promise.title) not taken yet"), (150, "\(promise.title): last ask before wind-down")]
-                    for (k, (after, title)) in asks.enumerated() {
+                    // the follow-ups stop at wind-down, which names what's still open
+                    for (k, (after, title)) in asks.enumerated() where k == 0 || at.addingTimeInterval(Double(after) * 60) < wind {
                         let w = store.week(promise, upTo: day)
                         planned.append(Planned(id: "p|\(promise.id)|\(day)|\(k)", at: at.addingTimeInterval(Double(after) * 60), title: title, body: "Must-do · \(w.done)/\(w.total) this week", priority: 0, promise: true))
                     }
@@ -108,13 +112,21 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             if Day.weekday(day) == 1, offset <= 1, !store.keepInTouchDue.isEmpty {
                 planned.append(Planned(id: "touch|\(day)", at: Day.at(18 * 60, on: day), title: "Keep in touch", body: "It's been a while: " + store.keepInTouchDue.prefix(3).map(\.name).joined(separator: ", "), priority: 3, promise: false))
             }
+            // Fixed-time nudges that fall while you're out (a trip, an event) wait until you're back; promises already
+            // moved in time(of:), and medicines and leave-by keep their times
+            let busy = store.busy(on: day)
+            for i in planned.indices.dropFirst(first) where !["leave", "m"].contains(planned[i].id.split(separator: "|").first.map(String.init) ?? "") && !planned[i].promise {
+                let m = Day.minuteOfDay(planned[i].at), moved = Engine.outside(m, busy: busy)
+                if moved != m { planned[i].at = Day.at(moved, on: day) }
+            }
             // Wind-down: holds until must-dos are answered
-            let plan = store.sleepPlan(for: day)
-            let wind = Day.at(plan.windDown, on: day)
             let open = store.openMustDos(on: day)
-            let body = open.isEmpty ? "Lights out by \(clock(plan.perform)). Reading slot is next." : "First: \(open.map(\.title).joined(separator: ", ")). Then screens away."
+            var body = open.isEmpty ? "Lights out by \(clock(plan.perform)). Reading slot is next." : "First: \(open.map(\.title).joined(separator: ", ")). Then screens away."
+            if let a = plan.after { body = "Back from \(a.title): " + body.prefix(1).lowercased() + String(body.dropFirst()) }
             planned.append(Planned(id: "wind|\(day)", at: wind, title: "Wind-down", body: body, priority: open.isEmpty ? 1 : 0, promise: false))
-            planned.append(Planned(id: "close|\(day)", at: wind.addingTimeInterval(-15 * 60), title: "Close the day", body: "Two minutes: how it went and tomorrow's top 3.", priority: 1, promise: false))
+            // after a late trip, closing the day waits until you're in the door
+            let close = plan.after.map { Day.at($0.end + 5, on: day) } ?? wind.addingTimeInterval(-15 * 60)
+            planned.append(Planned(id: "close|\(day)", at: close, title: "Close the day", body: "Two minutes: how it went and tomorrow's top 3.", priority: 1, promise: false))
             planned.append(Planned(id: "brief|\(day)", at: Day.at(p.wakeMinute + 10, on: day), title: "Your morning brief", body: "Readiness, last night and today's promises.", priority: 1, promise: false))
         }
 

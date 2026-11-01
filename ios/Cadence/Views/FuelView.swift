@@ -64,7 +64,7 @@ struct FuelView: View {
             Card {
                 HStack { Eyebrow(text: "Weight and targets", icon: "scalemass"); Spacer(); Button("Log weight") { weighing = true }.font(.geist(13, .semibold)).tint(.fuel) }
                 let w = store.all(WeightEntry.self).sorted { $0.date > $1.date }
-                row("Weight", w.first.map { "\(kg($0.kg)) kg · \(Day.date($0.date).formatted(.dateTime.day().month()))" } ?? "\(kg(p.weightKg)) kg (profile)")
+                row("Weight", w.first.map { "\(kg($0.kg)) kg · \(Day.date($0.date).formatted(.dateTime.day().month()))" + ($0.source == "health" ? " · Apple Health" : "") } ?? "\(kg(p.weightKg)) kg (profile)")
                 if let a = store.adaptiveTarget() {
                     row("Trend", String(format: "%+.2f kg / week", a.trendKgPerWeek))
                     row("Maintenance", "\(Int(a.tdee)) kcal")
@@ -74,6 +74,11 @@ struct FuelView: View {
                 } else {
                     Text("Log your weight a few times a week and food for 10 days: the target then adjusts to what your weight actually does.").font(.geist(12)).foregroundStyle(Color.soft)
                 }
+                DisclosureGroup("From Apple Health") {
+                    Text("Shortcuts → Automation → New → Time of Day (10:00, daily, Run Immediately). Add \"Find Health Samples\": Type is Weight, sort by Start Date, Latest First, limit 1. Then \"Get contents of URL\" with the URL below, method POST, header X-Cadence-Token with your token, and a JSON body: kg = Health Samples › Value, date = Health Samples › Start Date (tap it, Date Format: ISO 8601). Typed weights are never replaced.").font(.geist(12)).foregroundStyle(Color.soft)
+                    LabeledContent("URL", value: store.connection.server + "/weight.php").font(.geist(12))
+                }
+                .font(.geist(13)).tint(.soft)
             }
         }
         .navigationTitle("Fuel")
