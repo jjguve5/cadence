@@ -371,3 +371,18 @@ final class ShowerTests: XCTestCase {
         XCTAssertEqual(ShowerRules.suggest(now: 21 * 60 + 50, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: false, wake: 420, leaveTomorrow: nil).0, .morning)
     }
 }
+
+final class HealthSourceTests: XCTestCase {
+    func testExistingProfilesStayOnFitbit() throws {
+        let p = try JSONDecoder().decode(Profile.self, from: Data(#"{"name":"","sleepNeed":480}"#.utf8))
+        XCTAssertEqual(p.healthSource, "fitbit")
+        XCTAssertTrue(p.usesBand)
+    }
+
+    func testAppleHealthOnlyHasNoBandAdvice() {
+        let c = FreshnessAndConflictTests().context { $0.usesBand = false; $0.lastSyncHours = nil; $0.sleepMinutes = nil; $0.airBattery = 5; $0.minute = 8 * 60 }
+        let kinds = Engine.recommendations(c).map(\.kind)
+        XCTAssertFalse(kinds.contains("sync"))
+        XCTAssertFalse(kinds.contains("battery"))
+    }
+}

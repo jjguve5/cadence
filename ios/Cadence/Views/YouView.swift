@@ -1,5 +1,6 @@
 // You: Pip and your level, the days you closed, promises, settings and credits. Life holds the areas still coming.
 import AuthenticationServices
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 struct YouView: View {
@@ -105,6 +106,15 @@ struct SettingsView: View {
                 Stepper("Up to \(store.profile.notificationBudget) a day", value: Binding(get: { store.profile.notificationBudget }, set: { v in store.update { $0.notificationBudget = v } }), in: 3...30)
             } header: { Text("Notifications") } footer: { Text("Must-dos, medicines and leave-by alerts always get through; everything else is ranked and waits.") }
             Section {
+                Picker("Sleep and heart data", selection: Binding(get: { store.profile.healthSource }, set: { v in store.update { $0.healthSource = v }; Task { await store.refreshHealth(force: true) } })) {
+                    Text("Fitbit").tag("fitbit")
+                    Text("Apple Health only").tag("apple")
+                }
+                if let p = store.appleHealthProblem { Text(p).font(.footnote).foregroundStyle(Color.warn) }
+                Button("Read Apple Health now") { Task { await store.refreshAppleHealth(everything: !store.profile.usesBand) } }
+            } header: { Text("Health data") } footer: { Text(store.profile.usesBand ? "Sleep, HRV and steps come from the Air; weight and water also come from Apple Health. Weights you type always win." : "Everything comes from Apple Health: sleep, HRV, resting heart rate, steps, weight and water. An Apple Watch gives the best data.") }
+            if store.profile.usesBand {
+            Section {
                 Button("Connect Google Health") { Task { await connectGoogle() } }
                 if let googleMessage { Text(googleMessage).font(.footnote).foregroundStyle(Color.soft) }
                 if let d = store.device {
@@ -116,6 +126,8 @@ struct SettingsView: View {
                     ForEach(store.healthErrors.sorted(by: { $0.key < $1.key }), id: \.key) { k, v in Text("\(k): \(v)").font(.caption2).foregroundStyle(Color.warn) }
                 }
             } header: { Text("Fitbit Air") } footer: { Text("While the Google app is in testing, its sign-in lasts 7 days: connect again when Today asks.") }
+            }
+            PeopleSection()
             Section {
                 ForEach([("fuel", "Fuel and water"), ("training", "Training"), ("care", "Care and medicines"), ("money", "Money"), ("wardrobe", "Wardrobe and laundry"), ("kitchen", "Meal prep and shopping"), ("home", "Home and documents"), ("people", "People"), ("travel", "Travel"), ("learning", "Learning")], id: \.0) { key, name in
                     Toggle(name, isOn: Binding(get: { store.profile.on(key) }, set: { on in store.update { p in p.areasOff.removeAll { $0 == key }; if !on { p.areasOff.append(key) } } }))
@@ -189,5 +201,63 @@ struct SetupView: View {
                 Task { await store.refreshAll() }
             }
         }
+    }
+}
+
+/// Owner only: the people who use this server, and a setup QR for someone new. Their data is separate from yours.
+struct PeopleSection: View {
+    @EnvironmentObject var store: Store
+    struct Person: Decodable, Identifiable { var id: String; var name: String }
+    struct Added: Decodable { var name: String; var setup: String }
+    @State private var people: [Person]?
+    @State private var name = ""
+    @State private var added: Added?
+    @State private var error: String?
+
+    var body: some View {
+        Group {
+            if let people {
+                Section {
+                    ForEach(people) { p in Text(p.name) }
+                    HStack {
+                        TextField("Friend's name", text: $name)
+                        Button("Invite") { Task { await add() } }.disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    if let added {
+                        VStack(alignment: .center, spacing: 8) {
+                            if let qr = Self.qr(added.setup) { Image(uiImage: qr).interpolation(.none).resizable().frame(width: 200, height: 200) }
+                            Text("\(added.name) scans this with the iPhone camera after installing Cadence. It's shown once.").font(.footnote).multilineTextAlignment(.center)
+                            ShareLink(item: added.setup) { Label("Send the setup link", systemImage: "square.and.arrow.up") }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    if let error { Text(error).font(.footnote).foregroundStyle(Color.warn) }
+                } header: { Text("People") } footer: { Text("Each person gets their own token and their own data on your server; nobody sees anyone else's.") }
+            }
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        guard let req = store.request("people.php"), let (data, r) = try? await URLSession.shared.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200 else { return } // not the owner: hidden
+        struct R: Decodable { var people: [Person] }
+        people = (try? JSONDecoder().decode(R.self, from: data))?.people
+    }
+
+    private func add() async {
+        guard let body = try? JSONEncoder().encode(["name": name]), let req = store.request("people.php", body: body),
+              let (data, r) = try? await URLSession.shared.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200,
+              let a = try? JSONDecoder().decode(Added.self, from: data) else { error = "Couldn't add them: check the connection."; return }
+        added = a
+        name = ""
+        error = nil
+        await load()
+    }
+
+    static func qr(_ text: String) -> UIImage? {
+        let f = CIFilter.qrCodeGenerator()
+        f.message = Data(text.utf8)
+        guard let out = f.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)), let cg = CIContext().createCGImage(out, from: out.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }

@@ -33,6 +33,7 @@ if (isset($_GET['error'])) page('Not connected', 'Google said: ' . $_GET['error'
 
 if (isset($_GET['code'])) {
 	if (!hash_equals($_SESSION['state'] ?? '', $_GET['state'] ?? '')) page('Start again', 'The sign-in expired. Open it from the app again.');
+	person($_SESSION['person'] ?? null);
 	[$status, $token] = http('POST', 'https://oauth2.googleapis.com/token', ['Content-Type: application/x-www-form-urlencoded'], http_build_query([
 		'code' => $_GET['code'],
 		'client_id' => $config['google_client_id'],
@@ -53,6 +54,7 @@ if (isset($_GET['code'])) {
 
 require_token();
 $_SESSION['state'] = bin2hex(random_bytes(16));
+$_SESSION['person'] = person();
 header('Location: https://accounts.google.com/o/oauth2/v2/auth?' . http_build_query([
 	'client_id' => $config['google_client_id'],
 	'redirect_uri' => $redirect,

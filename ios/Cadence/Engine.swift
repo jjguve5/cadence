@@ -68,7 +68,8 @@ struct DayContext {
     var suppressedKinds: Set<String>
     var minimumDay: Bool
     var readinessUseful: Bool? // from calibration: nil = not enough evidence yet
-    var eveningAfter: (title: String, back: Int, lightsOut: Int)? = nil // out until late: the evening starts when you're back
+    var eveningAfter: (title: String, back: Int, lightsOut: Int)? = nil
+    var usesBand = true // false with Apple Health only: no band to sync or charge // out until late: the evening starts when you're back
 }
 
 /// Time you're away or committed (a regular trip door to door, a calendar event), minutes after midnight
@@ -197,7 +198,7 @@ enum Engine {
     /// that hasn't arrived, and kinds you keep dismissing go quiet for a while.
     static func recommendations(_ c: DayContext) -> [Recommendation] {
         var out: [Recommendation] = []
-        let stale = (c.lastSyncHours ?? 99) > 8
+        let stale = c.usesBand && (c.lastSyncHours ?? 99) > 8
         let morning = c.minute < 13 * 60, evening = c.minute >= 17 * 60
 
         // Safety and commitments first: deterministic
@@ -255,13 +256,13 @@ enum Engine {
         }
 
         // Data that hasn't arrived
-        if let h = c.lastSyncHours, h >= 24 {
+        if c.usesBand, let h = c.lastSyncHours, h >= 24 {
             let days = Int(h / 24)
             out.append(Recommendation(kind: "sync", title: "Your Air hasn't synced for \(days) day\(days == 1 ? "" : "s")", why: "Readiness, sleep debt and the plan are working from older data until it syncs. Open the Fitbit app near the band.", evidence: ["Last sync \(Int(h)) hours ago"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 85))
         } else if stale, c.sleepMinutes == nil, morning {
             out.append(Recommendation(kind: "sync", title: "Sync your Air", why: "Today's sleep and HRV haven't arrived, so readiness and the plan are running on yesterday.", evidence: [c.lastSyncHours.map { "Last sync \(Int($0)) hours ago" } ?? "No sync yet"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 60))
         }
-        if let b = c.airBattery, b <= 15 {
+        if c.usesBand, let b = c.airBattery, b <= 15 {
             out.append(Recommendation(kind: "battery", title: "Charge your Air", why: "Below 15%, tonight's sleep and HRV may be lost.", evidence: ["Battery \(b)%"], confidence: .high, action: .chargeAir, actionLabel: "OK", priority: 45))
         }
 

@@ -29,6 +29,22 @@ function reply($data) {
 	exit;
 }
 
+// Several people can use one server. The owner's token is the one in config.php and keeps data/ itself; each
+// person added with people.php has their own token and their own folder, data/<id>/. Tokens are stored hashed.
+function person($id = false) {
+	static $current = null;
+	if ($id !== false) $current = ($id !== null && preg_match('/^p_[a-f0-9]{12}$/', $id)) ? $id : null;
+	return $current;
+}
+
+function people() {
+	$text = @file_get_contents(__DIR__ . '/data/people.php');
+	$value = $text === false ? null : json_decode(substr($text, strlen(GUARD)), true);
+	return is_array($value) ? $value : [];
+}
+
+function is_owner() { return person() === null; }
+
 // The app sends "Authorization: Bearer <token>" and X-Cadence-Token; the browser pages pass ?token=
 function require_token() {
 	$sent = '';
@@ -36,11 +52,15 @@ function require_token() {
 	if (stripos($header, 'Bearer ') === 0) $sent = substr($header, 7);
 	if ($sent === '') $sent = $_SERVER['HTTP_X_CADENCE_TOKEN'] ?? ''; // some hosts drop Authorization
 	if ($sent === '') $sent = $_GET['token'] ?? '';
-	if (!is_string($sent) || !hash_equals(config()['token'], $sent)) fail(403, 'bad token');
+	if (!is_string($sent) || $sent === '') fail(403, 'bad token');
+	if (hash_equals(config()['token'], $sent)) { person(null); return; }
+	$who = people()[hash('sha256', $sent)] ?? null;
+	if (!$who) fail(403, 'bad token');
+	person($who['id']);
 }
 
 function data_path($name) {
-	$dir = __DIR__ . '/data';
+	$dir = __DIR__ . '/data' . (person() ? '/' . person() : '');
 	if (!is_dir($dir)) mkdir($dir, 0700, true);
 	return "$dir/$name.php";
 }

@@ -48,7 +48,7 @@ extension Store {
     /// What's known about this morning, said plainly
     var freshnessNote: String? {
         let today = health[Day.today]
-        if today?.sleep == nil, Clock.minute() < 14 * 60 { return "Last night's sleep hasn't synced yet" + (syncAgeHours.map { ": the Air last synced \(Int($0)) h ago" } ?? "") + "." }
+        if today?.sleep == nil, Clock.minute() < 14 * 60 { return "Last night's sleep hasn't " + (profile.usesBand ? "synced yet" : "reached Apple Health yet") + ((profile.usesBand ? syncAgeHours : nil).map { ": the Air last synced \(Int($0)) h ago" } ?? "") + "." }
         if today?.hrv == nil, today?.sleep != nil { return "Today's HRV hasn't synced; readiness uses sleep and resting HR." }
         return nil
     }
@@ -99,7 +99,8 @@ extension Store {
                           deadline: deadline, openMustDos: mustDos, proteinGap: gap, airBattery: device?.battery, recentEnergy: energy,
                           suppressedKinds: suppressed, minimumDay: isMinimumDay(),
                           readinessUseful: calibration.n >= 10 ? (calibration.spearman ?? 0) >= 0.15 : nil,
-                          eveningAfter: { let s = sleepPlan(); return s.after.map { (title: $0.title, back: $0.end, lightsOut: s.perform) } }())
+                          eveningAfter: { let s = sleepPlan(); return s.after.map { (title: $0.title, back: $0.end, lightsOut: s.perform) } }(),
+                          usesBand: profile.usesBand)
     }
 
     func recommendations() -> [Recommendation] {

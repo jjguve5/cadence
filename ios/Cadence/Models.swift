@@ -177,6 +177,7 @@ struct Profile: Codable, Equatable {
     var carbTarget: Double?
     var setupDone = false
     var setup: SetupInputs? // the smart setup answers, so a goal change recalculates everything
+    var healthSource = "fitbit" // fitbit: the Air through the server, plus weight and water from Apple Health; apple: Apple Health only
     var areasOff: [String] = [] // areas switched off: fuel, training, care, money, wardrobe, kitchen, home, people, travel, learning
 
     init() {}
@@ -197,7 +198,7 @@ struct Profile: Codable, Equatable {
         barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates); areasOff = v(.areasOff, d.areasOff)
         fatTarget = (try? c.decodeIfPresent(Double.self, forKey: .fatTarget)) ?? nil
         carbTarget = (try? c.decodeIfPresent(Double.self, forKey: .carbTarget)) ?? nil
-        setupDone = v(.setupDone, d.setupDone)
+        setupDone = v(.setupDone, d.setupDone); healthSource = v(.healthSource, d.healthSource)
         setup = (try? c.decodeIfPresent(SetupInputs.self, forKey: .setup)) ?? nil
     }
 
@@ -209,6 +210,7 @@ struct Profile: Codable, Equatable {
     }
     var kcal: Double { kcalTarget ?? estimatedKcal }
     var proteinTarget: Double { (weightKg * proteinPerKg).rounded() }
+    var usesBand: Bool { healthSource != "apple" }
 }
 
 struct OpenSession: Identifiable, Equatable { var id: String }

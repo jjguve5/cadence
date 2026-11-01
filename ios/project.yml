@@ -36,6 +36,7 @@ targets:
         UIAppFonts: [Geist-Regular.ttf, Geist-Medium.ttf, Geist-SemiBold.ttf, Geist-Bold.ttf, GeistMono-Regular.ttf, GeistMono-Medium.ttf, InstrumentSerif-Regular.ttf, InstrumentSerif-Italic.ttf]
         NSCameraUsageDescription: Scan food barcodes and receipt QR codes to log them.
         NSLocationWhenInUseUsageDescription: Live travel time for leave-by alerts and the weather where you are.
+        NSHealthShareUsageDescription: Weight and water from Apple Health, and sleep, heart rate and steps if you use Apple Health instead of a Fitbit.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence

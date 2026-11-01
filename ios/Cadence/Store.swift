@@ -67,6 +67,7 @@ final class Store: ObservableObject {
     @Published private(set) var syncing = false
     @Published private(set) var syncError: String?
     @Published private(set) var needsGoogle = false
+    @Published private(set) var appleHealthProblem: String?
     @Published var tick = Date() // redraws time-based views
     @Published var openWorkout: OpenSession?
 
@@ -324,8 +325,10 @@ final class Store: ObservableObject {
     // MARK: - Health
 
     func refreshHealth(force: Bool = false) async {
-        guard connection.configured else { return }
         if !force, let last = lastHealth, Date().timeIntervalSince(last) < 15 * 60 { return }
+        if !profile.usesBand { await refreshAppleHealth(everything: true); return }
+        await refreshAppleHealth(everything: false)
+        guard connection.configured else { return }
         let days = health.count < 30 || UserDefaults.standard.integer(forKey: "healthSchema") < 2 ? 90 : 14
         guard let req = request("health.php?days=\(days)") else { return }
         do {
@@ -344,6 +347,30 @@ final class Store: ObservableObject {
             autoComplete()
             writeSnapshot()
         } catch {}
+    }
+
+    /// Apple Health: everything when it's the source, otherwise just weight and water next to the Fitbit data
+    func refreshAppleHealth(everything: Bool) async {
+        guard !TestMode.active else { return }
+        guard let r = await AppleHealth.shared.read(days: everything && health.count < 30 ? 90 : 30, everything: everything) else {
+            appleHealthProblem = AppleHealth.shared.problem
+            return
+        }
+        appleHealthProblem = nil
+        if everything {
+            for d in r.days { health[d.date] = d }
+            device = Device(name: "Apple Health", battery: nil, batteryStatus: nil, lastSync: ISO8601DateFormatter().string(from: Date()))
+            lastHealth = Date()
+        }
+        // typed weights win; a later Health reading replaces an earlier one
+        for w in r.weights {
+            let old = record(WeightEntry.self, w.date)
+            if old == nil || (old?.source == "health" && abs((old?.kg ?? 0) - w.kg) > 0.01) { save(WeightEntry(date: w.date, kg: (w.kg * 10).rounded() / 10, source: "health")) }
+        }
+        for x in r.water where record(WaterEntry.self, x.id) == nil { save(WaterEntry(id: x.id, date: x.date, minute: x.minute, ml: x.ml.rounded())) }
+        followLatestWeight()
+        persist()
+        if everything { autoComplete(); writeSnapshot() }
     }
 
     func googleURL() -> URL? {

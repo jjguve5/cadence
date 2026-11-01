@@ -183,7 +183,16 @@ jobs:
           mkdir Payload
           cp -R build/Build/Products/Release-iphoneos/Cadence.app Payload/
           zip -qr Cadence.ipa Payload
+      # The same app carrying the HealthKit entitlement, to find out whether Sideloadly and a free Apple ID keep it
+      - run: |
+          mkdir -p htmp/Payload && cp -R build/Build/Products/Release-iphoneos/Cadence.app htmp/Payload/
+          codesign -f -s - htmp/Payload/Cadence.app/PlugIns/CadenceWidgets.appex
+          codesign -f -s - --entitlements Cadence/Health.entitlements htmp/Payload/Cadence.app
+          codesign -d --entitlements - htmp/Payload/Cadence.app
+          (cd htmp && zip -qr ../Cadence-health-test.ipa Payload)
       - uses: actions/upload-artifact@v4
         with:
           name: Cadence-ipa
-          path: ios/Cadence.ipa
+          path: |
+            ios/Cadence.ipa
+            ios/Cadence-health-test.ipa

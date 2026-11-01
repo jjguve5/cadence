@@ -21,6 +21,7 @@ struct TodayView: View {
             Screen(glow: .mint) {
                 header
                 if store.needsGoogle { googleCard }
+                if store.health.isEmpty, store.device == nil, !TestMode.active { sourceCard }
                 if !store.profile.setupDone {
                     Button { settingUp = true } label: {
                         Card(tint: .mint) {
@@ -72,6 +73,19 @@ struct TodayView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// First run with no data yet: a Fitbit through the server, or Apple Health on its own
+    private var sourceCard: some View {
+        Card(tint: .sleep) {
+            Eyebrow(text: "Sleep and heart data", icon: "heart.text.square", color: .sleep)
+            Text("Where should Cadence get your sleep, HRV and steps?").font(.geist(14))
+            HStack {
+                NavigationLink { SettingsView() } label: { Chip(text: "Fitbit", color: .sleep) }
+                Button { store.update { $0.healthSource = "apple" }; Task { await store.refreshHealth(force: true) } } label: { Chip(text: "Apple Health", color: .sleep) }
+            }
+            if let p = store.appleHealthProblem { Text(p).font(.geist(12)).foregroundStyle(Color.warn) }
+        }
     }
 
     private var googleCard: some View {

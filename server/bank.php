@@ -31,6 +31,7 @@ function eb($method, $path, $body = null) {
 
 if (isset($_GET['code'])) {
 	if (!hash_equals($_SESSION['bank_state'] ?? '', $_GET['state'] ?? '')) exit('Start again from the app.');
+	person($_SESSION['bank_person'] ?? null);
 	[$status, $session] = eb('POST', '/sessions', ['code' => $_GET['code']]);
 	if ($status !== 200) exit('The bank did not confirm (' . $status . ').');
 	$banks = load('banks');
@@ -54,6 +55,7 @@ if (isset($_GET['banks'])) {
 
 if (isset($_GET['bank'])) {
 	$_SESSION['bank_state'] = bin2hex(random_bytes(16));
+	$_SESSION['bank_person'] = person();
 	$_SESSION['bank_name'] = $_GET['bank'];
 	[$status, $json] = eb('POST', '/auth', [
 		'access' => ['valid_until' => date('c', strtotime('+179 days'))],

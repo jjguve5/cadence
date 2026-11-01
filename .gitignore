@@ -1,5 +1,5 @@
 server/config.php
-server/data/*.php
+server/data/**/*.php
 ios/*.xcodeproj/
 ios/build/
 ios/Info.plist
