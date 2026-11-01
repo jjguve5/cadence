@@ -84,11 +84,11 @@ struct LifeView: View {
             Screen(glow: Color(hex: 0x7FB8FF)) {
                 Title(eyebrow: "Money, wardrobe, home, people", title: "Life")
                     .padding(.top, 8)
-                link(MoneyView(), "Money", "eurosign.circle.fill", Color(hex: 0xFFD166), "\(euro(store.moneyMonth().safePerDay)) a day safe to spend" + (store.reviewInbox.isEmpty ? "" : " · \(store.reviewInbox.count) to review"))
-                link(WardrobeView(), "Wardrobe and laundry", "tshirt.fill", Color(hex: 0x7FB8FF), "Outfit from the weather, laundry loads")
-                link(KitchenView(), "Meal prep and shopping", "cart.fill", Color(hex: 0xFFCF70), "Week plan, prep session, the list")
-                link(HomeView(), "Home and documents", "house.fill", Color(hex: 0x8FA8FF), "Freshness, plants, expiry dates")
-                link(PeopleView(), "People", "person.2.fill", Color(hex: 0xFF9FBF), "Birthdays, gift ideas, keeping in touch")
+                if store.profile.on("money") { link(MoneyView(), "Money", "eurosign.circle.fill", Color(hex: 0xFFD166), "\(euro(store.moneyMonth().safePerDay)) a day safe to spend" + (store.reviewInbox.isEmpty ? "" : " · \(store.reviewInbox.count) to review")) }
+                if store.profile.on("wardrobe") { link(WardrobeView(), "Wardrobe and laundry", "tshirt.fill", Color(hex: 0x7FB8FF), "Outfit from the weather, laundry loads") }
+                if store.profile.on("kitchen") { link(KitchenView(), "Meal prep and shopping", "cart.fill", Color(hex: 0xFFCF70), "Week plan, prep session, the list") }
+                if store.profile.on("home") { link(HomeView(), "Home and documents", "house.fill", Color(hex: 0x8FA8FF), "Freshness, plants, expiry dates") }
+                if store.profile.on("people") { link(PeopleView(), "People", "person.2.fill", Color(hex: 0xFF9FBF), "Birthdays, gift ideas, keeping in touch") }
             }
             .toolbar(.hidden, for: .navigationBar)
         }

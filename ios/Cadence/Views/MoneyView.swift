@@ -156,16 +156,7 @@ struct MoneyView: View {
                     TextField("€", text: $wishPrice).keyboardType(.decimalPad).frame(width: 60)
                     Button("Add") { if let p = Double(wishPrice.replacingOccurrences(of: ",", with: ".")) { store.save(WishItem(title: wish, price: p)); wish = ""; wishPrice = "" } }.disabled(wish.isEmpty)
                 }
-                ForEach(store.all(WishItem.self).filter { $0.decision == nil }) { w in
-                    HStack {
-                        Text("\(w.title) · \(euro(w.price))").font(.system(size: 13.5))
-                        Spacer()
-                        if w.ready {
-                            Button("Skip") { var x = w; x.decision = "skipped"; store.save(x) }.tint(.good)
-                            Button("Buy") { var x = w; x.decision = "bought"; store.save(x) }.tint(.soft)
-                        } else { Text("wait \(Int((72 * 3600 * 1000 - (nowMs() - w.added)) / 3600000)) h").font(.system(size: 12)).foregroundStyle(Color.faint) }
-                    }
-                }
+                ForEach(store.all(WishItem.self).filter { $0.decision == nil }) { WishRow(item: $0) }
                 let skipped = store.all(WishItem.self).filter { $0.decision == "skipped" }.map(\.price).reduce(0, +)
                 if skipped > 0 { Text("Skipped after waiting: \(euro(skipped)) kept").font(.system(size: 12)).foregroundStyle(Color.good) }
             }
@@ -186,6 +177,28 @@ struct MoneyView: View {
 
     private func row(_ name: String, _ value: String, color: Color = .ink) -> some View {
         HStack { Text(name).font(.system(size: 13.5)).foregroundStyle(Color.soft); Spacer(); Text(value).font(.system(size: 13.5, weight: .semibold, design: .monospaced)).foregroundStyle(color) }
+    }
+}
+
+struct WishRow: View {
+    @EnvironmentObject var store: Store
+    var item: WishItem
+    var body: some View {
+        HStack {
+            Text("\(item.title) · \(euro(item.price))").font(.system(size: 13.5))
+            Spacer()
+            if item.ready {
+                Button("Skip") { decide("skipped") }.tint(Color.good)
+                Button("Buy") { decide("bought") }.tint(Color.soft)
+            } else {
+                Text("wait \(item.hoursLeft) h").font(.system(size: 12)).foregroundStyle(Color.faint)
+            }
+        }
+    }
+    private func decide(_ d: String) {
+        var x = item
+        x.decision = d
+        store.save(x)
     }
 }
 

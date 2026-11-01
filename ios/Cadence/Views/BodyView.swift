@@ -10,10 +10,12 @@ struct BodyView: View {
             Screen(glow: .sleep) {
                 Title(eyebrow: "Sleep, recovery and signals", title: "Body")
                     .padding(.top, 8)
-                NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain)
-                NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain)
-                NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
-                NavigationLink { CareView() } label: { careCard }.buttonStyle(.plain)
+                if store.profile.on("fuel") { NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain) }
+                if store.profile.on("training") {
+                    NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain)
+                    NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
+                }
+                if store.profile.on("care") { NavigationLink { CareView() } label: { careCard }.buttonStyle(.plain) }
                 NavigationLink { SleepView() } label: { lastNightCard }.buttonStyle(.plain)
                 NavigationLink { TrendsView() } label: { trendsCard }.buttonStyle(.plain)
                 NavigationLink { SignalsView() } label: { signalsCard }.buttonStyle(.plain)

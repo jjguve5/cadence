@@ -81,7 +81,9 @@ struct WishItem: Record, Equatable {
     var decision: String? // bought, skipped
     var goalId: String?
 
-    var ready: Bool { nowMs() - added >= 72 * 3600 * 1000 }
+    private static let wait: Double = 72 * 3600 * 1000
+    var ready: Bool { nowMs() - added >= WishItem.wait }
+    var hoursLeft: Int { Int((WishItem.wait - (nowMs() - added)) / 3_600_000) }
 }
 
 struct CategoryRule: Record, Equatable {
