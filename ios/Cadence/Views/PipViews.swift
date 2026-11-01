@@ -31,6 +31,7 @@ struct PipPage: View {
             VStack(spacing: 4) {
                 PipAnimation(mood: tapped ? .tapped : mood)
                     .frame(width: 190, height: 190)
+                    .background(Circle().fill(LinearGradient(colors: store.backdrop.colors.map { Color(hex: $0) }, startPoint: .top, endPoint: .bottom)).frame(width: 200, height: 200))
                     .onTapGesture {
                         tapped = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { tapped = false }
@@ -77,6 +78,7 @@ struct PipPage: View {
                 Bar(progress: Double(level.into) / Double(max(1, level.span)), area: .mint)
             }
 
+            BackdropPicker()
             Text("Pip's mood always comes from your real day. It never guilt-trips you: on a bad day it gets sleepy or a little sad and names one small thing that would help.")
                 .font(.system(size: 12)).foregroundStyle(Color.faint)
         }

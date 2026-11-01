@@ -38,7 +38,7 @@ extension Store {
         }
         for p in due(on: day) {
             let st = status(p, on: day)
-            items.append(PlanItem(id: p.id, minute: time(of: p, on: day), title: p.title, detail: st == nil ? (time(of: p, on: day) > plan.perform && p.schedule.minute >= 240 ? "after lights out: tap and hold Edit to move it" : p.kind == .mustDo ? "must-do" : p.schedule.summary) : st == .skipped ? "skipped" : "done", icon: p.icon, color: p.kind == .mustDo ? .warn : .mint, promise: p))
+            items.append(PlanItem(id: p.id, minute: time(of: p, on: day), title: p.title, detail: st == nil ? (time(of: p, on: day) > plan.perform && p.schedule.minute >= 240 ? "after lights out: change it in Promises" : p.kind == .mustDo ? "must-do" : p.schedule.summary) : st == .skipped ? "skipped" : "done", icon: p.icon, color: p.kind == .mustDo ? .warn : .mint, promise: p))
         }
         return items.sorted { ($0.minute < 240 ? $0.minute + 1440 : $0.minute) < ($1.minute < 240 ? $1.minute + 1440 : $1.minute) }
     }
@@ -65,6 +65,7 @@ struct PlanView: View {
                     .padding(.top, 8)
                 NowCard(focusing: $focusing)
                 EnergyRibbon()
+                weatherSuggestions
                 suggestions
                 ForEach(Array(store.clashes().enumerated()), id: \.offset) { _, pair in
                     let (block, event) = pair
@@ -103,6 +104,16 @@ struct PlanView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.055)))
+    }
+
+    private var weatherSuggestions: some View {
+        ForEach(store.weatherMoves(), id: \.0.id) { block, minute in
+            Card(tint: .water) {
+                Eyebrow(text: "Rain during \(block.title.lowercased())", icon: "cloud.rain.fill", color: .water)
+                Text("Dry at \(clock(minute)). Move it there?").font(.system(size: 14))
+                SoftButton(title: "Move to \(clock(minute))") { var b = block; b.start = minute; store.save(b) }
+            }
+        }
     }
 
     private var suggestions: some View {

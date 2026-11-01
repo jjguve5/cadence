@@ -221,6 +221,7 @@ struct PantryEditor: View {
                 TextField("Used per day (0 = learn from routines)", value: $item.usePerDay, format: .number).keyboardType(.decimalPad)
                 TextField("Low at", value: $item.lowAt, format: .number).keyboardType(.decimalPad)
                 TextField("Price €", value: $item.price, format: .number).keyboardType(.decimalPad)
+                TextField("Protein per pack, g (optional)", value: $item.proteinPerPack, format: .number).keyboardType(.decimalPad)
                 Picker("Aisle", selection: $item.aisle) { ForEach(aisles, id: \.self) { Text($0).tag($0) } }
                 if store.record(PantryItem.self, item.id) != nil { Button("Delete", role: .destructive) { store.remove(item); dismiss() } }
             }

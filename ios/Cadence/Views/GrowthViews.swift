@@ -246,6 +246,7 @@ struct WeeklyReviewView: View {
                 Eyebrow(text: "Week of \(Day.date(week).formatted(.dateTime.day().month(.wide)))")
                 ForEach(store.weekReview(week), id: \.0) { k, v in HStack { Text(k).font(.system(size: 14)); Spacer(); Text(v).font(.system(size: 14, weight: .semibold)) } }
             }
+            TimeAuditCard(week: week)
             Card(tint: .mint) {
                 Eyebrow(text: "One thing to try next week", color: .mint)
                 Text(store.challenge().text).font(.system(size: 15, weight: .semibold))

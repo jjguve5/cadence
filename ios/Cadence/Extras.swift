@@ -1,0 +1,222 @@
+// The rest of the concept: workouts the Air recorded, body progress, the rest-or-train forecast, reading and sleep,
+// where your time went, the weather-aware plan, and the money extras (payday plan, round-ups, e-Fatura,
+// cost per gram of protein, prep against eating out, travel budgets). And Pip's backdrops, unlocked by level.
+import Foundation
+import SwiftUI
+
+struct AirExercise: Codable, Identifiable, Equatable {
+    var start: String
+    var end: String
+    var type: String
+    var minutes: Int
+    var avgHr: Double?
+    var maxHr: Double?
+    var calories: Double?
+    var distance: Double?
+    var id: String { start }
+    var startDate: Date { ISO8601DateFormatter.lenient(start) }
+    var name: String { type.replacingOccurrences(of: "_", with: " ").capitalized }
+}
+
+extension ISO8601DateFormatter {
+    static func lenient(_ s: String) -> Date {
+        let f = ISO8601DateFormatter()
+        if let d = f.date(from: s) { return d }
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? Date()
+    }
+}
+
+@MainActor
+final class AirWorkouts: ObservableObject {
+    static let shared = AirWorkouts()
+    @Published private(set) var list: [AirExercise] = []
+    private var last: Date?
+
+    func refresh() async {
+        if let last, Date().timeIntervalSince(last) < 20 * 60 { return }
+        guard let req = Store.shared.request("health.php?exercise=30"), let (data, _) = try? await URLSession.shared.data(for: req) else { return }
+        struct R: Decodable { var exercises: [AirExercise] }
+        if let r = try? JSONDecoder().decode(R.self, from: data) { list = r.exercises.sorted { $0.start > $1.start }; last = Date() }
+    }
+
+    /// The Air's recording that overlaps a logged session: its heart rate and calories
+    func match(_ s: WorkoutSession) -> AirExercise? {
+        let start = Date(timeIntervalSince1970: s.start / 1000), end = Date(timeIntervalSince1970: (s.end ?? nowMs()) / 1000)
+        return list.first { e in
+            let es = e.startDate, ee = es.addingTimeInterval(Double(e.minutes) * 60)
+            return es < end.addingTimeInterval(600) && ee > start.addingTimeInterval(-600)
+        }
+    }
+}
+
+struct Measurement: Record, Equatable {
+    static let kind = "measure"
+    var id: String { date }
+    var date = Day.today
+    var values: [String: Double] = [:] // waist, chest, hips, arm, thigh, calf, neck, shoulders, forearm, body fat
+}
+
+let measurementNames = ["Waist", "Chest", "Hips", "Arm", "Thigh", "Calf", "Neck", "Shoulders", "Forearm", "Body fat %"]
+
+enum ProgressPhotos {
+    static let dir: URL = {
+        let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("progress", isDirectory: true)
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d
+    }()
+    static func save(_ data: Data) { try? data.write(to: dir.appendingPathComponent("\(Day.today)-\(Int(Date().timeIntervalSince1970)).jpg")) }
+    static var all: [(date: String, url: URL)] {
+        ((try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "jpg" }.map { (String($0.lastPathComponent.prefix(10)), $0) }.sorted { $0.0 > $1.0 }
+    }
+}
+
+struct Payday: Record, Equatable {
+    static let kind = "payday"
+    var id: String { month }
+    var month: String
+    var jobs: [String: Double] // bucket → euros
+}
+
+let pipBackdrops: [(level: Int, name: String, colors: [UInt32])] = [
+    (1, "Night", [0x07090E, 0x0F1A2A]), (3, "Mint", [0x0F3B33, 0x07090E]), (5, "Sunrise", [0x4A3214, 0x2B1A2E]),
+    (8, "Forest", [0x123D24, 0x08140D]), (12, "Ocean", [0x0E2C45, 0x061423]), (16, "Aurora", [0x26173F, 0x0F3B33]), (20, "Gold", [0x4A3A10, 0x1A1205]),
+]
+
+@MainActor
+extension Store {
+    // MARK: Rest or train
+
+    /// The next 3 days of readiness if you train today against if you rest, from how your readiness moved after
+    /// your own training and rest days
+    func restOrTrain() -> (train: [Int], rest: [Int])? {
+        guard let now = readiness()?.score else { return nil }
+        var afterTrain: [Double] = [], afterRest: [Double] = []
+        for i in 1..<45 {
+            let d = Day.add(-i, to: Day.today), next = Day.add(1, to: d)
+            guard let a = readiness(on: d)?.score, let b = readiness(on: next)?.score else { continue }
+            let trained = !sessions(on: d).isEmpty || (health[d]?.azm ?? 0) >= 30
+            if trained { afterTrain.append(Double(b - a)) } else { afterRest.append(Double(b - a)) }
+        }
+        let t = afterTrain.count >= 3 ? afterTrain.reduce(0, +) / Double(afterTrain.count) : -6
+        let r = afterRest.count >= 3 ? afterRest.reduce(0, +) / Double(afterRest.count) : 4
+        func path(_ first: Double) -> [Int] {
+            var v = Double(now), out: [Int] = []
+            v += first; out.append(Int(min(100, max(1, v))))
+            for _ in 0..<2 { v += (70 - v) * 0.3; out.append(Int(min(100, max(1, v)))) } // drifts back to your normal
+            return out
+        }
+        return (path(t), path(r))
+    }
+
+    // MARK: Reading and sleep
+
+    func readingAndSleep() -> (with: Int, without: Int, nights: Int)? {
+        var with: [Int] = [], without: [Int] = []
+        for i in 1..<60 {
+            let d = Day.add(-i, to: Day.today)
+            guard let s = health[Day.add(1, to: d)]?.sleep else { continue }
+            let evening = all(ReadingSession.self).filter { $0.date == d && Day.minuteOfDay(Date(timeIntervalSince1970: $0.start / 1000)) >= 20 * 60 }.map(\.minutes).reduce(0, +)
+            if evening >= 15 { with.append(s.asleep) } else { without.append(s.asleep) }
+        }
+        guard with.count >= 4, without.count >= 4 else { return nil }
+        return (with.reduce(0, +) / with.count, without.reduce(0, +) / without.count, with.count)
+    }
+
+    // MARK: Where your time went
+
+    func timeAudit(week: String) -> [(String, Int, Int?)] { // name, actual minutes, planned minutes
+        let days = (0..<7).map { Day.add($0, to: week) }
+        let events = Agenda.shared.events.filter { days.contains($0.day) && !$0.allDay }
+        let meetings = events.map { $0.endMinute - $0.startMinute }.reduce(0, +)
+        let focus = all(FocusSession.self).filter { days.contains($0.date) }
+        let plannedDeep = all(PlanBlock.self).filter { days.contains($0.date) && $0.type == "deep" }.map(\.minutes).reduce(0, +)
+        let desk = all(DeskEvent.self).filter { days.contains($0.date) && $0.kind == "active" }.map(\.minutes).reduce(0, +)
+        let training = sessions().filter { days.contains($0.date) && $0.end != nil }.map { Int((($0.end ?? $0.start) - $0.start) / 60000) }.reduce(0, +)
+        let reading = days.map { readingMinutes(on: $0) }.reduce(0, +)
+        let travel = days.flatMap { commutes(on: $0) }.map { $0.travel * 2 }.reduce(0, +)
+        var out: [(String, Int, Int?)] = [("Focus sessions", focus.map(\.minutes).reduce(0, +), plannedDeep > 0 ? plannedDeep : nil), ("Calendar events", meetings, nil), ("VS Code, active", desk, nil), ("Training", training, nil), ("Reading", reading, days.count * 30), ("Travelling", travel, nil)]
+        for (project, list) in Dictionary(grouping: focus.filter { $0.projectId != nil }, by: { $0.projectId! }) {
+            out.append(("· " + (record(Project.self, project)?.title ?? "Project"), list.map(\.minutes).reduce(0, +), nil))
+        }
+        return out
+    }
+
+    func timeAuditSuggestion(week: String) -> String {
+        let a = timeAudit(week: week)
+        let focus = a.first { $0.0 == "Focus sessions" }
+        if let f = focus, let p = f.2, f.1 < p / 2 { return "Half of your planned deep work happened. Try placing it before your first meeting." }
+        if let m = a.first(where: { $0.0 == "Calendar events" }), let f = focus, m.1 > f.1 * 2 { return "Meetings took twice your focus time. Protect one morning block next week." }
+        return "A good balance. Keep the same deep-work slots next week."
+    }
+
+    // MARK: Weather-aware plan
+
+    /// An outdoor block (run, walk) inside a rain window: the nearest dry hour instead
+    func weatherMoves(on day: String = Day.today) -> [(PlanBlock, Int)] {
+        guard day == Day.today, let w = WeatherStore.shared.today else { return [] }
+        let outdoor = all(PlanBlock.self).filter { $0.date == day && ["run", "walk", "bike", "outside", "corrida", "caminhada"].contains { k in $0.title.lowercased().contains(k) } }
+        return outdoor.compactMap { b -> (PlanBlock, Int)? in
+            let wet = w.hours.filter { $0.minute >= b.start - 30 && $0.minute < b.start + b.minutes && $0.rain >= 50 }
+            guard !wet.isEmpty else { return nil }
+            let dry = w.hours.filter { $0.minute < 1440 && $0.minute >= Day.minuteOfDay() && $0.rain < 30 && $0.minute + b.minutes <= sleepPlan().windDown }.min { abs($0.minute - b.start) < abs($1.minute - b.start) }
+            return dry.map { (b, $0.minute) }
+        }
+    }
+
+    // MARK: Money extras
+
+    /// Each purchase rounded up to the next euro, saved toward a goal this month
+    func roundUps() -> Double {
+        let (start, end) = monthRange()
+        return spending(from: start, to: end).map { t in let a = -t.amount; return (a.rounded(.up) - a) }.reduce(0, +)
+    }
+
+    /// Prepped portions against eating out and delivery: what prep saved this month
+    func prepSavings() -> (eatingOut: Double, perPortion: Double?, saved: Double?) {
+        let (start, end) = monthRange()
+        let out = spending(from: start, to: end).filter { ["Eating out", "Delivery"].contains(category(for: $0)) }.map { -$0.amount }.reduce(0, +)
+        let groceries = spending(from: start, to: end).filter { category(for: $0) == "Groceries" }.map { -$0.amount }.reduce(0, +)
+        let portions = all(Portion.self).filter { $0.made >= start && $0.made <= end }.count
+        guard portions > 0 else { return (out, nil, nil) }
+        let per = groceries / Double(portions)
+        let restaurant = 12.0 // a typical lunch out in Portugal
+        return (out, per, Double(all(Portion.self).filter { ($0.eaten ?? "") >= start }.count) * max(0, restaurant - per))
+    }
+
+    /// Protein per euro from the pantry prices you've entered (protein per pack in grams)
+    func proteinValue() -> [(name: String, perEuro: Double)] {
+        all(PantryItem.self).compactMap { p -> (String, Double)? in
+            guard let price = p.price, price > 0, let protein = p.proteinPerPack, protein > 0 else { return nil }
+            return (p.name, protein / price)
+        }.sorted { $0.1 > $1.1 }.map { (name: $0.0, perEuro: $0.1) }
+    }
+
+    /// e-Fatura: what this year's receipts could deduct, by IRS category (an estimate; the Finanças portal decides)
+    func efatura(year: String = String(Day.today.prefix(4))) -> [(String, Double, String)] {
+        let tx = transactions.filter { $0.date.hasPrefix(year) && $0.amount < 0 }
+        func total(_ cats: [String]) -> Double { tx.filter { cats.contains(category(for: $0)) }.map { -$0.amount }.reduce(0, +) }
+        let vat = { (cats: [String]) in tx.filter { cats.contains(category(for: $0)) }.compactMap(\.vat).reduce(0, +) }
+        let general = min(250, total(["Groceries", "Clothes", "Other", "Fun", "Subscriptions", "Bills"]) * 0.35)
+        let health = min(1000, total(["Health"]) * 0.15)
+        let housing = min(502, total(["Rent / house"]) * 0.15)
+        let iva = vat(["Eating out", "Gym"]) * 0.15
+        return [("General family expenses", general, "35% up to €250"), ("Health", health, "15% up to €1,000"), ("Housing (rent)", housing, "15% up to €502"), ("VAT: restaurants, gym, hairdresser", iva, "15% of the VAT")]
+    }
+
+    /// Spending during a trip against its budget
+    func tripSpending(_ t: Trip) -> (spent: Double, perDay: Double?) {
+        let spent = transactions.filter { $0.date >= t.start && $0.date <= t.end && $0.amount < 0 }.map { -$0.amount }.reduce(0, +)
+        return (spent, t.budget.map { $0 / Double(max(1, t.nights)) })
+    }
+
+    // MARK: Pip
+
+    var backdrop: (name: String, colors: [UInt32]) {
+        let chosen = records("pipLook")["backdrop"].flatMap { v -> String? in if case .string(let s) = v { return s }; return nil }
+        let unlocked = pipBackdrops.filter { $0.level <= level.level }
+        let pick = unlocked.first { $0.name == chosen } ?? unlocked.last ?? pipBackdrops[0]
+        return (pick.name, pick.colors)
+    }
+}

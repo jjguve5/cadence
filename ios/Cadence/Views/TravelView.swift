@@ -180,6 +180,14 @@ struct TripDetail: View {
                         .buttonStyle(.plain)
                     }
                 }
+                if let budget = t.budget {
+                    let s = store.tripSpending(t)
+                    Card(tint: Color(hex: 0xFFD166)) {
+                        Eyebrow(text: "Budget", icon: "eurosign.circle", color: Color(hex: 0xFFD166))
+                        HStack { Text("\(euro(s.spent)) of \(euro(budget))").font(.system(size: 15, weight: .semibold)); Spacer(); if let d = s.perDay { Text("\(euro(d)) a day").font(.system(size: 12.5)).foregroundStyle(Color.soft) } }
+                        Bar(progress: s.spent / max(1, budget), area: s.spent > budget ? .train : .fuel)
+                    }
+                }
                 if !store.groomingBefore(t).isEmpty {
                     Card(tint: .fuel) {
                         Eyebrow(text: "Before you go", color: .fuel)

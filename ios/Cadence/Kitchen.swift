@@ -59,6 +59,7 @@ struct PantryItem: Record, Equatable {
     var lowAt: Double = 0
     var aisle = "Pantry"
     var price: Double?
+    var proteinPerPack: Double? // grams, for protein per euro
 }
 
 struct ShoppingItem: Record, Equatable {

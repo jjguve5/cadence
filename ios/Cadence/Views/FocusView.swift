@@ -93,6 +93,15 @@ struct FocusView: View {
                 lastChime = Date()
                 UIApplication.shared.isIdleTimerDisabled = true
                 Task { await Agenda.shared.publishFocus(s) }
+                // Move nudge after 50 minutes, unless VS Code is running the desk breaks
+                let atDesk = store.all(DeskEvent.self).contains { nowMs() - $0.at < 30 * 60 * 1000 }
+                if !atDesk, s.planned > 50 {
+                    let c = UNMutableNotificationContent()
+                    c.title = "Time to move"
+                    c.body = "50 minutes in: stand up and walk for two minutes, then back to it."
+                    c.sound = .default
+                    UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "move-\(s.id)", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 50 * 60, repeats: false)))
+                }
             }
             Text("Turn on Do Not Disturb or your Focus mode now; desk breaks appear in VS Code while it's open.").font(.system(size: 12)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
         }
@@ -153,6 +162,7 @@ struct FocusView: View {
                 }
                 store.save(s)
                 UIApplication.shared.isIdleTimerDisabled = false
+                UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["move-\(s.id)"])
                 Task { await Agenda.shared.publishFocus(nil) }
                 dismiss()
             }

@@ -22,6 +22,7 @@ struct MoneyView: View {
             goalsSection
             wishesSection
             watchSection
+            MoneyExtras()
             NavigationLink { RecapView() } label: { Text("Monthly recap · \(store.noSpendDays()) no-spend days this month").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD166)) }
             NavigationLink { MoneySetupView() } label: { Text("Bank sync and Apple Pay setup").font(.system(size: 13)).foregroundStyle(Color.soft) }
         }

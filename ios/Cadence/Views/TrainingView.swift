@@ -50,6 +50,15 @@ struct TrainingView: View {
                 }
             }
             NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
+            RestOrTrainCard()
+            AirWorkoutsCard()
+            NavigationLink { BodyProgressView() } label: {
+                Card {
+                    HStack { Eyebrow(text: "Body progress", icon: "figure.arms.open"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                    Text("Photos, ten measurements, strength per kilo, the activity heatmap").font(.system(size: 13)).foregroundStyle(Color.soft)
+                }
+            }
+            .buttonStyle(.plain)
             NavigationLink { ProgressListView() } label: {
                 Card {
                     HStack { Eyebrow(text: "Progress and projections", icon: "chart.line.uptrend.xyaxis"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }

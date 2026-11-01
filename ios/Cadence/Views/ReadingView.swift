@@ -46,6 +46,12 @@ struct BooksView: View {
                     ForEach(Array(quotes)) { q in Text("“\(q.quote!)”").font(.system(size: 14, design: .serif)).italic() }
                 }
             }
+            if let rs = store.readingAndSleep() {
+                Card(tint: .sleep) {
+                    Eyebrow(text: "Reading and sleep", icon: "moon.stars", color: .sleep)
+                    Text("After evenings with 15+ minutes of reading you slept \(duration(rs.with)), against \(duration(rs.without)) without (\(rs.nights) nights). Pattern, not proof.").font(.system(size: 13))
+                }
+            }
             NavigationLink { ProjectsView() } label: { Text("Projects and deadlines").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.mint) }
         }
         .navigationTitle("Reading")
