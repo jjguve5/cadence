@@ -224,8 +224,8 @@ struct BrushStep {
 }
 
 enum BrushPlan: String, CaseIterable {
-    case quadrants, thorough, sextants
-    var label: String { ["quadrants": "2 min · 4 zones", "thorough": "2 min · 12 steps", "sextants": "3 min · 6 zones"][rawValue]! }
+    case sextants, thorough, quadrants
+    var label: String { ["sextants": "6 zones · 2 min", "thorough": "12 steps · 2 min", "quadrants": "4 zones · 2 min"][rawValue]! }
 
     var steps: [BrushStep] {
         let outer = "Bristles at 45° to the gumline, small gentle circles."
@@ -246,7 +246,7 @@ enum BrushPlan: String, CaseIterable {
             return out
         case .sextants:
             return [("upper-right", "Upper right"), ("upper-front", "Upper front"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-front", "Lower front"), ("lower-right", "Lower right")].map {
-                BrushStep(area: $0.0, surface: "all", seconds: 30, title: $0.1, tip: $0.0.hasSuffix("front") ? "Brush upright for the backs of the front teeth. " + outer : "Outside, inside, then the tops. " + outer)
+                BrushStep(area: $0.0, surface: "all", seconds: 20, title: $0.1, tip: $0.0.hasSuffix("front") ? "Brush upright for the backs of the front teeth. " + outer : "Outside, inside, then the tops. " + outer)
             }
         }
     }
@@ -257,7 +257,7 @@ enum BrushPlan: String, CaseIterable {
 struct BrushingView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("brushPlan") private var planName = BrushPlan.thorough.rawValue
+    @AppStorage("brushPlan2") private var planName = BrushPlan.sextants.rawValue
     @State private var start: Date?
     @State private var now = Date()
     @State private var lastStep = -1
@@ -265,7 +265,7 @@ struct BrushingView: View {
     @State private var mouthwash = false
     private let timer = Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()
 
-    private var plan: BrushPlan { BrushPlan(rawValue: planName) ?? .thorough }
+    private var plan: BrushPlan { BrushPlan(rawValue: planName) ?? .sextants }
     private var steps: [BrushStep] { plan.steps }
     private var total: Double { steps.map(\.seconds).reduce(0, +) }
     private var elapsed: Double { start.map { now.timeIntervalSince($0) } ?? 0 }
@@ -287,7 +287,7 @@ struct BrushingView: View {
             VStack(spacing: 16) {
                 HStack { Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
                 Text(finished ? "Done" : step?.title ?? "Brush").font(.geist(26, .bold))
-                ToothChart(area: step?.area, surface: step?.surface).frame(maxHeight: 340)
+                ToothChart(area: step?.area, surface: step?.surface, sextants: plan == .sextants).frame(maxHeight: 340)
                 if let step {
                     Text(step.tip).font(.geist(14)).foregroundStyle(Color.soft).multilineTextAlignment(.center).frame(minHeight: 40)
                     HStack(spacing: 4) {
@@ -333,7 +333,7 @@ struct BrushingView: View {
 struct ToothChart: View {
     var area: String?
     var surface: String?
-    var sextants = UserDefaults.standard.string(forKey: "brushPlan") == BrushPlan.sextants.rawValue
+    var sextants = true
 
     // From the middle to the back: 2 incisors, canine, 2 premolars, 3 molars (width, depth relative to a molar)
     private static let types: [(w: CGFloat, d: CGFloat)] = [(0.72, 0.55), (0.6, 0.55), (0.66, 0.82), (0.74, 0.9), (0.74, 0.9), (1, 1.05), (1, 1.05), (1, 1.05)]
