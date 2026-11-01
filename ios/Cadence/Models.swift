@@ -148,6 +148,43 @@ struct Profile: Codable, Equatable {
     var quietStart = 23 * 60 + 30
     var quietEnd = 7 * 60
     var notificationBudget = 12
+    // Fuel
+    var goal = "maintain" // lose, maintain, gain
+    var weightKg = 76.0
+    var heightCm = 178.0
+    var age = 25
+    var male = true
+    var kcalTarget: Double? // set by the weekly check-in; nil = estimate
+    var proteinPerKg = 1.8
+    var waterGoalMl = 3000.0
+    // Training
+    var barKg = 20.0
+    var plates: [Double] = [25, 20, 15, 10, 5, 2.5, 1.25]
+
+    init() {}
+
+    // Every field optional on the way in, so adding a field never loses saved data
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = Profile()
+        func v<T: Decodable>(_ k: CodingKeys, _ def: T) -> T { (try? c.decodeIfPresent(T.self, forKey: k)) ?? def }
+        name = v(.name, d.name); wakeMinute = v(.wakeMinute, d.wakeMinute); sleepNeed = v(.sleepNeed, d.sleepNeed)
+        windDownLead = v(.windDownLead, d.windDownLead); stepGoal = v(.stepGoal, d.stepGoal); readinessOffset = v(.readinessOffset, d.readinessOffset)
+        quietStart = v(.quietStart, d.quietStart); quietEnd = v(.quietEnd, d.quietEnd); notificationBudget = v(.notificationBudget, d.notificationBudget)
+        goal = v(.goal, d.goal); weightKg = v(.weightKg, d.weightKg); heightCm = v(.heightCm, d.heightCm); age = v(.age, d.age); male = v(.male, d.male)
+        kcalTarget = (try? c.decodeIfPresent(Double.self, forKey: .kcalTarget)) ?? nil
+        proteinPerKg = v(.proteinPerKg, d.proteinPerKg); waterGoalMl = v(.waterGoalMl, d.waterGoalMl)
+        barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates)
+    }
+
+    /// Mifflin-St Jeor, times a light activity factor; the weekly check-in replaces it with what your weight shows
+    var estimatedKcal: Double {
+        let bmr = 10 * weightKg + 6.25 * heightCm - 5 * Double(age) + (male ? 5 : -161)
+        let tdee = bmr * 1.5
+        return (goal == "lose" ? tdee - 400 : goal == "gain" ? tdee + 250 : tdee).rounded()
+    }
+    var kcal: Double { kcalTarget ?? estimatedKcal }
+    var proteinTarget: Double { (weightKg * proteinPerKg).rounded() }
 }
 
 struct Connection: Codable, Equatable {

@@ -7,3 +7,4 @@ ios/Info.plist
 Payload/
 node_modules/
 vscode/*.vsix
+ios/Widgets/Info.plist

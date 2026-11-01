@@ -10,6 +10,9 @@ struct BodyView: View {
             Screen(glow: .sleep) {
                 Title(eyebrow: "Sleep, recovery and signals", title: "Body")
                     .padding(.top, 8)
+                NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain)
+                NavigationLink { TrainingView() } label: { trainingCard }.buttonStyle(.plain)
+                NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
                 NavigationLink { SleepView() } label: { lastNightCard }.buttonStyle(.plain)
                 NavigationLink { TrendsView() } label: { trendsCard }.buttonStyle(.plain)
                 NavigationLink { SignalsView() } label: { signalsCard }.buttonStyle(.plain)
@@ -17,6 +20,39 @@ struct BodyView: View {
             .refreshable { await store.refreshHealth(force: true) }
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private var fuelCard: some View {
+        let f = store.fuel(), p = store.profile
+        return Card(tint: .fuel) {
+            HStack { Eyebrow(text: "Fuel", icon: "fork.knife", color: .fuel); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+            HStack(spacing: 14) {
+                mini("Calories", f.kcal / p.kcal, .fuel, "\(Int(f.kcal))")
+                mini("Protein", f.protein / p.proteinTarget, .train, "\(Int(f.protein)) g")
+                mini("Water", f.water / store.waterGoal(), .water, String(format: "%.1f L", f.water / 1000))
+            }
+        }
+    }
+
+    private var trainingCard: some View {
+        let last = store.sessions().first { $0.end != nil }
+        return Card(tint: .train) {
+            HStack { Eyebrow(text: "Training", icon: "dumbbell.fill", color: .train); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+            if let a = store.activeSession { Text("In progress: \(a.name)").font(.system(size: 15, weight: .semibold)) }
+            else if let last { Text("Last: \(last.name) · \(Day.date(last.date).formatted(.dateTime.weekday(.wide)))").font(.system(size: 14)) }
+            else { Text("Templates, workout mode, progression and the body map.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+        }
+    }
+
+    private func mini(_ name: String, _ progress: Double, _ area: Area, _ value: String) -> some View {
+        HStack(spacing: 8) {
+            Ring(progress: progress, area: area, width: 5).frame(width: 30, height: 30)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(value).font(.system(size: 13, weight: .bold))
+                Text(name).font(.system(size: 10.5)).foregroundStyle(Color.soft)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var lastNightCard: some View {

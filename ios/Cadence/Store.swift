@@ -34,6 +34,19 @@ private struct Saved: Codable {
     var tombstones: [String] = []
     var rev: Int?
     var seeded = false
+
+    init() {}
+
+    // Every field optional on the way in, so a new field in an update never loses what's saved
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func v<T: Decodable>(_ k: CodingKeys, _ def: T) -> T { (try? c.decodeIfPresent(T.self, forKey: k)) ?? def }
+        promises = v(.promises, [:]); logs = v(.logs, [:]); days = v(.days, [:]); profile = v(.profile, Profile())
+        feedback = v(.feedback, [:]); extra = v(.extra, [:]); health = v(.health, [:]); device = (try? c.decodeIfPresent(Device.self, forKey: .device)) ?? nil
+        healthErrors = v(.healthErrors, [:]); lastHealth = (try? c.decodeIfPresent(Double.self, forKey: .lastHealth)) ?? nil
+        connection = v(.connection, Connection()); dirty = v(.dirty, [:]); tombstones = v(.tombstones, [])
+        rev = (try? c.decodeIfPresent(Int.self, forKey: .rev)) ?? nil; seeded = v(.seeded, false)
+    }
 }
 
 @MainActor
@@ -56,6 +69,7 @@ final class Store: ObservableObject {
     @Published private(set) var needsGoogle = false
     @Published var tick = Date() // redraws time-based views
 
+    var recordCache: [String: Any] = [:] // decoded typed records, per type (see Records.swift)
     private var dirty: [String: Int] = [:]
     private var tombstones: [String] = []
     private var rev: Int?
@@ -119,11 +133,16 @@ final class Store: ObservableObject {
         logs[entry.id] = entry
         mark("log:\(entry.id)")
         Reminders.shared.clear(promise: promise.id, day: day)
+        // Routines that log food: ticking the 17:00 shake adds its calories and protein
+        if status != .skipped, promise.kcal != nil || promise.protein != nil {
+            save(FoodEntry(id: "promise-\(promise.id)-\(day)", date: day, minute: promise.schedule.minute, name: promise.title, kcal: promise.kcal ?? 0, protein: promise.protein ?? 0, promiseId: promise.id))
+        }
     }
 
     func undo(_ promise: PromiseItem, on day: String = Day.today) {
         let id = "\(promise.id)|\(day)"
         logs[id] = nil
+        if let food = record(FoodEntry.self, "promise-\(promise.id)-\(day)") { remove(food) }
         tombstones.append("log:\(id)")
         mark("log:\(id)")
     }
@@ -182,6 +201,7 @@ final class Store: ObservableObject {
         var all = extra[type] ?? [:]
         all[id] = value
         extra[type] = all
+        recordCache[type] = nil
         if value == nil { tombstones.append("\(type):\(id)") }
         mark("\(type):\(id)")
     }
@@ -240,6 +260,7 @@ final class Store: ObservableObject {
             var all = extra[c.type] ?? [:]
             all[c.id] = gone ? nil : c.data
             extra[c.type] = all
+            recordCache[c.type] = nil
         }
     }
 

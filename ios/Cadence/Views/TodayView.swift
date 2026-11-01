@@ -125,11 +125,12 @@ struct TodayView: View {
         let today = store.health[Day.today]
         let due = store.due()
         let done = due.filter { store.status($0).map { $0 != .skipped } ?? false }.count
+        let fuel = store.fuel()
         let items: [(String, Double, Area, String)] = [
-            ("Sleep", Double(today?.sleep?.asleep ?? 0) / Double(store.profile.sleepNeed), .sleep, today?.sleep.map { duration($0.asleep) } ?? "–"),
+            ("Protein", fuel.protein / store.profile.proteinTarget, .fuel, "\(Int(fuel.protein))g"),
+            ("Water", fuel.water / store.waterGoal(), .water, String(format: "%.1fL", fuel.water / 1000)),
             ("Move", (today?.steps ?? 0) / Double(store.profile.stepGoal), .train, today?.steps.map { "\(Int($0 / 100) / 10).\(Int($0 / 100) % 10)k" } ?? "–"),
-            ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .fuel, "\(done)/\(due.count)"),
-            ("Score", Double(store.score()) / 100, .mint, "\(store.score())"),
+            ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .mint, "\(done)/\(due.count)"),
         ]
         return Card {
             HStack {

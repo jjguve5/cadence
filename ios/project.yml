@@ -13,9 +13,11 @@ targets:
   Cadence:
     type: application
     platform: iOS
-    sources: [Cadence]
+    sources: [Cadence, Shared]
     dependencies:
       - package: Lottie
+      - target: CadenceWidgets
+        embed: true
     info:
       path: Info.plist
       properties:
@@ -29,12 +31,31 @@ targets:
             CFBundleURLSchemes: [cadence]
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [com.jjguve5.cadence.refresh]
+        NSSupportsLiveActivities: true
+        NSCameraUsageDescription: Scan food barcodes to log them.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence
-        MARKETING_VERSION: "0.1"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.2"
+        CURRENT_PROJECT_VERSION: "2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) CADENCE_APP
+  CadenceWidgets:
+    type: app-extension
+    platform: iOS
+    sources: [Widgets, Shared]
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Cadence
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence.widgets
+        MARKETING_VERSION: "0.2"
+        CURRENT_PROJECT_VERSION: "2"
         TARGETED_DEVICE_FAMILY: "1"
 schemes:
   Cadence:
