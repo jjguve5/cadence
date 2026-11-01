@@ -14,16 +14,16 @@ struct TravelView: View {
             Card {
                 HStack { Eyebrow(text: "Regular trips", icon: "tram.fill"); Spacer(); Button { editingCommute = RegularTrip(title: "") } label: { Image(systemName: "plus") }.tint(.water) }
                 let commutes = store.all(RegularTrip.self)
-                if commutes.isEmpty { Text("Trips you make every week, with door-to-door time: they block the plan and get a leave-by alert.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                if commutes.isEmpty { Text("Trips you make every week, with door-to-door time: they block the plan and get a leave-by alert.").font(.geist(13)).foregroundStyle(Color.soft) }
                 ForEach(commutes) { c in
                     Button { editingCommute = c } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(c.title).font(.system(size: 14.5, weight: .semibold))
-                                Text("Leave \(clock(c.leave)) · arrive \(clock(c.arrive)) · \(c.travel) min").font(.system(size: 12)).foregroundStyle(Color.soft)
+                                Text(c.title).font(.geist(14.5, .semibold))
+                                Text("Leave \(clock(c.leave)) · arrive \(clock(c.arrive)) · \(c.travel) min").font(.geist(12)).foregroundStyle(Color.soft)
                             }
                             Spacer()
-                            Text(c.weekdays.sorted { ($0 + 5) % 7 < ($1 + 5) % 7 }.map { ["S", "M", "T", "W", "T", "F", "S"][$0 - 1] }.joined()).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.faint)
+                            Text(c.weekdays.sorted { ($0 + 5) % 7 < ($1 + 5) % 7 }.map { ["S", "M", "T", "W", "T", "F", "S"][$0 - 1] }.joined()).font(.mono(12)).foregroundStyle(Color.faint)
                         }
                     }
                     .buttonStyle(.plain)
@@ -35,8 +35,8 @@ struct TravelView: View {
                     NavigationLink { TripDetail(tripId: t.id) } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(t.destination).font(.system(size: 14.5, weight: .semibold))
-                                Text("\(Day.date(t.start).formatted(.dateTime.day().month())) – \(Day.date(t.end).formatted(.dateTime.day().month())) · \(t.nights) nights" + (t.hoursAhead != 0 ? " · \(t.hoursAhead > 0 ? "+" : "")\(t.hoursAhead) h" : "")).font(.system(size: 12)).foregroundStyle(Color.soft)
+                                Text(t.destination).font(.geist(14.5, .semibold))
+                                Text("\(Day.date(t.start).formatted(.dateTime.day().month())) – \(Day.date(t.end).formatted(.dateTime.day().month())) · \(t.nights) nights" + (t.hoursAhead != 0 ? " · \(t.hoursAhead > 0 ? "+" : "")\(t.hoursAhead) h" : "")).font(.geist(12)).foregroundStyle(Color.soft)
                             }
                             Spacer()
                             if t.end < Day.today { Chip(text: "done", color: .faint) }
@@ -46,7 +46,7 @@ struct TravelView: View {
                 }
                 let year = String(Day.today.prefix(4))
                 let away = store.all(Trip.self).filter { $0.start.hasPrefix(year) }.map(\.nights).reduce(0, +)
-                Text("\(away) nights away in \(year)").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text("\(away) nights away in \(year)").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
         }
         .navigationTitle("Travel")
@@ -159,11 +159,11 @@ struct TripDetail: View {
                         Eyebrow(text: "Jet lag plan · \(t.hoursAhead > 0 ? "east" : "west"), \(abs(t.hoursAhead)) h", icon: "moon.zzz.fill", color: .sleep)
                         ForEach(plan, id: \.day) { step in
                             VStack(alignment: .leading, spacing: 2) {
-                                HStack { Text(Day.date(step.day).formatted(.dateTime.weekday(.wide).day())).font(.system(size: 13.5, weight: .semibold)); Spacer(); Text("bed \(clock(step.bedtime))").font(.system(size: 13, design: .monospaced)) }
-                                Text(step.note).font(.system(size: 12)).foregroundStyle(Color.soft)
+                                HStack { Text(Day.date(step.day).formatted(.dateTime.weekday(.wide).day())).font(.geist(13.5, .semibold)); Spacer(); Text("bed \(clock(step.bedtime))").font(.mono(13)) }
+                                Text(step.note).font(.geist(12)).foregroundStyle(Color.soft)
                             }
                         }
-                        Text("After you land, Cadence tracks how your sleep adapts.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                        Text("After you land, Cadence tracks how your sleep adapts.").font(.geist(11.5)).foregroundStyle(Color.faint)
                     }
                 }
                 Card {
@@ -175,7 +175,7 @@ struct TripDetail: View {
                             if packed { x.packed.removeAll { $0 == item } } else { x.packed.append(item) }
                             store.save(x)
                         } label: {
-                            HStack { Image(systemName: packed ? "checkmark.circle.fill" : "circle").foregroundStyle(packed ? Color.good : Color.soft); Text(item).strikethrough(packed).font(.system(size: 14)); Spacer() }
+                            HStack { Image(systemName: packed ? "checkmark.circle.fill" : "circle").foregroundStyle(packed ? Color.good : Color.soft); Text(item).strikethrough(packed).font(.geist(14)); Spacer() }
                         }
                         .buttonStyle(.plain)
                     }
@@ -184,14 +184,14 @@ struct TripDetail: View {
                     let s = store.tripSpending(t)
                     Card(tint: Color(hex: 0xFFD166)) {
                         Eyebrow(text: "Budget", icon: "eurosign.circle", color: Color(hex: 0xFFD166))
-                        HStack { Text("\(euro(s.spent)) of \(euro(budget))").font(.system(size: 15, weight: .semibold)); Spacer(); if let d = s.perDay { Text("\(euro(d)) a day").font(.system(size: 12.5)).foregroundStyle(Color.soft) } }
+                        HStack { Text("\(euro(s.spent)) of \(euro(budget))").font(.geist(15, .semibold)); Spacer(); if let d = s.perDay { Text("\(euro(d)) a day").font(.geist(12.5)).foregroundStyle(Color.soft) } }
                         Bar(progress: s.spent / max(1, budget), area: s.spent > budget ? .train : .fuel)
                     }
                 }
                 if !store.groomingBefore(t).isEmpty {
                     Card(tint: .fuel) {
                         Eyebrow(text: "Before you go", color: .fuel)
-                        Text(store.groomingBefore(t).map(\.title).joined(separator: ", ")).font(.system(size: 14))
+                        Text(store.groomingBefore(t).map(\.title).joined(separator: ", ")).font(.geist(14))
                     }
                 }
             }

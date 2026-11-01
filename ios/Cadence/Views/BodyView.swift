@@ -42,7 +42,7 @@ struct BodyView: View {
         let groom = store.groomingDue.count
         return Card(tint: .mind) {
             HStack { Eyebrow(text: "Care", icon: "sparkles", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-            Text([doses > 0 ? "\(doses) doses to take" : "Medicines done", groom > 0 ? "\(groom) grooming due" : nil, store.brushes().isEmpty ? "not brushed yet" : "brushed \(store.brushes().count)×"].compactMap { $0 }.joined(separator: " · ")).font(.system(size: 13.5))
+            Text([doses > 0 ? "\(doses) doses to take" : "Medicines done", groom > 0 ? "\(groom) grooming due" : nil, store.brushes().isEmpty ? "not brushed yet" : "brushed \(store.brushes().count)×"].compactMap { $0 }.joined(separator: " · ")).font(.geist(13.5))
         }
     }
 
@@ -50,9 +50,9 @@ struct BodyView: View {
         let last = store.sessions().first { $0.end != nil }
         return Card(tint: .train) {
             HStack { Eyebrow(text: "Training", icon: "dumbbell.fill", color: .train); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-            if let a = store.activeSession { Text("In progress: \(a.name)").font(.system(size: 15, weight: .semibold)) }
-            else if let last { Text("Last: \(last.name) · \(Day.date(last.date).formatted(.dateTime.weekday(.wide)))").font(.system(size: 14)) }
-            else { Text("Templates, workout mode, progression and the body map.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+            if let a = store.activeSession { Text("In progress: \(a.name)").font(.geist(15, .semibold)) }
+            else if let last { Text("Last: \(last.name) · \(Day.date(last.date).formatted(.dateTime.weekday(.wide)))").font(.geist(14)) }
+            else { Text("Templates, workout mode, progression and the body map.").font(.geist(13)).foregroundStyle(Color.soft) }
         }
     }
 
@@ -60,8 +60,8 @@ struct BodyView: View {
         HStack(spacing: 8) {
             Ring(progress: progress, area: area, width: 5).frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {
-                Text(value).font(.system(size: 13, weight: .bold))
-                Text(name).font(.system(size: 10.5)).foregroundStyle(Color.soft)
+                Text(value).font(.geist(13, .bold))
+                Text(name).font(.geist(10.5)).foregroundStyle(Color.soft)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -78,13 +78,13 @@ struct BodyView: View {
             }
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading) {
-                    Text(s.map { duration($0.asleep) } ?? "–").font(.system(size: 30, weight: .bold))
-                    Text("asleep · need \(duration(store.profile.sleepNeed))").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text(s.map { duration($0.asleep) } ?? "–").font(.geist(30, .bold))
+                    Text("asleep · need \(duration(store.profile.sleepNeed))").font(.geist(12)).foregroundStyle(Color.soft)
                 }
                 Spacer()
                 VStack(alignment: .trailing) {
-                    Text(duration(plan.debt)).font(.system(size: 22, weight: .bold)).foregroundStyle(plan.debt > 120 ? Color.warn : Color.good)
-                    Text("debt · 14 nights").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text(duration(plan.debt)).font(.geist(22, .bold)).foregroundStyle(plan.debt > 120 ? Color.warn : Color.good)
+                    Text("debt · 14 nights").font(.geist(12)).foregroundStyle(Color.soft)
                 }
             }
             if let s { Hypnogram(sleep: s).frame(height: 70) }
@@ -117,8 +117,8 @@ struct BodyView: View {
 
     private func metric(_ name: String, _ value: String?) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value ?? "–").font(.system(size: 18, weight: .bold, design: .rounded))
-            Text(name).font(.system(size: 11.5)).foregroundStyle(Color.soft)
+            Text(value ?? "–").font(.geist(18, .bold))
+            Text(name).font(.geist(11.5)).foregroundStyle(Color.soft)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -150,17 +150,17 @@ struct SleepView: View {
             if let s {
                 Card {
                     HStack {
-                        Text(s.startDate.formatted(date: .omitted, time: .shortened) + " → " + s.endDate.formatted(date: .omitted, time: .shortened)).font(.system(size: 13)).foregroundStyle(Color.soft)
+                        Text(s.startDate.formatted(date: .omitted, time: .shortened) + " → " + s.endDate.formatted(date: .omitted, time: .shortened)).font(.geist(13)).foregroundStyle(Color.soft)
                         Spacer()
-                        Text(duration(s.asleep)).font(.system(size: 22, weight: .bold))
+                        Text(duration(s.asleep)).font(.geist(22, .bold))
                     }
                     Hypnogram(sleep: s).frame(height: 110)
                     let st = s.stages ?? [:]
                     HStack {
                         ForEach([("Deep", "deep", Color.sleep2), ("REM", "rem", Color.water), ("Light", "light", Color.sleep), ("Awake", "awake", Color.warn)], id: \.1) { name, key, color in
                             VStack(alignment: .leading) {
-                                Text(duration(st[key] ?? 0)).font(.system(size: 15, weight: .semibold))
-                                HStack(spacing: 4) { Circle().fill(color).frame(width: 6); Text(name).font(.system(size: 11)).foregroundStyle(Color.soft) }
+                                Text(duration(st[key] ?? 0)).font(.geist(15, .semibold))
+                                HStack(spacing: 4) { Circle().fill(color).frame(width: 6); Text(name).font(.geist(11)).foregroundStyle(Color.soft) }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                         }
@@ -177,14 +177,14 @@ struct SleepView: View {
                 row("Perform", clock(plan.perform))
                 row("Get by", clock(plan.getBy))
                 Text(plan.debt > 60 ? "\(duration(plan.debt)) of debt over 14 nights: tonight's need includes a 15–30 minute payback." : "No real debt: keep the same rhythm.")
-                    .font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                    .font(.geist(12.5)).foregroundStyle(Color.soft)
             }
             NapCard()
             Card {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Eyebrow(text: "Breathing and deep rest", icon: "wind")
-                        Text("Box breathing, the physiological sigh, 10–20 minutes of deep rest").font(.system(size: 13)).foregroundStyle(Color.soft)
+                        Text("Box breathing, the physiological sigh, 10–20 minutes of deep rest").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                     Spacer()
                     Button { breathing = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x14082B)).frame(width: 40, height: 40).background(Circle().fill(Area.sleep.gradient)) }
@@ -213,7 +213,7 @@ struct SleepView: View {
     }
 
     private func row(_ name: String, _ value: String) -> some View {
-        HStack { Text(name).font(.system(size: 14)); Spacer(); Text(value).font(.system(size: 14, weight: .semibold, design: .monospaced)) }
+        HStack { Text(name).font(.geist(14)); Spacer(); Text(value).font(.mono(14, .semibold)) }
     }
 }
 
@@ -239,7 +239,7 @@ struct TrendsView: View {
             HStack {
                 Eyebrow(text: name)
                 Spacer()
-                if let last = values.last { Text("\(last.formatted(.number.precision(.fractionLength(0)))) \(unit)").font(.system(size: 14, weight: .semibold, design: .monospaced)) }
+                if let last = values.last { Text("\(last.formatted(.number.precision(.fractionLength(0)))) \(unit)").font(.mono(14, .semibold)) }
             }
             if points.count >= 2 {
                 Chart {
@@ -251,7 +251,7 @@ struct TrendsView: View {
                 .chartYScale(domain: .automatic(includesZero: false))
                 .frame(height: 110)
             } else {
-                Text("Builds up as days arrive.").font(.system(size: 13)).foregroundStyle(Color.soft)
+                Text("Builds up as days arrive.").font(.geist(13)).foregroundStyle(Color.soft)
             }
         }
     }

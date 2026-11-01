@@ -16,10 +16,10 @@ struct CloseDayView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Eyebrow(text: "Today")
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
-                            Text("\(store.score())").font(.system(size: 40, weight: .bold))
-                            Text("/ 100").font(.system(size: 13)).foregroundStyle(Color.soft)
+                            Text("\(store.score())").font(.geist(40, .bold))
+                            Text("/ 100").font(.geist(13)).foregroundStyle(Color.soft)
                         }
-                        Text("Pip: “\(store.pipLine())”").font(.system(size: 13)).foregroundStyle(Color.soft)
+                        Text("Pip: “\(store.pipLine())”").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
 
@@ -36,27 +36,27 @@ struct CloseDayView: View {
                     HStack(spacing: 6) {
                         ForEach(1...5, id: \.self) { n in
                             Button { entry.rating = n } label: {
-                                Text("\(n)").font(.system(size: 16, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 11)
+                                Text("\(n)").font(.geist(16, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 11)
                                     .background(RoundedRectangle(cornerRadius: 12).fill(entry.rating == n ? AnyShapeStyle(Area.mind.gradient) : AnyShapeStyle(Color.white.opacity(0.08))))
                                     .foregroundStyle(entry.rating == n ? Color(hex: 0x14082B) : Color.ink)
                             }
                             .buttonStyle(.plain)
                         }
                     }
-                    TextField("One line about today (optional)", text: $entry.note, axis: .vertical).font(.system(size: 14))
+                    TextField("One line about today (optional)", text: $entry.note, axis: .vertical).font(.geist(14))
                 }
 
                 Card {
                     Eyebrow(text: "Tomorrow's top 3")
                     ForEach(0..<3, id: \.self) { i in
-                        TextField("\(i + 1) · add one", text: $tomorrow[i]).font(.system(size: 14))
+                        TextField("\(i + 1) · add one", text: $tomorrow[i]).font(.geist(14))
                     }
                     let carry = entry.top3.enumerated().filter { $0.offset >= entry.top3Done.count || !entry.top3Done[$0.offset] }.map(\.element)
                     if !carry.isEmpty {
                         Button("Carry over unfinished: \(carry.joined(separator: ", "))") {
                             for (i, item) in carry.prefix(3).enumerated() where tomorrow[i].isEmpty { tomorrow[i] = item }
                         }
-                        .font(.system(size: 12.5)).foregroundStyle(Color.mint)
+                        .font(.geist(12.5)).foregroundStyle(Color.mint)
                     }
                 }
 

@@ -16,39 +16,39 @@ struct KitchenView: View {
                 HStack { Eyebrow(text: "This week's prep", icon: "frying.pan.fill", color: .fuel); Spacer(); if !store.plan(for: week).isEmpty { SoftButton(title: "Start prep", icon: "play.fill") { prepping = true } } }
                 ForEach(store.plan(for: week), id: \.0.id) { r, n in
                     HStack {
-                        Text(r.name).font(.system(size: 14))
+                        Text(r.name).font(.geist(14))
                         Spacer()
-                        Text("×\(n) · \(Int(r.protein)) g P").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft)
+                        Text("×\(n) · \(Int(r.protein)) g P").font(.mono(12.5)).foregroundStyle(Color.soft)
                         Stepper("", value: Binding(get: { n }, set: { store.save(MealPlanEntry(week: week, recipeId: r.id, portions: $0)) }), in: 0...14).labelsHidden()
                     }
                 }
                 Bar(progress: cover.protein, area: .fuel)
-                Text("Covers \(Int(cover.protein * 100))% of the week's protein and \(Int(cover.kcal * 100))% of calories").font(.system(size: 12)).foregroundStyle(Color.soft)
+                Text("Covers \(Int(cover.protein * 100))% of the week's protein and \(Int(cover.kcal * 100))% of calories").font(.geist(12)).foregroundStyle(Color.soft)
             }
             Card {
                 HStack { Eyebrow(text: "Recipes", icon: "book.closed.fill"); Spacer(); Button { editingRecipe = Recipe(name: "") } label: { Image(systemName: "plus") }.tint(.fuel) }
                 ForEach(store.all(Recipe.self).sorted { $0.protein / $0.kcal > $1.protein / $1.kcal }) { r in
                     HStack {
                         Button { editingRecipe = r } label: {
-                            VStack(alignment: .leading, spacing: 1) { Text(r.name).font(.system(size: 14, weight: .medium)); Text("\(Int(r.kcal)) kcal · \(Int(r.protein)) g protein · keeps \(r.keepsDays) d").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                            VStack(alignment: .leading, spacing: 1) { Text(r.name).font(.geist(14, .medium)); Text("\(Int(r.kcal)) kcal · \(Int(r.protein)) g protein · keeps \(r.keepsDays) d").font(.geist(11.5)).foregroundStyle(Color.faint) }
                         }
                         .buttonStyle(.plain)
                         Spacer()
-                        if !store.plan(for: week).contains(where: { $0.0.id == r.id }) { Button("Plan") { store.save(MealPlanEntry(week: week, recipeId: r.id, portions: r.portions)) }.font(.system(size: 12.5, weight: .semibold)).tint(.fuel) }
+                        if !store.plan(for: week).contains(where: { $0.0.id == r.id }) { Button("Plan") { store.save(MealPlanEntry(week: week, recipeId: r.id, portions: r.portions)) }.font(.geist(12.5, .semibold)).tint(.fuel) }
                     }
                 }
             }
             Card {
                 Eyebrow(text: "Fridge", icon: "refrigerator.fill")
                 let fridge = store.fridge
-                if fridge.isEmpty { Text("Prepped portions appear here with eat-by days.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                if fridge.isEmpty { Text("Prepped portions appear here with eat-by days.").font(.geist(13)).foregroundStyle(Color.soft) }
                 ForEach(Dictionary(grouping: fridge, by: \.name).sorted { $0.key < $1.key }, id: \.key) { name, items in
                     HStack {
-                        Text("\(items.count) × \(name)").font(.system(size: 14))
+                        Text("\(items.count) × \(name)").font(.geist(14))
                         Spacer()
                         let soon = items.min { $0.eatBy < $1.eatBy }!
                         Chip(text: soon.frozen ? "frozen" : "eat by \(Day.date(soon.eatBy).formatted(.dateTime.weekday(.abbreviated)))", color: Day.between(Day.today, soon.eatBy) <= 1 && !soon.frozen ? .warn : .soft)
-                        Button("Eat") { store.eat(soon) }.font(.system(size: 12.5, weight: .semibold)).tint(.fuel)
+                        Button("Eat") { store.eat(soon) }.font(.geist(12.5, .semibold)).tint(.fuel)
                     }
                 }
             }
@@ -58,19 +58,19 @@ struct KitchenView: View {
                     Eyebrow(text: "Shopping", icon: "cart.fill", color: .mint)
                     Spacer()
                     let total = list.compactMap(\.price).reduce(0, +)
-                    if total > 0 { Text("~\(euro(total))").font(.system(size: 13, weight: .semibold)) }
+                    if total > 0 { Text("~\(euro(total))").font(.geist(13, .semibold)) }
                 }
                 HStack { TextField("Add to the list", text: $newItem); Button("Add") { store.save(ShoppingItem(name: newItem)); newItem = "" }.disabled(newItem.isEmpty) }
                 ForEach(aisles, id: \.self) { aisle in
                     let lines = list.filter { $0.aisle == aisle }
                     if !lines.isEmpty {
-                        Text(aisle).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Color.soft)
+                        Text(aisle).font(.geist(11.5, .semibold)).foregroundStyle(Color.soft)
                         ForEach(lines) { l in
                             HStack {
                                 Button { store.tick(l) } label: { Image(systemName: "circle").foregroundStyle(Color.soft) }.buttonStyle(.plain)
-                                Text(l.qty > 1 || !l.unit.isEmpty ? "\(l.name) \(kg(l.qty.rounded())) \(l.unit)" : l.name).font(.system(size: 14))
+                                Text(l.qty > 1 || !l.unit.isEmpty ? "\(l.name) \(kg(l.qty.rounded())) \(l.unit)" : l.name).font(.geist(14))
                                 Spacer()
-                                Text(l.reason).font(.system(size: 11)).foregroundStyle(Color.faint).lineLimit(1)
+                                Text(l.reason).font(.geist(11)).foregroundStyle(Color.faint).lineLimit(1)
                             }
                         }
                     }
@@ -81,9 +81,9 @@ struct KitchenView: View {
                 ForEach(store.all(PantryItem.self).sorted { $0.name < $1.name }) { p in
                     Button { editingPantry = p } label: {
                         HStack {
-                            Text(p.name).font(.system(size: 14))
+                            Text(p.name).font(.geist(14))
                             Spacer()
-                            Text("\(kg(p.qty)) \(p.unit)").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft)
+                            Text("\(kg(p.qty)) \(p.unit)").font(.mono(12.5)).foregroundStyle(Color.soft)
                             if let d = store.runOut(p) { Chip(text: "\(d) d left", color: d <= 10 ? .warn : .soft) }
                         }
                     }

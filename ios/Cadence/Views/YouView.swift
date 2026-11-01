@@ -15,8 +15,8 @@ struct YouView: View {
                         HStack(spacing: 14) {
                             PipHead(mood: store.pipMood(), size: 64)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Pip · \(store.pipMood().label)").font(.system(size: 17, weight: .bold))
-                                Text(store.pipLine()).font(.system(size: 13)).foregroundStyle(Color.soft).lineLimit(2)
+                                Text("Pip · \(store.pipMood().label)").font(.geist(17, .bold))
+                                Text(store.pipLine()).font(.geist(13)).foregroundStyle(Color.soft).lineLimit(2)
                             }
                         }
                     }
@@ -29,7 +29,7 @@ struct YouView: View {
                 NavigationLink { YouGrowthView() } label: {
                     Card(tint: .mind) {
                         HStack { Eyebrow(text: "Growth", icon: "chart.line.uptrend.xyaxis", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-                        Text("Journal, mood, goals, experiments, weekly review, Cadence age, badges · this week: \(store.challenge().text.lowercased())").font(.system(size: 13)).foregroundStyle(Color.soft)
+                        Text("Journal, mood, goals, experiments, weekly review, Cadence age, badges · this week: \(store.challenge().text.lowercased())").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .buttonStyle(.plain)
@@ -61,7 +61,7 @@ struct DaysGrid: View {
         let start = Day.add(-27, to: Day.weekStart(Day.today) == Day.today ? Day.today : Day.weekStart(Day.today))
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
             ForEach(["M", "T", "W", "T", "F", "S", "S"].indices, id: \.self) { i in
-                Text(["M", "T", "W", "T", "F", "S", "S"][i]).font(.system(size: 10)).foregroundStyle(Color.faint)
+                Text(["M", "T", "W", "T", "F", "S", "S"][i]).font(.geist(10)).foregroundStyle(Color.faint)
             }
             ForEach(0..<35, id: \.self) { i in
                 let d = Day.add(i, to: start)
@@ -98,10 +98,10 @@ struct LifeView: View {
         NavigationLink { dest } label: {
             Card {
                 HStack(spacing: 12) {
-                    Image(systemName: icon).font(.system(size: 20)).foregroundStyle(color).frame(width: 30)
+                    Image(systemName: icon).font(.geist(20)).foregroundStyle(color).frame(width: 30)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(name).font(.system(size: 15, weight: .semibold))
-                        Text(detail).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                        Text(name).font(.geist(15, .semibold))
+                        Text(detail).font(.geist(12.5)).foregroundStyle(Color.soft)
                     }
                     Spacer()
                     Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint)
@@ -205,7 +205,7 @@ struct SetupView: View {
         Screen(glow: .mint) {
             VStack(spacing: 10) {
                 PipAnimation(mood: .happy).frame(width: 200, height: 200)
-                Text("Cadence").font(.system(size: 38, weight: .bold, design: .serif))
+                Text("Cadence").font(.serif(38))
                 Text("Scan the setup QR code with the Camera app, or paste your server's address and token.").multilineTextAlignment(.center).foregroundStyle(Color.soft)
             }
             .frame(maxWidth: .infinity)

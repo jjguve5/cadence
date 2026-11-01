@@ -12,13 +12,13 @@ struct NapCard: View {
         Card(tint: .sleep) {
             Eyebrow(text: "Nap planner", icon: "powersleep", color: .sleep)
             Text(plan.debt > 60 && dip ? "Sleep debt \(duration(plan.debt)) and you're in the afternoon dip: a 20-minute nap now pays back without hurting tonight." : dip ? "Afternoon dip: a 20-minute nap is fine; 90 minutes only if tonight is late." : "Best nap window: 13:00–16:00. Later naps push bedtime.")
-                .font(.system(size: 13.5))
+                .font(.geist(13.5))
             HStack {
                 SoftButton(title: "20 min", icon: "alarm") { schedule(26) }
                 SoftButton(title: "90 min", icon: "alarm") { schedule(96) }
-                if let set { Text("Alarm at \(set.formatted(date: .omitted, time: .shortened))").font(.system(size: 12)).foregroundStyle(Color.soft) }
+                if let set { Text("Alarm at \(set.formatted(date: .omitted, time: .shortened))").font(.geist(12)).foregroundStyle(Color.soft) }
             }
-            Text("Includes 6 minutes to fall asleep. Naps reduce the debt once the Air logs them.").font(.system(size: 11)).foregroundStyle(Color.faint)
+            Text("Includes 6 minutes to fall asleep. Naps reduce the debt once the Air logs them.").font(.geist(11)).foregroundStyle(Color.faint)
         }
     }
     private func schedule(_ minutes: Int) {
@@ -78,11 +78,11 @@ struct BreathingView: View {
                 ZStack {
                     Circle().fill(Area.sleep.gradient).opacity(0.35).scaleEffect(running ? scale : 0.7)
                     Circle().stroke(Color.sleep, lineWidth: 2).scaleEffect(running ? scale : 0.7)
-                    Text(running ? (mode == "nsdr" ? "Let your body go heavy" : phase.name) : "Ready").font(.system(size: 22, weight: .semibold))
+                    Text(running ? (mode == "nsdr" ? "Let your body go heavy" : phase.name) : "Ready").font(.geist(22, .semibold))
                 }
                 .frame(width: 260, height: 260)
                 .animation(.linear(duration: 0.1), value: scale)
-                if running { Text(String(format: "%d:%02d left", Int(max(0, total - elapsed)) / 60, Int(max(0, total - elapsed)) % 60)).font(.system(size: 15, design: .monospaced)).foregroundStyle(Color.soft) }
+                if running { Text(String(format: "%d:%02d left", Int(max(0, total - elapsed)) / 60, Int(max(0, total - elapsed)) % 60)).font(.mono(15)).foregroundStyle(Color.soft) }
                 Spacer()
                 if !running {
                     Stepper("\(length) minutes", value: $length, in: 1...20).padding(.horizontal, 40)
@@ -177,7 +177,7 @@ struct HealthRecordsCard: View {
             if !bp.isEmpty {
                 let recent = bp.prefix(7)
                 let avgS = recent.map(\.systolic).reduce(0, +) / recent.count, avgD = recent.map(\.diastolic).reduce(0, +) / recent.count
-                Text("Last \(recent.count) readings average \(avgS)/\(avgD)" + (avgS >= 130 || avgD >= 80 ? ": above 130/80, worth showing a doctor." : ".")).font(.system(size: 12.5)).foregroundStyle(avgS >= 130 || avgD >= 80 ? Color.warn : Color.soft)
+                Text("Last \(recent.count) readings average \(avgS)/\(avgD)" + (avgS >= 130 || avgD >= 80 ? ": above 130/80, worth showing a doctor." : ".")).font(.geist(12.5)).foregroundStyle(avgS >= 130 || avgD >= 80 ? Color.warn : Color.soft)
             }
             HStack {
                 Picker("", selection: $labName) { ForEach(["Fasting glucose", "Fasting insulin", "HbA1c", "LDL", "HDL", "Triglycerides", "Vitamin D", "Ferritin"], id: \.self) { Text($0).tag($0) } }.labelsHidden()
@@ -188,11 +188,11 @@ struct HealthRecordsCard: View {
                 }
             }
             if let h = store.homaIR {
-                Text(String(format: "HOMA-IR %.2f from %@", h.value, Day.date(h.date).formatted(.dateTime.day().month().year())) + (h.value >= 2.9 ? ": above 2.9, the insulin-resistance line in Google's WEAR-ME study." : ": below 2.9.")).font(.system(size: 12.5)).foregroundStyle(h.value >= 2.9 ? Color.warn : Color.good)
+                Text(String(format: "HOMA-IR %.2f from %@", h.value, Day.date(h.date).formatted(.dateTime.day().month().year())) + (h.value >= 2.9 ? ": above 2.9, the insulin-resistance line in Google's WEAR-ME study." : ": below 2.9.")).font(.geist(12.5)).foregroundStyle(h.value >= 2.9 ? Color.warn : Color.good)
             } else {
-                Text("One fasting glucose and insulin test gives your own HOMA-IR (glucose × insulin ÷ 405), the anchor for the insulin estimate.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text("One fasting glucose and insulin test gives your own HOMA-IR (glucose × insulin ÷ 405), the anchor for the insulin estimate.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
-            ShareLink(item: store.doctorSummary(), preview: SharePreview("Cadence health summary")) { Label("Doctor summary", systemImage: "doc.text") }.font(.system(size: 13.5, weight: .semibold)).tint(.mint)
+            ShareLink(item: store.doctorSummary(), preview: SharePreview("Cadence health summary")) { Label("Doctor summary", systemImage: "doc.text") }.font(.geist(13.5, .semibold)).tint(.mint)
         }
     }
 }

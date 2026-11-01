@@ -29,7 +29,7 @@ struct FocusView: View {
             Color.bg.ignoresSafeArea()
             RadialGradient(colors: [Color.mint.opacity(0.18), .clear], center: .center, startRadius: 0, endRadius: 400).ignoresSafeArea()
             VStack(spacing: 18) {
-                HStack { Spacer(); Button { dismiss() } label: { Image(systemName: "chevron.down").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.soft).padding(10) } }
+                HStack { Spacer(); Button { dismiss() } label: { Image(systemName: "chevron.down").font(.geist(17, .semibold)).foregroundStyle(Color.soft).padding(10) } }
                 if let s = session, !ending { running(s) } else if ending { finish } else { setup }
                 Spacer()
             }
@@ -68,11 +68,11 @@ struct FocusView: View {
     private var setup: some View {
         VStack(spacing: 16) {
             PipAnimation(mood: .idle).frame(width: 150, height: 150)
-            Text("What will you focus on?").font(.system(size: 22, weight: .bold))
-            TextField("One clear intention", text: $intention).font(.system(size: 17)).padding(14).background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.07)))
+            Text("What will you focus on?").font(.geist(22, .bold))
+            TextField("One clear intention", text: $intention).font(.geist(17)).padding(14).background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.07)))
             HStack {
                 ForEach([25, 50, 90], id: \.self) { m in
-                    Button("\(m) min") { planned = m }.buttonStyle(.plain).font(.system(size: 15, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 11)
+                    Button("\(m) min") { planned = m }.buttonStyle(.plain).font(.geist(15, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 11)
                         .background(RoundedRectangle(cornerRadius: 12).fill(planned == m ? Color.mint.opacity(0.85) : .white.opacity(0.08)))
                         .foregroundStyle(planned == m ? Color(hex: 0x032018) : Color.ink)
                 }
@@ -85,7 +85,7 @@ struct FocusView: View {
                 }
                 .tint(.mint)
             }
-            Toggle("Drift chimes every 7 minutes", isOn: $chimes).tint(.mint).font(.system(size: 14))
+            Toggle("Drift chimes every 7 minutes", isOn: $chimes).tint(.mint).font(.geist(14))
             PrimaryButton(title: "Start") {
                 let s = FocusSession(intention: intention.isEmpty ? "Focus" : intention, planned: planned, chimes: chimes, projectId: projectId)
                 store.save(s)
@@ -103,7 +103,7 @@ struct FocusView: View {
                     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "move-\(s.id)", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 50 * 60, repeats: false)))
                 }
             }
-            Text("Turn on Do Not Disturb or your Focus mode now; desk breaks appear in VS Code while it's open.").font(.system(size: 12)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
+            Text("Turn on Do Not Disturb or your Focus mode now; desk breaks appear in VS Code while it's open.").font(.geist(12)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
         }
     }
 
@@ -112,16 +112,16 @@ struct FocusView: View {
         let total = Double(s.planned * 60)
         let over = elapsed > total
         return VStack(spacing: 18) {
-            Text(s.intention).font(.system(size: 20, weight: .semibold)).multilineTextAlignment(.center)
+            Text(s.intention).font(.geist(20, .semibold)).multilineTextAlignment(.center)
             ZStack {
                 Ring(progress: over ? 1 : elapsed / total, area: .mint, width: 10).frame(width: 230, height: 230)
                 VStack(spacing: 4) {
                     PipHead(mood: over ? .proud : .idle, size: 70)
-                    Text(over ? "+" + timeText(elapsed - total) : timeText(total - elapsed)).font(.system(size: 40, weight: .semibold, design: .monospaced))
-                    Text(over ? "in flow · overflow" : "of \(s.planned) min").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    Text(over ? "+" + timeText(elapsed - total) : timeText(total - elapsed)).font(.mono(40, .semibold))
+                    Text(over ? "in flow · overflow" : "of \(s.planned) min").font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
-            Text("Pip's sprout grows while you stay. \(s.leftApp == 0 ? "" : "Left \(s.leftApp)× , that's fine.")").font(.system(size: 13)).foregroundStyle(Color.soft)
+            Text("Pip's sprout grows while you stay. \(s.leftApp == 0 ? "" : "Left \(s.leftApp)× , that's fine.")").font(.geist(13)).foregroundStyle(Color.soft)
             PrimaryButton(title: "End session") { ending = true }
         }
     }
@@ -129,11 +129,11 @@ struct FocusView: View {
     private var finish: some View {
         VStack(spacing: 16) {
             PipAnimation(mood: .celebrate).frame(width: 140, height: 140)
-            Text("How did that feel?").font(.system(size: 22, weight: .bold))
+            Text("How did that feel?").font(.geist(22, .bold))
             HStack {
                 ForEach([(1, "Drained", "battery.25"), (2, "Neutral", "battery.50"), (3, "Energized", "battery.100.bolt")], id: \.0) { v, name, icon in
                     Button { rating = v } label: {
-                        VStack(spacing: 6) { Image(systemName: icon).font(.system(size: 20)); Text(name).font(.system(size: 12, weight: .semibold)) }
+                        VStack(spacing: 6) { Image(systemName: icon).font(.geist(20)); Text(name).font(.geist(12, .semibold)) }
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
                             .background(RoundedRectangle(cornerRadius: 14).fill(rating == v ? Color.mint.opacity(0.3) : .white.opacity(0.07)))
                     }
@@ -141,7 +141,7 @@ struct FocusView: View {
                 }
             }
             HStack {
-                Text("Depth").font(.system(size: 14)).foregroundStyle(Color.soft)
+                Text("Depth").font(.geist(14)).foregroundStyle(Color.soft)
                 ForEach(1...5, id: \.self) { n in Image(systemName: n <= depth ? "circle.fill" : "circle").foregroundStyle(Color.mint).onTapGesture { depth = n } }
             }
             if let pid = session?.projectId, let p = store.record(Project.self, pid) {

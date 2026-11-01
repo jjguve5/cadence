@@ -1,6 +1,24 @@
 // The look from the concept: near-black, soft glass cards, one gradient per area, rings.
 import SwiftUI
 
+extension Font {
+    /// Geist for text, Geist Mono for numbers, Instrument Serif for display: the concept's type
+    static func geist(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        let name: String
+        switch weight {
+        case .bold, .heavy, .black: name = "Geist-Bold"
+        case .semibold: name = "Geist-SemiBold"
+        case .medium: name = "Geist-Medium"
+        default: name = "Geist-Regular"
+        }
+        return .custom(name, size: size)
+    }
+    static func mono(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .custom(weight == .regular || weight == .light ? "GeistMono-Regular" : "GeistMono-Medium", size: size)
+    }
+    static func serif(_ size: CGFloat, italic: Bool = false) -> Font { .custom(italic ? "InstrumentSerif-Italic" : "InstrumentSerif-Regular", size: size) }
+}
+
 extension Color {
     init(hex: UInt32, opacity: Double = 1) {
         self.init(.sRGB, red: Double((hex >> 16) & 0xff) / 255, green: Double((hex >> 8) & 0xff) / 255, blue: Double(hex & 0xff) / 255, opacity: opacity)
@@ -49,7 +67,7 @@ struct Card<Content: View>: View {
                     .fill(tint.map { LinearGradient(colors: [$0.opacity(0.18), .white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing) }
                           ?? LinearGradient(colors: [.white.opacity(0.055), .white.opacity(0.055)], startPoint: .top, endPoint: .bottom))
             )
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(tint?.opacity(0.35) ?? .white.opacity(0.07), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(LinearGradient(colors: [tint?.opacity(0.45) ?? .white.opacity(0.11), tint?.opacity(0.15) ?? .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
     }
 }
 
@@ -59,8 +77,8 @@ struct Eyebrow: View {
     var color: Color = .soft
     var body: some View {
         HStack(spacing: 5) {
-            if let icon { Image(systemName: icon).font(.system(size: 10, weight: .semibold)) }
-            Text(text.uppercased()).font(.system(size: 10.5, weight: .semibold)).tracking(0.8)
+            if let icon { Image(systemName: icon).font(.geist(10, .semibold)) }
+            Text(text.uppercased()).font(.geist(10.5, .semibold)).tracking(0.8)
         }
         .foregroundStyle(color)
     }
@@ -71,8 +89,9 @@ struct Chip: View {
     var color: Color = .ink
     var fill: Color = .white.opacity(0.08)
     var body: some View {
-        Text(text).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(color)
-            .padding(.horizontal, 9).padding(.vertical, 5).background(Capsule().fill(fill))
+        Text(text).font(.geist(11.5, .semibold)).foregroundStyle(color)
+            .padding(.horizontal, 9).padding(.vertical, 5)
+            .background(Capsule().fill(fill).overlay(Capsule().stroke(.white.opacity(0.06), lineWidth: 1)))
     }
 }
 
@@ -126,9 +145,18 @@ struct Title: View {
     var title: String
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(eyebrow).font(.system(size: 13)).foregroundStyle(Color.soft)
-            Text(title).font(.system(size: 30, weight: .bold)).foregroundStyle(Color.ink)
+            Text(eyebrow).font(.geist(13)).foregroundStyle(Color.soft)
+            Text(title).font(.geist(31, .bold)).tracking(-0.8).foregroundStyle(Color.ink)
         }
+    }
+}
+
+struct Pressable: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -138,11 +166,32 @@ struct PrimaryButton: View {
     var action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color(hex: 0x032018))
-                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(area.gradient))
+            Text(title).font(.geist(16, .semibold)).tracking(-0.2).foregroundStyle(Color(hex: 0x05140F))
+                .frame(maxWidth: .infinity).padding(.vertical, 15)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(area.gradient)
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(LinearGradient(colors: [.white.opacity(0.28), .clear], startPoint: .top, endPoint: .center)))
+                )
+                .shadow(color: area.glow.opacity(0.35), radius: 14, y: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
+    }
+}
+
+/// The round gradient play button from the concept
+struct PlayButton: View {
+    var icon = "play.fill"
+    var area: Area = .mint
+    var size: CGFloat = 44
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon).font(.system(size: size * 0.36, weight: .bold)).foregroundStyle(Color(hex: 0x05140F))
+                .frame(width: size, height: size)
+                .background(Circle().fill(area.gradient).overlay(Circle().fill(LinearGradient(colors: [.white.opacity(0.3), .clear], startPoint: .top, endPoint: .center))))
+                .shadow(color: area.glow.opacity(0.4), radius: 10, y: 4)
+        }
+        .buttonStyle(Pressable())
     }
 }
 
@@ -156,11 +205,14 @@ struct SoftButton: View {
                 if let icon { Image(systemName: icon) }
                 Text(title)
             }
-            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.ink)
-            .padding(.horizontal, 12).padding(.vertical, 9)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.white.opacity(0.1)))
+            .font(.geist(13.5, .semibold)).foregroundStyle(Color.ink)
+            .padding(.horizontal, 13).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.09))
+                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
+            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
     }
 }
 

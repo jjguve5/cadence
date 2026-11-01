@@ -31,7 +31,7 @@ struct YouGrowthView: View {
         let c = store.challenge()
         return Card(tint: Color(hex: 0xFFD166)) {
             HStack { Eyebrow(text: "This week's challenge · \(c.area)", icon: "flag.checkered", color: Color(hex: 0xFFD166)); Spacer(); if c.done { Chip(text: "done", color: .good) } }
-            Text(c.text).font(.system(size: 15, weight: .semibold))
+            Text(c.text).font(.geist(15, .semibold))
             if !c.done { SoftButton(title: "I did it", icon: "checkmark") { var x = c; x.done = true; store.save(x) } }
         }
     }
@@ -42,9 +42,9 @@ struct YouGrowthView: View {
             ForEach(store.all(LifeGoal.self)) { g in
                 let p = store.goalProgress(g)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack { Text(g.title).font(.system(size: 14, weight: .medium)); Spacer(); Text("\(kg((p.current * 10).rounded() / 10)) / \(kg(g.target))").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft) }
+                    HStack { Text(g.title).font(.geist(14, .medium)); Spacer(); Text("\(kg((p.current * 10).rounded() / 10)) / \(kg(g.target))").font(.mono(12.5)).foregroundStyle(Color.soft) }
                     Bar(progress: g.metric == "weight" ? 1 - abs(g.target - p.current) / max(1, abs(g.target - store.profile.weightKg) + 1) : p.current / max(0.1, g.target), area: .mind)
-                    if let eta = p.eta { Text("At this pace: \(Day.date(eta).formatted(.dateTime.day().month().year()))" + (g.by.map { eta <= $0 ? " · on time" : " · after your date" } ?? "")).font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                    if let eta = p.eta { Text("At this pace: \(Day.date(eta).formatted(.dateTime.day().month().year()))" + (g.by.map { eta <= $0 ? " · on time" : " · after your date" } ?? "")).font(.geist(11.5)).foregroundStyle(Color.faint) }
                 }
                 .contextMenu { Button("Delete", role: .destructive) { store.remove(g) } }
             }
@@ -57,15 +57,15 @@ struct YouGrowthView: View {
             ForEach(store.all(Experiment.self).sorted { $0.start > $1.start }) { e in
                 let r = store.experimentResult(e)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack { Text(e.title).font(.system(size: 14, weight: .semibold)); Spacer(); Chip(text: r.daysIn >= e.days ? "finished" : "day \(r.daysIn) of \(e.days)", color: .mind) }
+                    HStack { Text(e.title).font(.geist(14, .semibold)); Spacer(); Chip(text: r.daysIn >= e.days ? "finished" : "day \(r.daysIn) of \(e.days)", color: .mind) }
                     if let b = r.before, let d = r.during {
                         let diff = d - b
-                        Text("\(e.metric.capitalized): \(format(e.metric, b)) before → \(format(e.metric, d)) during (\(diff >= 0 ? "+" : "")\(format(e.metric, diff, delta: true)))").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                        Text("\(e.metric.capitalized): \(format(e.metric, b)) before → \(format(e.metric, d)) during (\(diff >= 0 ? "+" : "")\(format(e.metric, diff, delta: true)))").font(.geist(12.5)).foregroundStyle(Color.soft)
                     }
                 }
                 .contextMenu { Button("Delete", role: .destructive) { store.remove(e) } }
             }
-            Text("One change at a time, measured against your own two weeks before.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+            Text("One change at a time, measured against your own two weeks before.").font(.geist(11.5)).foregroundStyle(Color.faint)
         }
     }
 
@@ -81,7 +81,7 @@ struct YouGrowthView: View {
         NavigationLink { WeeklyReviewView() } label: {
             Card {
                 HStack { Eyebrow(text: "Weekly review", icon: "calendar.badge.clock"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-                Text(store.weekReview(store.week).prefix(3).map { "\($0.0) \($0.1)" }.joined(separator: " · ")).font(.system(size: 13)).foregroundStyle(Color.soft)
+                Text(store.weekReview(store.week).prefix(3).map { "\($0.0) \($0.1)" }.joined(separator: " · ")).font(.geist(13)).foregroundStyle(Color.soft)
             }
         }
         .buttonStyle(.plain)
@@ -93,11 +93,11 @@ struct YouGrowthView: View {
                 Card(tint: .mint) {
                     Eyebrow(text: "Cadence age", icon: "hourglass", color: .mint)
                     HStack(alignment: .firstTextBaseline) {
-                        Text(String(format: "%.1f", a.age)).font(.system(size: 30, weight: .bold))
-                        Text("vs \(store.profile.age) on the calendar").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                        Text(String(format: "%.1f", a.age)).font(.geist(30, .bold))
+                        Text("vs \(store.profile.age) on the calendar").font(.geist(12.5)).foregroundStyle(Color.soft)
                     }
-                    ForEach(a.parts, id: \.0) { name, years in HStack { Text(name).font(.system(size: 13)); Spacer(); Text(String(format: "%+.1f y", years)).font(.system(size: 13, design: .monospaced)).foregroundStyle(years <= 0 ? Color.good : Color.warn) } }
-                    Text("An estimate from resting HR, VO₂ max, steps and sleep regularity, in the spirit of WHOOP's healthspan. Not a medical measure.").font(.system(size: 11)).foregroundStyle(Color.faint)
+                    ForEach(a.parts, id: \.0) { name, years in HStack { Text(name).font(.geist(13)); Spacer(); Text(String(format: "%+.1f y", years)).font(.mono(13)).foregroundStyle(years <= 0 ? Color.good : Color.warn) } }
+                    Text("An estimate from resting HR, VO₂ max, steps and sleep regularity, in the spirit of WHOOP's healthspan. Not a medical measure.").font(.geist(11)).foregroundStyle(Color.faint)
                 }
             }
         }
@@ -109,11 +109,11 @@ struct YouGrowthView: View {
             if !levers.isEmpty || !effects.isEmpty {
                 Card {
                     Eyebrow(text: "What affects you", icon: "slider.horizontal.3")
-                    ForEach(levers, id: \.self) { Text("Before your best days: \($0.lowercased())").font(.system(size: 13.5)) }
+                    ForEach(levers, id: \.self) { Text("Before your best days: \($0.lowercased())").font(.geist(13.5)) }
                     ForEach(effects, id: \.question) { e in
-                        if let s = e.sleep, abs(s) >= 10 { Text("\(e.question): \(s > 0 ? "+" : "")\(s) min sleep that night" + (e.readiness.map { ", readiness \($0 > 0 ? "+" : "")\($0)" } ?? "")).font(.system(size: 13)).foregroundStyle(Color.soft) }
+                        if let s = e.sleep, abs(s) >= 10 { Text("\(e.question): \(s > 0 ? "+" : "")\(s) min sleep that night" + (e.readiness.map { ", readiness \($0 > 0 ? "+" : "")\($0)" } ?? "")).font(.geist(13)).foregroundStyle(Color.soft) }
                     }
-                    Text("Patterns from your own days, not proof.").font(.system(size: 11)).foregroundStyle(Color.faint)
+                    Text("Patterns from your own days, not proof.").font(.geist(11)).foregroundStyle(Color.faint)
                 }
             }
         }
@@ -125,8 +125,8 @@ struct YouGrowthView: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 10) {
                 ForEach(store.badges, id: \.0) { name, icon, got in
                     VStack(spacing: 4) {
-                        Image(systemName: icon).font(.system(size: 20)).foregroundStyle(got ? Color(hex: 0xFFD166) : Color.faint).frame(width: 44, height: 44).background(Circle().fill(.white.opacity(got ? 0.1 : 0.04)))
-                        Text(name).font(.system(size: 9.5)).multilineTextAlignment(.center).foregroundStyle(got ? Color.ink : Color.faint)
+                        Image(systemName: icon).font(.geist(20)).foregroundStyle(got ? Color(hex: 0xFFD166) : Color.faint).frame(width: 44, height: 44).background(Circle().fill(.white.opacity(got ? 0.1 : 0.04)))
+                        Text(name).font(.geist(9.5)).multilineTextAlignment(.center).foregroundStyle(got ? Color.ink : Color.faint)
                     }
                 }
             }
@@ -143,7 +143,7 @@ struct JournalCard: View {
             Eyebrow(text: "Yesterday, quickly", icon: "book.pages", color: .mind)
             ForEach(journalQuestions, id: \.self) { q in
                 HStack {
-                    Text(q).font(.system(size: 13.5))
+                    Text(q).font(.geist(13.5))
                     Spacer()
                     ForEach([true, false], id: \.self) { yes in
                         let on = entry.answered.contains(q) && entry.yes.contains(q) == yes
@@ -154,12 +154,12 @@ struct JournalCard: View {
                             if yes { e.yes.append(q) }
                             store.save(e)
                         }
-                        .buttonStyle(.plain).font(.system(size: 12, weight: .semibold)).padding(.horizontal, 10).padding(.vertical, 5)
+                        .buttonStyle(.plain).font(.geist(12, .semibold)).padding(.horizontal, 10).padding(.vertical, 5)
                         .background(Capsule().fill(on ? Color.mind.opacity(0.5) : .white.opacity(0.07)))
                     }
                 }
             }
-            ForEach(store.prompts(), id: \.self) { Text($0).font(.system(size: 12.5)).foregroundStyle(Color.soft).italic() }
+            ForEach(store.prompts(), id: \.self) { Text($0).font(.geist(12.5)).foregroundStyle(Color.soft).italic() }
         }
     }
 }
@@ -185,7 +185,7 @@ struct MoodGrid: View {
                             Button {
                                 store.save(MoodEntry(energy: energy, pleasant: pleasant, word: Self.words[r][c]))
                             } label: {
-                                Text(Self.words[r][c]).font(.system(size: 11, weight: .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                                Text(Self.words[r][c]).font(.geist(11, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
                                     .background(RoundedRectangle(cornerRadius: 10).fill(Color(hue: c < 2 ? (r < 2 ? 0.0 : 0.62) : (r < 2 ? 0.12 : 0.38), saturation: 0.55, brightness: 0.35)))
                             }
                             .buttonStyle(.plain)
@@ -194,7 +194,7 @@ struct MoodGrid: View {
                 }
             }
             if let last = store.all(MoodEntry.self).filter({ $0.date == Day.today }).max(by: { $0.minute < $1.minute }) {
-                Text("Last: \(last.word.lowercased()) at \(clock(last.minute))." + strategy(last)).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                Text("Last: \(last.word.lowercased()) at \(clock(last.minute))." + strategy(last)).font(.geist(12.5)).foregroundStyle(Color.soft)
             }
         }
     }
@@ -244,17 +244,17 @@ struct WeeklyReviewView: View {
         Screen(glow: .mind) {
             Card {
                 Eyebrow(text: "Week of \(Day.date(week).formatted(.dateTime.day().month(.wide)))")
-                ForEach(store.weekReview(week), id: \.0) { k, v in HStack { Text(k).font(.system(size: 14)); Spacer(); Text(v).font(.system(size: 14, weight: .semibold)) } }
+                ForEach(store.weekReview(week), id: \.0) { k, v in HStack { Text(k).font(.geist(14)); Spacer(); Text(v).font(.geist(14, .semibold)) } }
             }
             TimeAuditCard(week: week)
             Card(tint: .mint) {
                 Eyebrow(text: "One thing to try next week", color: .mint)
-                Text(store.challenge().text).font(.system(size: 15, weight: .semibold))
+                Text(store.challenge().text).font(.geist(15, .semibold))
             }
             let quotes = store.all(ReadingSession.self).filter { $0.date >= week && $0.quote != nil }
-            if !quotes.isEmpty { Card { Eyebrow(text: "Quotes this week"); ForEach(quotes) { Text("“\($0.quote!)”").font(.system(size: 13, design: .serif)).italic() } } }
+            if !quotes.isEmpty { Card { Eyebrow(text: "Quotes this week"); ForEach(quotes) { Text("“\($0.quote!)”").font(.serif(13)).italic() } } }
             let notes = (0..<7).compactMap { store.days[Day.add($0, to: week)]?.note }.filter { !$0.isEmpty }
-            if !notes.isEmpty { Card { Eyebrow(text: "Your lines"); ForEach(notes, id: \.self) { Text($0).font(.system(size: 13)) } } }
+            if !notes.isEmpty { Card { Eyebrow(text: "Your lines"); ForEach(notes, id: \.self) { Text($0).font(.geist(13)) } } }
         }
         .navigationTitle("Weekly review")
         .navigationBarTitleDisplayMode(.inline)
@@ -332,19 +332,19 @@ struct IntradayCard: View {
                     .chartXAxis { AxisMarks(values: [360, 720, 1080]) { v in AxisValueLabel { Text(clock(v.as(Int.self) ?? 0)) } } }
                     .frame(height: 120)
                 }
-                ForEach(store.heartRateEvents(d), id: \.self) { Text($0).font(.system(size: 12.5)).foregroundStyle(Color.warn) }
+                ForEach(store.heartRateEvents(d), id: \.self) { Text($0).font(.geist(12.5)).foregroundStyle(Color.warn) }
                 let stress = store.stressMoments(d)
-                if !stress.isEmpty { Text("\(stress.count) stress moments (heart up, body still): " + stress.prefix(3).map { "\(clock($0.start))" }.joined(separator: ", ")).font(.system(size: 12.5)).foregroundStyle(Color.soft) }
+                if !stress.isEmpty { Text("\(stress.count) stress moments (heart up, body still): " + stress.prefix(3).map { "\(clock($0.start))" }.joined(separator: ", ")).font(.geist(12.5)).foregroundStyle(Color.soft) }
                 if let s = store.sessions(on: day).first(where: { $0.end != nil }), let hrr = store.heartRateRecovery(s, d) {
-                    Text("Heart rate recovery after sets: −\(hrr) bpm in a minute" + (hrr <= 12 ? " (low: more easy cardio helps)" : " (good)")).font(.system(size: 12.5)).foregroundStyle(hrr <= 12 ? Color.warn : Color.good)
+                    Text("Heart rate recovery after sets: −\(hrr) bpm in a minute" + (hrr <= 12 ? " (low: more easy cardio helps)" : " (good)")).font(.geist(12.5)).foregroundStyle(hrr <= 12 ? Color.warn : Color.good)
                 }
                 if let o = store.oxygenDips(d) {
-                    Text(String(format: "Oxygen dips: %.1f an hour, lowest %.0f%%", o.perHour, o.lowest) + (o.perHour >= 5 ? ". If this stays high for weeks, mention it to a doctor." : "")).font(.system(size: 12.5)).foregroundStyle(o.perHour >= 5 ? Color.warn : Color.soft)
+                    Text(String(format: "Oxygen dips: %.1f an hour, lowest %.0f%%", o.perHour, o.lowest) + (o.perHour >= 5 ? ". If this stays high for weeks, mention it to a doctor." : "")).font(.geist(12.5)).foregroundStyle(o.perHour >= 5 ? Color.warn : Color.soft)
                 }
-                if !d.irn.isEmpty { Text("Irregular rhythm alerts on record: \(d.irn.count). The last: \(d.irn.max() ?? "").").font(.system(size: 12.5)).foregroundStyle(Color.warn) }
-                else { Text("No irregular rhythm alerts.").font(.system(size: 12.5)).foregroundStyle(Color.soft) }
+                if !d.irn.isEmpty { Text("Irregular rhythm alerts on record: \(d.irn.count). The last: \(d.irn.max() ?? "").").font(.geist(12.5)).foregroundStyle(Color.warn) }
+                else { Text("No irregular rhythm alerts.").font(.geist(12.5)).foregroundStyle(Color.soft) }
             } else {
-                Text("Loading the day from your Air…").font(.system(size: 13)).foregroundStyle(Color.soft)
+                Text("Loading the day from your Air…").font(.geist(13)).foregroundStyle(Color.soft)
             }
         }
         .task { await intraday.load(day) }
@@ -357,19 +357,19 @@ struct MoreSignalsCard: View {
         Card {
             Eyebrow(text: "Rhythm and load", icon: "clock.badge.checkmark")
             if let c = store.chronotype() {
-                HStack { Text("Chronotype").font(.system(size: 14)); Spacer(); Text(c.label).font(.system(size: 14, weight: .semibold)) }
-                Text("Mid-sleep \(clock((c.midFree + 1440) % 1440)) on free days, \(clock((c.midWork + 1440) % 1440)) on workdays: social jetlag \(duration(c.jetlag)).").font(.system(size: 12.5)).foregroundStyle(c.jetlag > 60 ? Color.warn : Color.soft)
+                HStack { Text("Chronotype").font(.geist(14)); Spacer(); Text(c.label).font(.geist(14, .semibold)) }
+                Text("Mid-sleep \(clock((c.midFree + 1440) % 1440)) on free days, \(clock((c.midWork + 1440) % 1440)) on workdays: social jetlag \(duration(c.jetlag)).").font(.geist(12.5)).foregroundStyle(c.jetlag > 60 ? Color.warn : Color.soft)
             }
             if let t = store.trainingLoad() {
-                HStack { Text("Training load").font(.system(size: 14)); Spacer(); Text(String(format: "%.2f", t.ratio)).font(.system(size: 14, weight: .semibold, design: .monospaced)).foregroundStyle(t.ratio > 1.5 ? Color.warn : t.ratio < 0.8 ? Color.soft : Color.good) }
-                Text(t.ratio > 1.5 ? "This week is much harder than your last month: ramping too fast raises injury risk." : t.ratio < 0.8 ? "Lighter than usual: fine for a deload week." : "In the sweet spot: enough to grow.").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                HStack { Text("Training load").font(.geist(14)); Spacer(); Text(String(format: "%.2f", t.ratio)).font(.mono(14, .semibold)).foregroundStyle(t.ratio > 1.5 ? Color.warn : t.ratio < 0.8 ? Color.soft : Color.good) }
+                Text(t.ratio > 1.5 ? "This week is much harder than your last month: ramping too fast raises injury risk." : t.ratio < 0.8 ? "Lighter than usual: fine for a deload week." : "In the sweet spot: enough to grow.").font(.geist(12.5)).foregroundStyle(Color.soft)
             }
             let steps = (0..<7).compactMap { store.health[Day.add(-$0, to: Day.today)]?.steps }
             if !steps.isEmpty {
                 let avg = steps.reduce(0, +) / Double(steps.count)
-                HStack { Text("Steps on the longevity curve").font(.system(size: 14)); Spacer(); Text(Int(avg).formatted()).font(.system(size: 14, weight: .semibold, design: .monospaced)) }
+                HStack { Text("Steps on the longevity curve").font(.geist(14)); Spacer(); Text(Int(avg).formatted()).font(.mono(14, .semibold)) }
                 Bar(progress: min(1, avg / 10000), area: .fuel)
-                Text(avg >= 8000 ? "Past the point where the benefit levels off (8,000–10,000 under 60, Lancet 2022)." : "\(Int(max(0, 8000 - avg)).formatted()) more a day reaches the part of the curve where most of the benefit is.").font(.system(size: 12)).foregroundStyle(Color.soft)
+                Text(avg >= 8000 ? "Past the point where the benefit levels off (8,000–10,000 under 60, Lancet 2022)." : "\(Int(max(0, 8000 - avg)).formatted()) more a day reaches the part of the curve where most of the benefit is.").font(.geist(12)).foregroundStyle(Color.soft)
             }
         }
     }

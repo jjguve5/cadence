@@ -41,7 +41,7 @@ struct TodayView: View {
             NavigationLink { PipPage() } label: {
                 ZStack(alignment: .bottomTrailing) {
                     PipHead(mood: store.pipMood(), size: 50)
-                    Text("\(store.level.level)").font(.system(size: 11, weight: .bold)).foregroundStyle(Color(hex: 0x032018))
+                    Text("\(store.level.level)").font(.geist(11, .bold)).foregroundStyle(Color(hex: 0x032018))
                         .padding(.horizontal, 6).padding(.vertical, 2).background(Capsule().fill(Color.mint)).offset(x: 4, y: 2)
                 }
             }
@@ -52,7 +52,7 @@ struct TodayView: View {
     private var googleCard: some View {
         Card(tint: .warn) {
             Eyebrow(text: "Fitbit data paused", icon: "exclamationmark.triangle.fill", color: .warn)
-            Text("Google's sign-in expired (it lasts 7 days while the app is in testing). Connect again to keep readiness and sleep up to date.").font(.system(size: 14))
+            Text("Google's sign-in expired (it lasts 7 days while the app is in testing). Connect again to keep readiness and sleep up to date.").font(.geist(14))
             NavigationLink { SettingsView() } label: { Chip(text: "Connect Google", color: .warn) }
         }
     }
@@ -62,12 +62,12 @@ struct TodayView: View {
             HStack {
                 Eyebrow(text: "Morning brief", icon: "sunrise.fill", color: .sleep)
                 Spacer()
-                Button { briefHidden = true } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Color.faint) }
+                Button { briefHidden = true } label: { Image(systemName: "xmark").font(.geist(11, .bold)).foregroundStyle(Color.faint) }
             }
             ForEach(store.briefLines()) { line in
                 HStack(alignment: .top, spacing: 8) {
                     Circle().fill(line.good == false ? Color.warn : Color.soft).frame(width: 6, height: 6).padding(.top, 6)
-                    Text(line.text).font(.system(size: 14))
+                    Text(line.text).font(.geist(14))
                 }
             }
         }
@@ -80,19 +80,19 @@ struct TodayView: View {
                     HStack(spacing: 14) {
                         ZStack {
                             Ring(progress: Double(r.score) / 100, area: .mint, width: 8)
-                            Text("\(r.score)").font(.system(size: 22, weight: .bold))
+                            Text("\(r.score)").font(.geist(22, .bold))
                         }
                         .frame(width: 70, height: 70)
                         VStack(alignment: .leading, spacing: 3) {
                             Eyebrow(text: "Readiness", icon: "gauge.with.dots.needle.50percent")
-                            Text(r.label).font(.system(size: 18, weight: .bold))
-                            Text(r.summary).font(.system(size: 12.5)).foregroundStyle(Color.soft).lineLimit(2)
+                            Text(r.label).font(.geist(18, .bold))
+                            Text(r.summary).font(.geist(12.5)).foregroundStyle(Color.soft).lineLimit(2)
                         }
                     }
                 } else {
                     Eyebrow(text: "Readiness", icon: "gauge.with.dots.needle.50percent")
                     Text(store.health.isEmpty ? "Waiting for your first sync from the Air." : "Needs last night's sleep, HRV and resting HR: they arrive once the Air syncs.")
-                        .font(.system(size: 14)).foregroundStyle(Color.soft)
+                        .font(.geist(14)).foregroundStyle(Color.soft)
                 }
             }
         }
@@ -108,12 +108,12 @@ struct TodayView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Eyebrow(text: "Next up", icon: "play")
-                            Text(next.title).font(.system(size: 16, weight: .bold))
-                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                            Text(next.title).font(.geist(16, .bold))
+                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
                         Button { store.log(next, .done) } label: {
-                            Image(systemName: "checkmark").font(.system(size: 17, weight: .bold)).foregroundStyle(Color(hex: 0x032018))
+                            Image(systemName: "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
                                 .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
                         }
                     }
@@ -139,10 +139,10 @@ struct TodayView: View {
                     VStack(spacing: 6) {
                         ZStack {
                             Ring(progress: item.1, area: item.2, width: 6)
-                            Text(item.3).font(.system(size: 11.5, weight: .semibold)).minimumScaleFactor(0.7)
+                            Text(item.3).font(.geist(11.5, .semibold)).minimumScaleFactor(0.7)
                         }
                         .frame(width: 58, height: 58)
-                        Text(item.0).font(.system(size: 11.5)).foregroundStyle(Color.soft)
+                        Text(item.0).font(.geist(11.5)).foregroundStyle(Color.soft)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -155,10 +155,10 @@ struct TodayView: View {
             HStack {
                 Eyebrow(text: "Promises today", icon: "bell")
                 Spacer()
-                NavigationLink { PromisesView() } label: { Text("All").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.mint) }
+                NavigationLink { PromisesView() } label: { Text("All").font(.geist(13, .semibold)).foregroundStyle(Color.mint) }
             }
             let due = store.due()
-            if due.isEmpty { Text("Nothing due today.").foregroundStyle(Color.soft).font(.system(size: 14)) }
+            if due.isEmpty { Text("Nothing due today.").foregroundStyle(Color.soft).font(.geist(14)) }
             ForEach(due) { p in PromiseRow(promise: p, edit: { editing = p }) }
         }
     }
@@ -179,7 +179,7 @@ struct TodayView: View {
                         } label: {
                             HStack {
                                 Image(systemName: done ? "checkmark.circle.fill" : "circle").foregroundStyle(done ? Color.good : Color.soft)
-                                Text(item).strikethrough(done).foregroundStyle(done ? Color.soft : Color.ink).font(.system(size: 14))
+                                Text(item).strikethrough(done).foregroundStyle(done ? Color.soft : Color.ink).font(.geist(14))
                                 Spacer()
                             }
                         }
@@ -195,7 +195,7 @@ struct TodayView: View {
         let late = Day.minuteOfDay(store.tick) >= 19 * 60
         return Group {
             if closed {
-                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Day closed · \(store.day().score ?? store.score()) / 100").font(.system(size: 14, weight: .semibold)) } }
+                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Day closed · \(store.day().score ?? store.score()) / 100").font(.geist(14, .semibold)) } }
             } else if late {
                 PrimaryButton(title: "Close the day") { closing = true }
             }
@@ -212,7 +212,7 @@ struct TodayView: View {
     private var syncLabel: some View {
         HStack(spacing: 6) {
             Circle().fill(store.syncError == nil && !store.needsGoogle ? Color.good : Color.warn).frame(width: 7, height: 7)
-            Text(syncText + " · tap to sync the Air").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+            Text(syncText + " · tap to sync the Air").font(.geist(11.5)).foregroundStyle(Color.faint)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -244,19 +244,19 @@ struct PromiseRow: View {
                 if status == nil { store.log(promise, on: day, .done) } else { store.undo(promise, on: day) }
             } label: {
                 Image(systemName: status == .done || status == .tiny ? "checkmark.circle.fill" : status == .skipped ? "minus.circle" : "circle")
-                    .font(.system(size: 22)).foregroundStyle(status == nil ? Color.soft : status == .skipped ? Color.faint : Color.good)
+                    .font(.geist(22)).foregroundStyle(status == nil ? Color.soft : status == .skipped ? Color.faint : Color.good)
             }
             .buttonStyle(.plain)
             Image(systemName: promise.icon).foregroundStyle(Color.soft).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(promise.title).font(.system(size: 14.5, weight: .medium)).strikethrough(status == .skipped)
-                Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) this week").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text(promise.title).font(.geist(14.5, .medium)).strikethrough(status == .skipped)
+                Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) this week").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
             if status == nil, promise.title.lowercased().contains("brush") {
-                Button { brushing = true } label: { Image(systemName: "play.circle.fill").font(.system(size: 24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
+                Button { brushing = true } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
-                Button { reading = true } label: { Image(systemName: "play.circle.fill").font(.system(size: 24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
+                Button { reading = true } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
             } else if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
             else { Chip(text: promise.schedule.summary, color: .soft) }
         }
@@ -281,10 +281,10 @@ struct ReadinessView: View {
         Screen(glow: .mint) {
             if let r = store.readiness() {
                 HStack(spacing: 16) {
-                    ZStack { Ring(progress: Double(r.score) / 100, area: .mint, width: 10); Text("\(r.score)").font(.system(size: 34, weight: .bold)) }.frame(width: 110, height: 110)
+                    ZStack { Ring(progress: Double(r.score) / 100, area: .mint, width: 10); Text("\(r.score)").font(.geist(34, .bold)) }.frame(width: 110, height: 110)
                     VStack(alignment: .leading) {
-                        Text(r.label).font(.system(size: 24, weight: .bold))
-                        Text("Against your own 14-day baseline").font(.system(size: 13)).foregroundStyle(Color.soft)
+                        Text(r.label).font(.geist(24, .bold))
+                        Text("Against your own 14-day baseline").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .padding(.top, 10)
@@ -293,11 +293,11 @@ struct ReadinessView: View {
                     ForEach(r.parts) { part in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text(part.name).font(.system(size: 14, weight: .semibold))
+                                Text(part.name).font(.geist(14, .semibold))
                                 Spacer()
-                                Text(part.value).font(.system(size: 14, design: .monospaced)).foregroundStyle(part.good ? Color.good : Color.warn)
+                                Text(part.value).font(.mono(14)).foregroundStyle(part.good ? Color.good : Color.warn)
                             }
-                            Text(part.detail).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                            Text(part.detail).font(.geist(12.5)).foregroundStyle(Color.soft)
                             Bar(progress: part.score / 100, area: part.good ? .mint : .fuel)
                         }
                         .padding(.vertical, 3)
@@ -305,8 +305,8 @@ struct ReadinessView: View {
                 }
                 Card {
                     Eyebrow(text: "Feels wrong?", icon: "bubble.left")
-                    Text("Tell Cadence how you actually feel. It tunes the score over time.").font(.system(size: 13)).foregroundStyle(Color.soft)
-                    if sent { Text("Thanks, noted.").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.good) }
+                    Text("Tell Cadence how you actually feel. It tunes the score over time.").font(.geist(13)).foregroundStyle(Color.soft)
+                    if sent { Text("Thanks, noted.").font(.geist(14, .semibold)).foregroundStyle(Color.good) }
                     else {
                         HStack {
                             SoftButton(title: "I feel worse", icon: "arrow.down") { store.addFeedback(ReadinessFeedback(date: Day.today, score: r.score, felt: -1)); sent = true }

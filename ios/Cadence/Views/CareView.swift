@@ -17,8 +17,8 @@ struct CareView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Eyebrow(text: "Brushing", icon: "mouth.fill", color: Color(hex: 0x5FE3D0))
                         let today = store.brushes()
-                        Text(today.isEmpty ? "Not yet today" : "\(today.count)× today · \(today.map { duration($0.seconds / 60) }.joined(separator: ", "))").font(.system(size: 14))
-                        if store.brushHeadDue { Text("3 months on this brush head: time for a new one.").font(.system(size: 12)).foregroundStyle(Color.warn) }
+                        Text(today.isEmpty ? "Not yet today" : "\(today.count)× today · \(today.map { duration($0.seconds / 60) }.joined(separator: ", "))").font(.geist(14))
+                        if store.brushHeadDue { Text("3 months on this brush head: time for a new one.").font(.geist(12)).foregroundStyle(Color.warn) }
                     }
                     Spacer()
                     Button { brushing = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x032018)).frame(width: 44, height: 44).background(Circle().fill(Color(hex: 0x5FE3D0))) }
@@ -32,29 +32,29 @@ struct CareView: View {
                         Image(systemName: g.icon).foregroundStyle(Color.soft).frame(width: 22)
                         VStack(alignment: .leading, spacing: 3) {
                             HStack {
-                                Text(g.title).font(.system(size: 14, weight: .medium))
+                                Text(g.title).font(.geist(14, .medium))
                                 Spacer()
-                                Text(g.daysSince.map { "\($0) d ago · every ~\(g.rhythm)" } ?? "never logged").font(.system(size: 11.5)).foregroundStyle((g.daysSince ?? 999) >= g.rhythm ? Color.warn : Color.faint)
+                                Text(g.daysSince.map { "\($0) d ago · every ~\(g.rhythm)" } ?? "never logged").font(.geist(11.5)).foregroundStyle((g.daysSince ?? 999) >= g.rhythm ? Color.warn : Color.faint)
                             }
                             Bar(progress: g.freshness, area: g.freshness < 0.15 ? .fuel : .mint)
                         }
-                        Button { var x = g; x.history.append(Day.today); store.save(x) } label: { Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
+                        Button { var x = g; x.history.append(Day.today); store.save(x) } label: { Image(systemName: "checkmark.circle").font(.geist(20)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
                     }
                 }
                 if let trip = store.nextTrip, !store.groomingBefore(trip).isEmpty {
-                    Text("Trip to \(trip.destination) on \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) the day before.").font(.system(size: 12.5)).foregroundStyle(Color.fuel)
+                    Text("Trip to \(trip.destination) on \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) the day before.").font(.geist(12.5)).foregroundStyle(Color.fuel)
                 }
-                Text("Starts from sensible intervals, then learns your own and flags drift.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text("Starts from sensible intervals, then learns your own and flags drift.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Card {
                 HStack { Eyebrow(text: "Routines", icon: "list.number"); Spacer(); Button { editingRoutine = CareRoutine(title: "", steps: []) } label: { Image(systemName: "plus") }.tint(.mint) }
                 ForEach(store.all(CareRoutine.self).sorted { $0.title < $1.title }) { r in
                     HStack {
                         Image(systemName: r.icon).foregroundStyle(Color.soft).frame(width: 22)
-                        VStack(alignment: .leading) { Text(r.title).font(.system(size: 14, weight: .medium)); Text("\(r.steps.count) steps · \(duration(r.steps.map(\.seconds).reduce(0, +) / 60))").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                        VStack(alignment: .leading) { Text(r.title).font(.geist(14, .medium)); Text("\(r.steps.count) steps · \(duration(r.steps.map(\.seconds).reduce(0, +) / 60))").font(.geist(11.5)).foregroundStyle(Color.faint) }
                         Spacer()
                         Button { editingRoutine = r } label: { Image(systemName: "pencil").foregroundStyle(Color.soft) }.buttonStyle(.plain)
-                        Button { playing = r } label: { Image(systemName: "play.circle.fill").font(.system(size: 26)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
+                        Button { playing = r } label: { Image(systemName: "play.circle.fill").font(.geist(26)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
                     }
                 }
             }
@@ -77,28 +77,28 @@ struct MedicinesCard: View {
         Card(tint: .mind) {
             HStack { Eyebrow(text: "Medicines and products", icon: "pills.fill", color: .mind); Spacer(); Button { editing = Medicine(name: "") } label: { Image(systemName: "plus") }.tint(.mind) }
             let doses = store.doses()
-            if doses.isEmpty { Text("Nothing scheduled today.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+            if doses.isEmpty { Text("Nothing scheduled today.").font(.geist(13)).foregroundStyle(Color.soft) }
             ForEach(Array(doses.enumerated()), id: \.offset) { _, d in
                 HStack {
-                    Text(clock(d.minute)).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.faint)
+                    Text(clock(d.minute)).font(.mono(12)).foregroundStyle(Color.faint)
                     VStack(alignment: .leading) {
-                        Text(d.med.name).font(.system(size: 14, weight: .medium))
-                        Text([d.med.dose, d.med.how].filter { !$0.isEmpty }.joined(separator: " · ")).font(.system(size: 11.5)).foregroundStyle(Color.soft)
+                        Text(d.med.name).font(.geist(14, .medium))
+                        Text([d.med.dose, d.med.how].filter { !$0.isEmpty }.joined(separator: " · ")).font(.geist(11.5)).foregroundStyle(Color.soft)
                     }
                     Spacer()
                     if let log = d.log { Chip(text: log.taken ? "taken" : "skipped", color: log.taken ? .good : .faint) }
                     else {
-                        Button("Skip") { store.take(d.med, minute: d.minute, taken: false) }.font(.system(size: 12)).tint(.soft)
-                        Button { store.take(d.med, minute: d.minute) } label: { Image(systemName: "checkmark.circle.fill").font(.system(size: 22)).foregroundStyle(Color.mind) }.buttonStyle(.plain)
+                        Button("Skip") { store.take(d.med, minute: d.minute, taken: false) }.font(.geist(12)).tint(.soft)
+                        Button { store.take(d.med, minute: d.minute) } label: { Image(systemName: "checkmark.circle.fill").font(.geist(22)).foregroundStyle(Color.mind) }.buttonStyle(.plain)
                     }
                 }
             }
             ForEach(store.all(Medicine.self)) { m in
                 if let left = store.dosesLeft(m), Double(left.doses) <= m.refillAt {
-                    Text("\(m.name): \(left.doses) doses left, runs out \(Day.date(left.runsOut).formatted(.dateTime.day().month())). Added to shopping.").font(.system(size: 12)).foregroundStyle(Color.warn)
+                    Text("\(m.name): \(left.doses) doses left, runs out \(Day.date(left.runsOut).formatted(.dateTime.day().month())). Added to shopping.").font(.geist(12)).foregroundStyle(Color.warn)
                 }
             }
-            NavigationLink { MedicinesList(editing: $editing) } label: { Text("All products and history").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.mind) }
+            NavigationLink { MedicinesList(editing: $editing) } label: { Text("All products and history").font(.geist(13, .semibold)).foregroundStyle(Color.mind) }
         }
     }
 }
@@ -286,10 +286,10 @@ struct BrushingView: View {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 16) {
                 HStack { Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
-                Text(finished ? "Done" : step?.title ?? "Brush").font(.system(size: 26, weight: .bold))
+                Text(finished ? "Done" : step?.title ?? "Brush").font(.geist(26, .bold))
                 ToothChart(area: step?.area, surface: step?.surface).frame(maxHeight: 340)
                 if let step {
-                    Text(step.tip).font(.system(size: 14)).foregroundStyle(Color.soft).multilineTextAlignment(.center).frame(minHeight: 40)
+                    Text(step.tip).font(.geist(14)).foregroundStyle(Color.soft).multilineTextAlignment(.center).frame(minHeight: 40)
                     HStack(spacing: 4) {
                         ForEach(steps.indices, id: \.self) { i in
                             Capsule().fill(i < index ? Color(hex: 0x5FE3D0) : i == index ? Color.ink : Color.white.opacity(0.12)).frame(height: 5)
@@ -424,16 +424,23 @@ struct ToothChart: View {
                 }
                 ctx.stroke(gum, with: .color(Color(hex: 0x6E2D3E)), style: StrokeStyle(lineWidth: unit * 1.4, lineCap: .round, lineJoin: .round))
             }
+            let kinds = ["incisor", "incisor", "canine", "premolar", "premolar", "molar", "molar", "molar"]
+            var images: [String: GraphicsContext.ResolvedImage] = [:]
+            for k in Set(kinds) {
+                images[k] = ctx.resolve(Image("tooth-\(k)"))
+                images[k + "-on"] = ctx.resolve(Image("tooth-\(k)-on"))
+            }
             for t in list {
                 let on = active(t)
-                let shape = place(CGRect(x: -t.w / 2, y: -t.d / 2, width: t.w, height: t.d), corner: min(t.w, t.d) * 0.32, t)
                 let sideOnly = surface == "inner" || surface == "outer"
-                let fill = on ? (sideOnly ? Color(hex: 0xDFF7F2) : mint) : Color(hex: 0xF4EFE6)
-                ctx.fill(shape, with: .color(fill))
-                ctx.stroke(shape, with: .color(on ? mint : Color(hex: 0x3C3240)), lineWidth: on ? 2 : 1)
-                if t.index >= 3 {
-                    let groove = place(CGRect(x: -t.w * 0.28, y: -0.75, width: t.w * 0.56, height: 1.5), corner: 0.75, t)
-                    ctx.fill(groove, with: .color(Color(hex: 0x3C3240, opacity: 0.35)))
+                let name = kinds[t.index] + (on ? "-on" : "")
+                if let img = images[name] {
+                    ctx.drawLayer { layer in
+                        layer.translateBy(x: t.center.x, y: t.center.y)
+                        layer.rotate(by: .radians(t.angle))
+                        if on && sideOnly { layer.opacity = 0.75 }
+                        layer.draw(img, in: CGRect(x: -t.w * 0.66, y: -t.d * 0.66, width: t.w * 1.32, height: t.d * 1.32))
+                    }
                 }
                 if on, sideOnly {
                     let dir: CGFloat = surface == "outer" ? 1 : -1
@@ -441,10 +448,10 @@ struct ToothChart: View {
                     ctx.fill(band, with: .color(mint))
                 }
             }
-            ctx.draw(Text("your right").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width - 36, y: size.height / 2))
-            ctx.draw(Text("your left").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: 34, y: size.height / 2))
-            ctx.draw(Text("upper").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.24))
-            ctx.draw(Text("lower").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.76))
+            ctx.draw(Text("your right").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width - 36, y: size.height / 2))
+            ctx.draw(Text("your left").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: 34, y: size.height / 2))
+            ctx.draw(Text("upper").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.24))
+            ctx.draw(Text("lower").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.76))
         }
         .aspectRatio(360.0 / 420.0, contentMode: .fit)
     }
@@ -468,20 +475,20 @@ struct RoutinePlayer: View {
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 22) {
-                HStack { Text(routine.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
+                HStack { Text(routine.title).font(.geist(15, .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
                 Spacer()
                 if let step {
-                    Text("Step \(index + 1) of \(routine.steps.count)").font(.system(size: 13)).foregroundStyle(Color.soft)
-                    Text(step.title).font(.system(size: 30, weight: .bold)).multilineTextAlignment(.center)
+                    Text("Step \(index + 1) of \(routine.steps.count)").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text(step.title).font(.geist(30, .bold)).multilineTextAlignment(.center)
                     ZStack {
                         Ring(progress: 1 - max(0, left) / Double(max(1, step.seconds)), area: .mint, width: 9)
-                        Text(String(format: "%d:%02d", Int(max(0, left)) / 60, Int(max(0, left)) % 60)).font(.system(size: 36, design: .monospaced))
+                        Text(String(format: "%d:%02d", Int(max(0, left)) / 60, Int(max(0, left)) % 60)).font(.mono(36))
                     }
                     .frame(width: 200, height: 200)
-                    Text("Done by \(Date().addingTimeInterval(Double(remaining)).formatted(date: .omitted, time: .shortened))").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    Text("Done by \(Date().addingTimeInterval(Double(remaining)).formatted(date: .omitted, time: .shortened))").font(.geist(13)).foregroundStyle(Color.soft)
                 } else {
                     PipAnimation(mood: .celebrate).frame(width: 160, height: 160)
-                    Text("Routine done").font(.system(size: 26, weight: .bold))
+                    Text("Routine done").font(.geist(26, .bold))
                 }
                 Spacer()
                 HStack {

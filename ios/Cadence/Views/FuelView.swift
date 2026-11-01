@@ -18,7 +18,7 @@ struct FuelView: View {
                     ZStack {
                         Ring(progress: f.kcal / p.kcal, area: .fuel, width: 8).frame(width: 92, height: 92)
                         Ring(progress: f.protein / p.proteinTarget, area: .train, width: 7).frame(width: 66, height: 66)
-                        Text("\(Int(f.protein)) g").font(.system(size: 14, weight: .bold))
+                        Text("\(Int(f.protein)) g").font(.geist(14, .bold))
                     }
                     VStack(alignment: .leading, spacing: 6) {
                         row("Calories", "\(Int(f.kcal)) / \(Int(p.kcal))")
@@ -31,21 +31,21 @@ struct FuelView: View {
             if let c = store.proteinCatchUp() {
                 Card(tint: .fuel) {
                     Eyebrow(text: "Protein catch-up", icon: "fork.knife", color: .fuel)
-                    Text("\(Int(c.gap)) g protein left today." + (c.meal.map { " Your \($0.name.lowercased()) covers \(Int($0.protein)) g." } ?? "")).font(.system(size: 14))
+                    Text("\(Int(c.gap)) g protein left today." + (c.meal.map { " Your \($0.name.lowercased()) covers \(Int($0.protein)) g." } ?? "")).font(.geist(14))
                     if let m = c.meal { SoftButton(title: "Log \(m.name)", icon: "plus") { store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, mealId: m.id)) } }
                 }
             }
             WaterCard()
             Card {
-                HStack { Eyebrow(text: "Today", icon: "list.bullet"); Spacer(); Button { adding = true } label: { Label("Log food", systemImage: "plus").font(.system(size: 13, weight: .semibold)) }.tint(.fuel) }
+                HStack { Eyebrow(text: "Today", icon: "list.bullet"); Spacer(); Button { adding = true } label: { Label("Log food", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.fuel) }
                 let foods = store.foods()
-                if foods.isEmpty { Text("Nothing logged yet.").font(.system(size: 14)).foregroundStyle(Color.soft) }
+                if foods.isEmpty { Text("Nothing logged yet.").font(.geist(14)).foregroundStyle(Color.soft) }
                 ForEach(foods) { e in
                     HStack {
-                        Text(clock(e.minute)).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.faint)
-                        Text(e.name).font(.system(size: 14)).lineLimit(1)
+                        Text(clock(e.minute)).font(.mono(12)).foregroundStyle(Color.faint)
+                        Text(e.name).font(.geist(14)).lineLimit(1)
                         Spacer()
-                        Text("\(Int(e.kcal)) · \(Int(e.protein)) g").font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft)
+                        Text("\(Int(e.kcal)) · \(Int(e.protein)) g").font(.mono(12.5)).foregroundStyle(Color.soft)
                     }
                     .contextMenu {
                         Button("Save as a meal", systemImage: "star") { store.save(SavedMeal(name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine)) }
@@ -53,10 +53,10 @@ struct FuelView: View {
                     }
                 }
                 let plan = store.sleepPlan()
-                if let last = f.lastMeal, last > plan.perform - 180 { Text("Late meal: the kitchen closed at \(clock(plan.perform - 180)). Late eating raises night heart rate.").font(.system(size: 12)).foregroundStyle(Color.warn) }
+                if let last = f.lastMeal, last > plan.perform - 180 { Text("Late meal: the kitchen closed at \(clock(plan.perform - 180)). Late eating raises night heart rate.").font(.geist(12)).foregroundStyle(Color.warn) }
             }
             Card {
-                HStack { Eyebrow(text: "Weight and targets", icon: "scalemass"); Spacer(); Button("Log weight") { weighing = true }.font(.system(size: 13, weight: .semibold)).tint(.fuel) }
+                HStack { Eyebrow(text: "Weight and targets", icon: "scalemass"); Spacer(); Button("Log weight") { weighing = true }.font(.geist(13, .semibold)).tint(.fuel) }
                 let w = store.all(WeightEntry.self).sorted { $0.date > $1.date }
                 row("Weight", w.first.map { "\(kg($0.kg)) kg · \(Day.date($0.date).formatted(.dateTime.day().month()))" } ?? "\(kg(p.weightKg)) kg (profile)")
                 if let a = store.adaptiveTarget() {
@@ -66,7 +66,7 @@ struct FuelView: View {
                         SoftButton(title: "Use \(Int(a.kcal)) kcal from your data", icon: "arrow.triangle.2.circlepath") { store.update { $0.kcalTarget = a.kcal } }
                     }
                 } else {
-                    Text("Log your weight a few times a week and food for 10 days: the target then adjusts to what your weight actually does.").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text("Log your weight a few times a week and food for 10 days: the target then adjusts to what your weight actually does.").font(.geist(12)).foregroundStyle(Color.soft)
                 }
             }
         }
@@ -87,7 +87,7 @@ struct FuelView: View {
     }
 
     private func row(_ name: String, _ value: String) -> some View {
-        HStack { Text(name).font(.system(size: 13.5)).foregroundStyle(Color.soft); Spacer(); Text(value).font(.system(size: 13.5, weight: .semibold, design: .monospaced)) }
+        HStack { Text(name).font(.geist(13.5)).foregroundStyle(Color.soft); Spacer(); Text(value).font(.mono(13.5, .semibold)) }
     }
 }
 
@@ -99,11 +99,11 @@ struct WaterCard: View {
             HStack {
                 Eyebrow(text: "Water", icon: "drop.fill", color: .water)
                 Spacer()
-                Text(String(format: "%.1f / %.1f L", water / 1000, goal / 1000)).font(.system(size: 14, weight: .semibold, design: .monospaced))
+                Text(String(format: "%.1f / %.1f L", water / 1000, goal / 1000)).font(.mono(14, .semibold))
             }
             Bar(progress: water / goal, area: .water)
             HStack {
-                Text(water + 150 < pace ? "Behind pace by \(Int((pace - water) / 50) * 50) ml" : "On pace").font(.system(size: 12.5)).foregroundStyle(water + 150 < pace ? Color.warn : Color.soft)
+                Text(water + 150 < pace ? "Behind pace by \(Int((pace - water) / 50) * 50) ml" : "On pace").font(.geist(12.5)).foregroundStyle(water + 150 < pace ? Color.warn : Color.soft)
                 Spacer()
                 ForEach([250.0, 500.0], id: \.self) { ml in SoftButton(title: "+\(Int(ml))") { store.addWater(ml) } }
             }

@@ -9,16 +9,16 @@ struct AirWorkoutsCard: View {
     var body: some View {
         Card(tint: .train) {
             Eyebrow(text: "Recorded by your Air", icon: "applewatch.radiowaves.left.and.right", color: .train)
-            if air.list.isEmpty { Text("Runs, walks and sessions the Air records appear here with heart rate, after it syncs.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+            if air.list.isEmpty { Text("Runs, walks and sessions the Air records appear here with heart rate, after it syncs.").font(.geist(13)).foregroundStyle(Color.soft) }
             ForEach(air.list.prefix(5)) { e in
                 HStack {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(e.name).font(.system(size: 14, weight: .medium))
-                        Text(e.startDate.formatted(.dateTime.weekday(.abbreviated).hour().minute()) + " · \(e.minutes) min" + (e.distance.map { String(format: " · %.1f km", $0 / 1_000_000) } ?? "")).font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                        Text(e.name).font(.geist(14, .medium))
+                        Text(e.startDate.formatted(.dateTime.weekday(.abbreviated).hour().minute()) + " · \(e.minutes) min" + (e.distance.map { String(format: " · %.1f km", $0 / 1_000_000) } ?? "")).font(.geist(11.5)).foregroundStyle(Color.faint)
                     }
                     Spacer()
-                    if let hr = e.avgHr { Text("\(Int(hr)) bpm").font(.system(size: 13, design: .monospaced)) }
-                    if let c = e.calories { Text("\(Int(c)) kcal").font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.soft) }
+                    if let hr = e.avgHr { Text("\(Int(hr)) bpm").font(.mono(13)) }
+                    if let c = e.calories { Text("\(Int(c)) kcal").font(.mono(12)).foregroundStyle(Color.soft) }
                 }
             }
         }
@@ -39,7 +39,7 @@ struct RestOrTrainCard: View {
                     }
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 90)
-                    Text("Train today: readiness \(f.train[0]) tomorrow. Rest: \(f.rest[0]). From how your own readiness moved after training and rest days.").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                    Text("Train today: readiness \(f.train[0]) tomorrow. Rest: \(f.rest[0]). From how your own readiness moved after training and rest days.").font(.geist(12.5)).foregroundStyle(Color.soft)
                 }
             }
         }
@@ -56,13 +56,13 @@ struct BodyProgressView: View {
         Screen(glow: .train) {
             Card {
                 HStack { Eyebrow(text: "Progress photos", icon: "camera.fill"); Spacer(); PhotosPicker(selection: $photo, matching: .images) { Label("Add", systemImage: "plus") }.tint(.train) }
-                if photos.isEmpty { Text("Same light, same pose, every few weeks. They stay on this phone.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                if photos.isEmpty { Text("Same light, same pose, every few weeks. They stay on this phone.").font(.geist(13)).foregroundStyle(Color.soft) }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
                         ForEach(photos, id: \.url) { p in
                             VStack(spacing: 3) {
                                 if let img = UIImage(contentsOfFile: p.url.path) { Image(uiImage: img).resizable().scaledToFill().frame(width: 110, height: 150).clipShape(RoundedRectangle(cornerRadius: 12)) }
-                                Text(Day.date(p.date).formatted(.dateTime.day().month())).font(.system(size: 11)).foregroundStyle(Color.soft)
+                                Text(Day.date(p.date).formatted(.dateTime.day().month())).font(.geist(11)).foregroundStyle(Color.soft)
                             }
                         }
                     }
@@ -73,11 +73,11 @@ struct BodyProgressView: View {
                 let history = store.all(Measurement.self).sorted { $0.date > $1.date }
                 ForEach(measurementNames, id: \.self) { name in
                     HStack {
-                        Text(name).font(.system(size: 14))
+                        Text(name).font(.geist(14))
                         Spacer()
                         if let last = history.first(where: { $0.values[name] != nil })?.values[name] {
                             let first = history.last(where: { $0.values[name] != nil })?.values[name] ?? last
-                            Text("\(kg(last))" + (first != last ? String(format: " (%+.1f)", last - first) : "")).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft)
+                            Text("\(kg(last))" + (first != last ? String(format: " (%+.1f)", last - first) : "")).font(.mono(12.5)).foregroundStyle(Color.soft)
                         }
                         TextField("–", text: Binding(get: { values[name] ?? "" }, set: { values[name] = $0 })).keyboardType(.decimalPad).frame(width: 60).multilineTextAlignment(.trailing)
                     }
@@ -94,7 +94,7 @@ struct BodyProgressView: View {
                 let bw = store.all(WeightEntry.self).max { $0.date < $1.date }?.kg ?? store.profile.weightKg
                 let ids = Array(Set(store.sessions().flatMap { $0.sets.filter(\.done).map(\.exerciseId) }))
                 ForEach(ids.compactMap { id in store.e1rmHistory(id).last.map { (id, $0.value) } }.sorted { $0.1 > $1.1 }.prefix(6), id: \.0) { id, v in
-                    HStack { Text(Catalog.shared.exercise(id)?.name ?? id).font(.system(size: 13.5)).lineLimit(1); Spacer(); Text(String(format: "%.2f× bodyweight", v / bw)).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft) }
+                    HStack { Text(Catalog.shared.exercise(id)?.name ?? id).font(.geist(13.5)).lineLimit(1); Spacer(); Text(String(format: "%.2f× bodyweight", v / bw)).font(.mono(12.5)).foregroundStyle(Color.soft) }
                 }
             }
             Card {
@@ -129,12 +129,12 @@ struct TimeAuditCard: View {
             Eyebrow(text: "Where your time went", icon: "chart.pie.fill")
             ForEach(store.timeAudit(week: week), id: \.0) { name, actual, planned in
                 HStack {
-                    Text(name).font(.system(size: 13.5))
+                    Text(name).font(.geist(13.5))
                     Spacer()
-                    Text(duration(actual) + (planned.map { " of \(duration($0)) planned" } ?? "")).font(.system(size: 12.5, design: .monospaced)).foregroundStyle(Color.soft)
+                    Text(duration(actual) + (planned.map { " of \(duration($0)) planned" } ?? "")).font(.mono(12.5)).foregroundStyle(Color.soft)
                 }
             }
-            Text(store.timeAuditSuggestion(week: week)).font(.system(size: 12.5)).foregroundStyle(Color.mint)
+            Text(store.timeAuditSuggestion(week: week)).font(.geist(12.5)).foregroundStyle(Color.mint)
         }
     }
 }
@@ -147,28 +147,28 @@ struct MoneyExtras: View {
         let protein = store.proteinValue()
         Card {
             Eyebrow(text: "Small wins", icon: "sparkles")
-            HStack { Text("Round-ups this month").font(.system(size: 13.5)); Spacer(); Text(euro(store.roundUps(), decimals: true)).font(.system(size: 13.5, weight: .semibold, design: .monospaced)) }
-            Text("Move this to savings at the end of the month: it's the change from every purchase.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
-            HStack { Text("Eating out and delivery").font(.system(size: 13.5)); Spacer(); Text(euro(prep.eatingOut)).font(.system(size: 13.5, design: .monospaced)) }
-            if let per = prep.perPortion { Text("A prepped portion costs about \(euro(per, decimals: true))" + (prep.saved.map { $0 > 0 ? ": prep saved you ~\(euro($0)) this month." : "." } ?? ".")).font(.system(size: 12)).foregroundStyle(Color.good) }
+            HStack { Text("Round-ups this month").font(.geist(13.5)); Spacer(); Text(euro(store.roundUps(), decimals: true)).font(.mono(13.5, .semibold)) }
+            Text("Move this to savings at the end of the month: it's the change from every purchase.").font(.geist(11.5)).foregroundStyle(Color.faint)
+            HStack { Text("Eating out and delivery").font(.geist(13.5)); Spacer(); Text(euro(prep.eatingOut)).font(.mono(13.5)) }
+            if let per = prep.perPortion { Text("A prepped portion costs about \(euro(per, decimals: true))" + (prep.saved.map { $0 > 0 ? ": prep saved you ~\(euro($0)) this month." : "." } ?? ".")).font(.geist(12)).foregroundStyle(Color.good) }
             if !protein.isEmpty {
-                Text("Protein per euro").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.soft)
-                ForEach(protein.prefix(4), id: \.name) { p in HStack { Text(p.name).font(.system(size: 13)); Spacer(); Text("\(Int(p.perEuro)) g/€").font(.system(size: 12.5, design: .monospaced)) } }
+                Text("Protein per euro").font(.geist(12, .semibold)).foregroundStyle(Color.soft)
+                ForEach(protein.prefix(4), id: \.name) { p in HStack { Text(p.name).font(.geist(13)); Spacer(); Text("\(Int(p.perEuro)) g/€").font(.mono(12.5)) } }
             }
         }
         Card {
             HStack { Eyebrow(text: "Payday plan", icon: "banknote.fill"); Spacer(); SoftButton(title: "Plan this month") { planning = true } }
             if let p = store.record(Payday.self, String(Day.today.prefix(7))) {
-                ForEach(p.jobs.sorted { $0.value > $1.value }, id: \.key) { k, v in HStack { Text(k).font(.system(size: 13.5)); Spacer(); Text(euro(v)).font(.system(size: 13.5, design: .monospaced)) } }
-            } else { Text("On payday, give every euro a job: bills, groceries, wardrobe, travel, goals.").font(.system(size: 12.5)).foregroundStyle(Color.soft) }
+                ForEach(p.jobs.sorted { $0.value > $1.value }, id: \.key) { k, v in HStack { Text(k).font(.geist(13.5)); Spacer(); Text(euro(v)).font(.mono(13.5)) } }
+            } else { Text("On payday, give every euro a job: bills, groceries, wardrobe, travel, goals.").font(.geist(12.5)).foregroundStyle(Color.soft) }
         }
         .sheet(isPresented: $planning) { PaydayPlanner() }
         Card {
             Eyebrow(text: "e-Fatura · \(String(Day.today.prefix(4)))", icon: "doc.plaintext")
             ForEach(store.efatura(), id: \.0) { name, v, rule in
-                HStack { VStack(alignment: .leading) { Text(name).font(.system(size: 13.5)); Text(rule).font(.system(size: 10.5)).foregroundStyle(Color.faint) }; Spacer(); Text(euro(v)).font(.system(size: 13.5, design: .monospaced)) }
+                HStack { VStack(alignment: .leading) { Text(name).font(.geist(13.5)); Text(rule).font(.geist(10.5)).foregroundStyle(Color.faint) }; Spacer(); Text(euro(v)).font(.mono(13.5)) }
             }
-            Text("Estimates from categorised spending and receipt VAT. Validate pending invoices on e-Fatura before the February deadline.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+            Text("Estimates from categorised spending and receipt VAT. Validate pending invoices on e-Fatura before the February deadline.").font(.geist(11.5)).foregroundStyle(Color.faint)
         }
     }
 }
@@ -208,7 +208,7 @@ struct WardrobePicker: View {
         Card(tint: .fuel) {
             Eyebrow(text: "Pip's wardrobe · unlocked by level", icon: "tshirt.fill", color: .fuel)
             ForEach(["head", "face", "neck"], id: \.self) { slot in
-                Text(slot.capitalized).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(Color.soft)
+                Text(slot.capitalized).font(.geist(11.5, .semibold)).foregroundStyle(Color.soft)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
                         let worn = store.pipOutfit.first { $0.slot == slot }
@@ -220,17 +220,17 @@ struct WardrobePicker: View {
                     }
                 }
             }
-            Text("Each piece stays on in every animation. More unlock as you level up.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+            Text("Each piece stays on in every animation. More unlock as you level up.").font(.geist(11.5)).foregroundStyle(Color.faint)
         }
     }
 
     private func item(name: String, icon: String, open: Bool, on: Bool, tap: @escaping () -> Void) -> some View {
         Button(action: tap) {
             VStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 18)).foregroundStyle(open ? Color.ink : Color.faint).frame(width: 50, height: 50)
+                Image(systemName: icon).font(.geist(18)).foregroundStyle(open ? Color.ink : Color.faint).frame(width: 50, height: 50)
                     .background(Circle().fill(.white.opacity(on ? 0.18 : 0.06)))
                     .overlay(Circle().stroke(on ? Color.mint : .clear, lineWidth: 2))
-                Text(name).font(.system(size: 10.5)).foregroundStyle(open ? Color.ink : Color.faint).lineLimit(1)
+                Text(name).font(.geist(10.5)).foregroundStyle(open ? Color.ink : Color.faint).lineLimit(1)
             }
             .frame(width: 74)
         }

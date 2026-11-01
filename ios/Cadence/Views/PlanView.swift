@@ -73,7 +73,7 @@ struct PlanView: View {
                 ForEach(Array(store.clashes().enumerated()), id: \.offset) { _, pair in
                     let (block, event) = pair
                     Card(tint: .warn) {
-                        Text("\(block.title) overlaps \(event.title).").font(.system(size: 14))
+                        Text("\(block.title) overlaps \(event.title).").font(.geist(14))
                         HStack {
                             SoftButton(title: "Move after it") { var b = block; b.start = event.endMinute + 10; store.save(b) }
                             SoftButton(title: "Keep both") {}
@@ -81,7 +81,7 @@ struct PlanView: View {
                     }
                 }
                 timeline
-                if let e = agenda.error { Text(e).font(.system(size: 12)).foregroundStyle(Color.warn) }
+                if let e = agenda.error { Text(e).font(.geist(12)).foregroundStyle(Color.warn) }
                 HStack(spacing: 10) {
                     NavigationLink { TasksView() } label: { tile("Tasks", "tray.full", "\(store.all(TaskItem.self).filter { !$0.done }.count) open") }
                     NavigationLink { ProjectsView() } label: { tile("Projects", "flag.fill", "\(store.all(Project.self).filter { !$0.archived }.count) active") }
@@ -101,8 +101,8 @@ struct PlanView: View {
     private func tile(_ title: String, _ icon: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Image(systemName: icon).foregroundStyle(Color.mint)
-            Text(title).font(.system(size: 14, weight: .semibold))
-            Text(detail).font(.system(size: 11)).foregroundStyle(Color.soft)
+            Text(title).font(.geist(14, .semibold))
+            Text(detail).font(.geist(11)).foregroundStyle(Color.soft)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -113,7 +113,7 @@ struct PlanView: View {
         ForEach(store.weatherMoves(), id: \.0.id) { block, minute in
             Card(tint: .water) {
                 Eyebrow(text: "Rain during \(block.title.lowercased())", icon: "cloud.rain.fill", color: .water)
-                Text("Dry at \(clock(minute)). Move it there?").font(.system(size: 14))
+                Text("Dry at \(clock(minute)). Move it there?").font(.geist(14))
                 SoftButton(title: "Move to \(clock(minute))") { var b = block; b.start = minute; store.save(b) }
             }
         }
@@ -126,7 +126,7 @@ struct PlanView: View {
             if !hasDeep, let start = store.suggestedDeepWork() {
                 Card(tint: .mint) {
                     Eyebrow(text: "Suggested · your peak", icon: "sparkles", color: .mint)
-                    Text("Deep work \(clock(start))–\(clock(start + 100))" + (project.map { ": \($0.title)" } ?? "")).font(.system(size: 15, weight: .semibold))
+                    Text("Deep work \(clock(start))–\(clock(start + 100))" + (project.map { ": \($0.title)" } ?? "")).font(.geist(15, .semibold))
                     HStack {
                         SoftButton(title: "Place it", icon: "plus") { store.save(PlanBlock(date: Day.today, start: start, minutes: 100, title: project.map { "Deep work · \($0.title)" } ?? "Deep work", type: "deep", projectId: project?.id)) }
                         SoftButton(title: "Choose time") { placing = PlanBlock(date: Day.today, start: start, minutes: 100, title: "Deep work", type: "deep", projectId: project?.id) }
@@ -142,22 +142,22 @@ struct PlanView: View {
             HStack {
                 Eyebrow(text: "Today", icon: "calendar")
                 Spacer()
-                Button { placing = PlanBlock(date: Day.today, start: ((now + 30) / 15) * 15, minutes: 60, title: "", type: "deep") } label: { Label("Block", systemImage: "plus").font(.system(size: 13, weight: .semibold)) }.tint(.mint)
+                Button { placing = PlanBlock(date: Day.today, start: ((now + 30) / 15) * 15, minutes: 60, title: "", type: "deep") } label: { Label("Block", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.mint)
             }
             ForEach(store.planItems()) { item in
                 let end = item.end ?? item.minute
                 let past = end < now && item.minute >= 240
                 HStack(alignment: .top, spacing: 12) {
-                    Text(clock(item.minute)).font(.system(size: 13, weight: .semibold, design: .monospaced)).foregroundStyle(Color.soft).frame(width: 48, alignment: .leading)
+                    Text(clock(item.minute)).font(.mono(13, .semibold)).foregroundStyle(Color.soft).frame(width: 48, alignment: .leading)
                     RoundedRectangle(cornerRadius: 2).fill(item.color).frame(width: 3, height: item.end == nil ? 18 : max(18, CGFloat(end - item.minute) / 3))
                     Image(systemName: item.icon).foregroundStyle(item.color).frame(width: 20)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(item.title).font(.system(size: 14.5, weight: .semibold))
-                        Text(item.detail).font(.system(size: 12)).foregroundStyle(Color.soft)
+                        Text(item.title).font(.geist(14.5, .semibold))
+                        Text(item.detail).font(.geist(12)).foregroundStyle(Color.soft)
                     }
                     Spacer()
                     if let p = item.promise, store.status(p) == nil {
-                        Button { store.log(p, .done) } label: { Image(systemName: "circle").font(.system(size: 20)).foregroundStyle(Color.soft) }
+                        Button { store.log(p, .done) } label: { Image(systemName: "circle").font(.geist(20)).foregroundStyle(Color.soft) }
                     }
                     if let e = item.event, e.endMinute <= now, store.record(EventFeeling.self, e.id) == nil { FeelingButtons(event: e) }
                 }
@@ -189,7 +189,7 @@ struct FeelingButtons: View {
     var body: some View {
         HStack(spacing: 4) {
             ForEach([(-1, "battery.25"), (0, "battery.50"), (1, "battery.100.bolt")], id: \.0) { v, icon in
-                Button { store.save(EventFeeling(id: event.id, title: event.title, value: v)) } label: { Image(systemName: icon).font(.system(size: 13)).foregroundStyle(v < 0 ? Color.warn : v > 0 ? Color.good : Color.soft) }
+                Button { store.save(EventFeeling(id: event.id, title: event.title, value: v)) } label: { Image(systemName: icon).font(.geist(13)).foregroundStyle(v < 0 ? Color.warn : v > 0 ? Color.good : Color.soft) }
                     .buttonStyle(.plain)
             }
         }
@@ -202,7 +202,7 @@ struct EnergyRibbon: View {
         let start = store.profile.wakeMinute, end = store.sleepPlan().perform
         let now = Day.minuteOfDay(store.tick)
         Card(padding: 12) {
-            HStack { Eyebrow(text: "Energy today", icon: "bolt.fill"); Spacer(); Text(store.energy(at: now) > 0.7 ? "peak now" : store.energy(at: now) < 0.4 ? "dip: admin time" : "steady").font(.system(size: 12)).foregroundStyle(Color.soft) }
+            HStack { Eyebrow(text: "Energy today", icon: "bolt.fill"); Spacer(); Text(store.energy(at: now) > 0.7 ? "peak now" : store.energy(at: now) < 0.4 ? "dip: admin time" : "steady").font(.geist(12)).foregroundStyle(Color.soft) }
             GeometryReader { g in
                 let w = g.size.width, h = g.size.height
                 let steps = Array(stride(from: start, through: end, by: 10))
@@ -221,7 +221,7 @@ struct EnergyRibbon: View {
                 }
             }
             .frame(height: 46)
-            HStack { Text(clock(start)); Spacer(); Text("lights out \(clock(end))") }.font(.system(size: 10.5, design: .monospaced)).foregroundStyle(Color.faint)
+            HStack { Text(clock(start)); Spacer(); Text("lights out \(clock(end))") }.font(.mono(10.5)).foregroundStyle(Color.faint)
         }
     }
 }
@@ -239,22 +239,22 @@ struct NowCard: View {
         Card(tint: .mint) {
             if let f = store.activeFocus {
                 Eyebrow(text: "Focusing", icon: "brain.head.profile", color: .mint)
-                Text(f.intention).font(.system(size: 16, weight: .bold))
-                Button("Back to focus") { focusing = true }.font(.system(size: 14, weight: .semibold)).tint(.mint)
+                Text(f.intention).font(.geist(16, .bold))
+                Button("Back to focus") { focusing = true }.font(.geist(14, .semibold)).tint(.mint)
             } else if let c = current {
                 HStack(spacing: 14) {
                     let total = Double((c.end ?? now) - c.minute), done = Double(now - c.minute)
-                    ZStack { Ring(progress: done / max(1, total), area: .mint, width: 6); Text(duration((c.end ?? now) - now)).font(.system(size: 11, weight: .semibold)) }.frame(width: 56, height: 56)
+                    ZStack { Ring(progress: done / max(1, total), area: .mint, width: 6); Text(duration((c.end ?? now) - now)).font(.geist(11, .semibold)) }.frame(width: 56, height: 56)
                     VStack(alignment: .leading, spacing: 3) {
                         Eyebrow(text: "Now", color: .mint)
-                        Text(c.title).font(.system(size: 16, weight: .bold))
-                        if c.block?.type == "deep" || c.block?.type == "admin" { Button("Start focus") { focusing = true }.font(.system(size: 13, weight: .semibold)).tint(.mint) }
+                        Text(c.title).font(.geist(16, .bold))
+                        if c.block?.type == "deep" || c.block?.type == "admin" { Button("Start focus") { focusing = true }.font(.geist(13, .semibold)).tint(.mint) }
                     }
                 }
             } else {
                 Eyebrow(text: "Next", color: .mint)
-                Text(next.map { "\($0.title) at \(clock($0.minute))" } ?? "Nothing fixed: a good time to focus").font(.system(size: 15, weight: .semibold))
-                Button("Start a focus session") { focusing = true }.font(.system(size: 13, weight: .semibold)).tint(.mint)
+                Text(next.map { "\($0.title) at \(clock($0.minute))" } ?? "Nothing fixed: a good time to focus").font(.geist(15, .semibold))
+                Button("Start a focus session") { focusing = true }.font(.geist(13, .semibold)).tint(.mint)
             }
         }
     }

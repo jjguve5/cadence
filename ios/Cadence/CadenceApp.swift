@@ -30,6 +30,7 @@ struct CadenceApp: App {
             RootView()
                 .environmentObject(store)
                 .preferredColorScheme(.dark)
+                .font(.geist(15))
                 .onOpenURL { store.handle($0) }
         }
         .onChange(of: phase) { _, now in

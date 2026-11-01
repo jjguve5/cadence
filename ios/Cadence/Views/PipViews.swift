@@ -45,17 +45,17 @@ struct PipPage: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { tapped = false }
                     }
                 Text("“\(store.pipLine())”")
-                    .font(.system(size: 15)).multilineTextAlignment(.center).foregroundStyle(Color.ink)
+                    .font(.geist(15)).multilineTextAlignment(.center).foregroundStyle(Color.ink)
                     .padding(12).frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: 0xFFF3E3, opacity: 0.1)))
             }
             .frame(maxWidth: .infinity)
 
             Card {
-                HStack { Eyebrow(text: "How Pip feels"); Spacer(); Text(mood.label).font(.system(size: 14, weight: .bold)).foregroundStyle(Color.good) }
+                HStack { Eyebrow(text: "How Pip feels"); Spacer(); Text(mood.label).font(.geist(14, .bold)).foregroundStyle(Color.good) }
                 ForEach(store.pipReasons()) { r in
                     HStack {
-                        Text(r.text).font(.system(size: 14))
+                        Text(r.text).font(.geist(14))
                         Spacer()
                         if let good = r.good { Chip(text: good ? "+" : "−", color: good ? .good : .warn) }
                     }
@@ -65,11 +65,11 @@ struct PipPage: View {
             let open = store.due().filter { store.status($0) == nil }
             if !open.isEmpty {
                 Card {
-                    HStack { Eyebrow(text: "Cheer Pip up today"); Spacer(); Text("+\(open.count * 10) pts").font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.soft) }
+                    HStack { Eyebrow(text: "Cheer Pip up today"); Spacer(); Text("+\(open.count * 10) pts").font(.mono(12)).foregroundStyle(Color.soft) }
                     ForEach(open) { p in
                         HStack {
                             Image(systemName: p.icon).foregroundStyle(Color.soft).frame(width: 20)
-                            Text(p.title).font(.system(size: 14))
+                            Text(p.title).font(.geist(14))
                             Spacer()
                             Chip(text: "+10")
                         }
@@ -81,14 +81,14 @@ struct PipPage: View {
                 HStack {
                     Eyebrow(text: "Level \(level.level) · \(store.totalPoints.formatted()) / \(level.next.formatted()) pts", color: .mint)
                     Spacer()
-                    Text(pipAccessories.first { $0.level > level.level }.map { "Level \($0.level): \($0.name.lowercased())" } ?? "Everything unlocked").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text(pipAccessories.first { $0.level > level.level }.map { "Level \($0.level): \($0.name.lowercased())" } ?? "Everything unlocked").font(.geist(12)).foregroundStyle(Color.soft)
                 }
                 Bar(progress: Double(level.into) / Double(max(1, level.span)), area: .mint)
             }
 
             WardrobePicker()
             Text("Pip's mood always comes from your real day. It never guilt-trips you: on a bad day it gets sleepy or a little sad and names one small thing that would help.")
-                .font(.system(size: 12)).foregroundStyle(Color.faint)
+                .font(.geist(12)).foregroundStyle(Color.faint)
         }
         .navigationTitle("Pip")
         .navigationBarTitleDisplayMode(.inline)

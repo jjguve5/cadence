@@ -24,8 +24,8 @@ struct MoneyView: View {
             wishesSection
             watchSection
             MoneyExtras()
-            NavigationLink { RecapView() } label: { Text("Monthly recap · \(store.noSpendDays()) no-spend days this month").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(hex: 0xFFD166)) }
-            NavigationLink { MoneySetupView() } label: { Text("Bank sync and Apple Pay setup").font(.system(size: 13)).foregroundStyle(Color.soft) }
+            NavigationLink { RecapView() } label: { Text("Monthly recap · \(store.noSpendDays()) no-spend days this month").font(.geist(14, .semibold)).foregroundStyle(Color(hex: 0xFFD166)) }
+            NavigationLink { MoneySetupView() } label: { Text("Bank sync and Apple Pay setup").font(.geist(13)).foregroundStyle(Color.soft) }
         }
         .navigationTitle("Money")
         .navigationBarTitleDisplayMode(.inline)
@@ -50,15 +50,15 @@ struct MoneyView: View {
             Card(tint: Color(hex: 0xFFD166)) {
                 Eyebrow(text: "Safe to spend", icon: "eurosign.circle.fill", color: Color(hex: 0xFFD166))
                 HStack(alignment: .firstTextBaseline) {
-                    Text(euro(m.safePerDay)).font(.system(size: 34, weight: .bold))
-                    Text("a day · \(m.daysLeft) days left").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    Text(euro(m.safePerDay)).font(.geist(34, .bold))
+                    Text("a day · \(m.daysLeft) days left").font(.geist(13)).foregroundStyle(Color.soft)
                 }
                 row("Income this month", euro(m.income))
                 row("Fixed outs", "−" + euro(m.fixed))
                 row("Into goals", "−" + euro(m.goals))
                 row("Spent so far", "−" + euro(m.spent))
                 row("On track to save", euro(m.projectedSaving), color: m.projectedSaving >= m.goals ? .good : .warn)
-                if m.income == 0 { Text("Add your salary and fixed outs below to see this properly.").font(.system(size: 12)).foregroundStyle(Color.soft) }
+                if m.income == 0 { Text("Add your salary and fixed outs below to see this properly.").font(.geist(12)).foregroundStyle(Color.soft) }
             }
         }
     }
@@ -70,7 +70,7 @@ struct MoneyView: View {
                 NavigationLink { ReviewInbox() } label: {
                     Card(tint: .warn) {
                         HStack { Eyebrow(text: "Review inbox", icon: "tray.full.fill", color: .warn); Spacer(); Chip(text: "\(inbox.count)", color: .warn) }
-                        Text(inbox.prefix(3).map { "\($0.merchant) \(euro(-$0.amount, decimals: true))" }.joined(separator: " · ")).font(.system(size: 13)).lineLimit(2)
+                        Text(inbox.prefix(3).map { "\($0.merchant) \(euro(-$0.amount, decimals: true))" }.joined(separator: " · ")).font(.geist(13)).lineLimit(2)
                     }
                 }
                 .buttonStyle(.plain)
@@ -97,17 +97,17 @@ struct MoneyView: View {
                     Button { editingRecurring = r } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 1) {
-                                Text(r.title).font(.system(size: 14, weight: .medium))
-                                Text((r.everyWeeks > 0 ? "every \(r.everyWeeks) weeks" : r.everyMonths == 1 ? "monthly" : "every \(r.everyMonths) months") + " · next \(Day.date(r.occurrences(from: Day.today, to: Day.add(400, to: Day.today)).first ?? r.next).formatted(.dateTime.day().month()))").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                                Text(r.title).font(.geist(14, .medium))
+                                Text((r.everyWeeks > 0 ? "every \(r.everyWeeks) weeks" : r.everyMonths == 1 ? "monthly" : "every \(r.everyMonths) months") + " · next \(Day.date(r.occurrences(from: Day.today, to: Day.add(400, to: Day.today)).first ?? r.next).formatted(.dateTime.day().month()))").font(.geist(11.5)).foregroundStyle(Color.faint)
                             }
                             Spacer()
-                            Text((r.amount > 0 ? "+" : "") + euro(r.amount, decimals: true)).font(.system(size: 13.5, weight: .semibold, design: .monospaced)).foregroundStyle(r.amount > 0 ? Color.good : Color.ink)
+                            Text((r.amount > 0 ? "+" : "") + euro(r.amount, decimals: true)).font(.mono(13.5, .semibold)).foregroundStyle(r.amount > 0 ? Color.good : Color.ink)
                         }
                     }
                     .buttonStyle(.plain)
                 }
                 ForEach(store.upcomingRenewals.filter { Day.between(Day.today, $0.1) <= $0.0.remindDays && $0.0.amount < 0 }, id: \.0.id) { r, d in
-                    Text("\(r.title) renews \(Day.date(d).formatted(.dateTime.weekday(.wide)))" + (r.cancelBy.map { ": cancel by \(Day.date($0).formatted(.dateTime.day().month())) if you don't need it" } ?? "")).font(.system(size: 12)).foregroundStyle(Color.warn)
+                    Text("\(r.title) renews \(Day.date(d).formatted(.dateTime.weekday(.wide)))" + (r.cancelBy.map { ": cancel by \(Day.date($0).formatted(.dateTime.day().month())) if you don't need it" } ?? "")).font(.geist(12)).foregroundStyle(Color.warn)
                 }
             }
         }
@@ -120,14 +120,14 @@ struct MoneyView: View {
                 ForEach(store.all(Wallet.self)) { w in
                     Button { editingWallet = w } label: {
                         HStack {
-                            VStack(alignment: .leading, spacing: 1) { Text(w.name).font(.system(size: 14, weight: .medium)); Text("for \(w.spendsOn.lowercased())" + (w.useBy.map { " · use by \(Day.date($0).formatted(.dateTime.day().month()))" } ?? "")).font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                            VStack(alignment: .leading, spacing: 1) { Text(w.name).font(.geist(14, .medium)); Text("for \(w.spendsOn.lowercased())" + (w.useBy.map { " · use by \(Day.date($0).formatted(.dateTime.day().month()))" } ?? "")).font(.geist(11.5)).foregroundStyle(Color.faint) }
                             Spacer()
-                            Text(euro(w.balance, decimals: true)).font(.system(size: 14, weight: .semibold, design: .monospaced))
+                            Text(euro(w.balance, decimals: true)).font(.mono(14, .semibold))
                         }
                     }
                     .buttonStyle(.plain)
                 }
-                if store.all(Wallet.self).contains(where: { $0.balance > 0 }) { Text("Spend these first: groceries and meals from the meal card keep your own money for goals.").font(.system(size: 12)).foregroundStyle(Color.soft) }
+                if store.all(Wallet.self).contains(where: { $0.balance > 0 }) { Text("Spend these first: groceries and meals from the meal card keep your own money for goals.").font(.geist(12)).foregroundStyle(Color.soft) }
             }
         }
     }
@@ -139,9 +139,9 @@ struct MoneyView: View {
                 ForEach(store.all(SavingsGoal.self)) { g in
                     Button { editingGoal = g } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            HStack { Text("\(g.title) · \(euro(g.price))").font(.system(size: 14, weight: .medium)); Spacer(); Text("\(euro(g.saved))" + (g.by.map { " · \(Day.date($0).formatted(.dateTime.month(.abbreviated)))" } ?? "")).font(.system(size: 12, design: .monospaced)).foregroundStyle(Color.soft) }
+                            HStack { Text("\(g.title) · \(euro(g.price))").font(.geist(14, .medium)); Spacer(); Text("\(euro(g.saved))" + (g.by.map { " · \(Day.date($0).formatted(.dateTime.month(.abbreviated)))" } ?? "")).font(.mono(12)).foregroundStyle(Color.soft) }
                             Bar(progress: g.saved / max(1, g.price), area: .mint)
-                            if let by = g.by, g.saved < g.price { Text("\(euro((g.price - g.saved) / Double(max(1, Day.between(Day.today, by) / 30)))) a month gets you there").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                            if let by = g.by, g.saved < g.price { Text("\(euro((g.price - g.saved) / Double(max(1, Day.between(Day.today, by) / 30)))) a month gets you there").font(.geist(11.5)).foregroundStyle(Color.faint) }
                         }
                     }
                     .buttonStyle(.plain)
@@ -161,7 +161,7 @@ struct MoneyView: View {
                 }
                 ForEach(store.all(WishItem.self).filter { $0.decision == nil }) { WishRow(item: $0) }
                 let skipped = store.all(WishItem.self).filter { $0.decision == "skipped" }.map(\.price).reduce(0, +)
-                if skipped > 0 { Text("Skipped after waiting: \(euro(skipped)) kept").font(.system(size: 12)).foregroundStyle(Color.good) }
+                if skipped > 0 { Text("Skipped after waiting: \(euro(skipped)) kept").font(.geist(12)).foregroundStyle(Color.good) }
             }
         }
     }
@@ -172,14 +172,14 @@ struct MoneyView: View {
             if !watch.isEmpty {
                 Card(tint: .warn) {
                     Eyebrow(text: "Subscription watch", icon: "eye.fill", color: .warn)
-                    ForEach(watch, id: \.self) { Text($0).font(.system(size: 13)) }
+                    ForEach(watch, id: \.self) { Text($0).font(.geist(13)) }
                 }
             }
         }
     }
 
     private func row(_ name: String, _ value: String, color: Color = .ink) -> some View {
-        HStack { Text(name).font(.system(size: 13.5)).foregroundStyle(Color.soft); Spacer(); Text(value).font(.system(size: 13.5, weight: .semibold, design: .monospaced)).foregroundStyle(color) }
+        HStack { Text(name).font(.geist(13.5)).foregroundStyle(Color.soft); Spacer(); Text(value).font(.mono(13.5, .semibold)).foregroundStyle(color) }
     }
 }
 
@@ -188,13 +188,13 @@ struct WishRow: View {
     var item: WishItem
     var body: some View {
         HStack {
-            Text("\(item.title) · \(euro(item.price))").font(.system(size: 13.5))
+            Text("\(item.title) · \(euro(item.price))").font(.geist(13.5))
             Spacer()
             if item.ready {
                 Button("Skip") { decide("skipped") }.tint(Color.good)
                 Button("Buy") { decide("bought") }.tint(Color.soft)
             } else {
-                Text("wait \(item.hoursLeft) h").font(.system(size: 12)).foregroundStyle(Color.faint)
+                Text("wait \(item.hoursLeft) h").font(.geist(12)).foregroundStyle(Color.faint)
             }
         }
     }
@@ -248,13 +248,13 @@ struct RecapView: View {
             .tint(Color(hex: 0xFFD166))
             Card {
                 Eyebrow(text: "Spent")
-                Text(euro(r.total)).font(.system(size: 30, weight: .bold))
-                ForEach(r.top, id: \.0) { c, v in HStack { Text(c).font(.system(size: 14)); Spacer(); Text(euro(v)).font(.system(size: 14, design: .monospaced)) } }
+                Text(euro(r.total)).font(.geist(30, .bold))
+                ForEach(r.top, id: \.0) { c, v in HStack { Text(c).font(.geist(14)); Spacer(); Text(euro(v)).font(.mono(14)) } }
             }
             Card {
                 Eyebrow(text: "Against your 3-month average")
-                ForEach(r.vsAverage, id: \.0) { c, d in HStack { Text(c).font(.system(size: 14)); Spacer(); Text((d > 0 ? "+" : "") + euro(d)).font(.system(size: 14, design: .monospaced)).foregroundStyle(d > 0 ? Color.warn : Color.good) } }
-                if let biggest = r.vsAverage.first(where: { $0.1 > 20 }) { Text("The one lever: \(biggest.0.lowercased()) is \(euro(biggest.1)) above usual.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                ForEach(r.vsAverage, id: \.0) { c, d in HStack { Text(c).font(.geist(14)); Spacer(); Text((d > 0 ? "+" : "") + euro(d)).font(.mono(14)).foregroundStyle(d > 0 ? Color.warn : Color.good) } }
+                if let biggest = r.vsAverage.first(where: { $0.1 > 20 }) { Text("The one lever: \(biggest.0.lowercased()) is \(euro(biggest.1)) above usual.").font(.geist(13)).foregroundStyle(Color.soft) }
             }
         }
         .navigationTitle("Recap")

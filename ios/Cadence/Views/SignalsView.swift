@@ -66,7 +66,7 @@ struct SignalsView: View {
                 row("Skin temperature", latest.first { $0.temp != nil }?.temp.map { String(format: "%+.1f° vs baseline", $0) })
                 if illness.count >= 2 {
                     Text("Several signs are off together (\(illness.joined(separator: ", "))). In Fitbit's research this pattern often comes 1–2 days before feeling sick: take it easy today.")
-                        .font(.system(size: 12.5)).foregroundStyle(Color.warn)
+                        .font(.geist(12.5)).foregroundStyle(Color.warn)
                 }
             }
             IntradayCard()
@@ -75,22 +75,22 @@ struct SignalsView: View {
                 Eyebrow(text: "Sleep regularity", icon: "clock.arrow.circlepath", color: .sleep)
                 if let sri = store.sleepRegularity() {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(sri)").font(.system(size: 30, weight: .bold))
-                        Text("/ 100 · last 14 nights").font(.system(size: 12)).foregroundStyle(Color.soft)
+                        Text("\(sri)").font(.geist(30, .bold))
+                        Text("/ 100 · last 14 nights").font(.geist(12)).foregroundStyle(Color.soft)
                     }
                     Bar(progress: Double(sri) / 100, area: .sleep)
                     Text(sri >= 80 ? "Very regular. In 60,977 UK Biobank adults, regular sleepers lived longer than irregular ones, more than sleep length predicted." : "Going to bed and waking at the same times matters more than total hours. Aim for the same lights-out within 30 minutes.")
-                        .font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                        .font(.geist(12.5)).foregroundStyle(Color.soft)
                 } else {
-                    Text("Needs a few nights of sleep data.").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    Text("Needs a few nights of sleep data.").font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
             Card {
-                HStack { Eyebrow(text: "Monthly · Google Health trends"); Spacer(); Text(Day.date(Day.today).formatted(.dateTime.month(.wide))).font(.system(size: 12)).foregroundStyle(Color.soft) }
+                HStack { Eyebrow(text: "Monthly · Google Health trends"); Spacer(); Text(Day.date(Day.today).formatted(.dateTime.month(.wide))).font(.geist(12)).foregroundStyle(Color.soft) }
                 trendPicker("Insulin resistance trend", ["low", "may be elevated", "elevated"], trend.insulin) { var t = trend; t.insulin = $0; store.put("trend", month, JSONValue.from(t)) }
                 trendPicker("Blood pressure trend", ["not elevated", "may be elevated", "elevated"], trend.bloodPressure) { var t = trend; t.bloodPressure = $0; store.put("trend", month, JSONValue.from(t)) }
                 Text("Google's own models, not in the API: log the result when the monthly report arrives. If one says elevated, a week of cuff readings tells you more.")
-                    .font(.system(size: 12)).foregroundStyle(Color.faint)
+                    .font(.geist(12)).foregroundStyle(Color.faint)
             }
             HealthRecordsCard()
             Card(tint: .fuel) {
@@ -101,7 +101,7 @@ struct SignalsView: View {
                 let late = week.compactMap(\.sleep).filter { Day.minuteOfDay($0.startDate) < 12 * 60 && Day.minuteOfDay($0.startDate) > 60 }.count
                 row("Asleep after 1:00", "\(late) of \(week.compactMap(\.sleep).count) nights")
                 if let rhr = store.baseline({ $0.rhr }) { row("Resting HR, 14-day", "\(Int(rhr.mean)) bpm") }
-                Text("Resting heart rate, steps and sleep were the top wearable predictors in Google's WEAR-ME insulin study.").font(.system(size: 12)).foregroundStyle(Color.faint)
+                Text("Resting heart rate, steps and sleep were the top wearable predictors in Google's WEAR-ME insulin study.").font(.geist(12)).foregroundStyle(Color.faint)
             }
         }
         .navigationTitle("Health signals")
@@ -109,12 +109,12 @@ struct SignalsView: View {
     }
 
     private func row(_ name: String, _ value: String?) -> some View {
-        HStack { Text(name).font(.system(size: 14)); Spacer(); Text(value ?? "–").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.ink) }
+        HStack { Text(name).font(.geist(14)); Spacer(); Text(value ?? "–").font(.geist(14, .semibold)).foregroundStyle(Color.ink) }
     }
 
     private func trendPicker(_ name: String, _ options: [String], _ value: String?, set: @escaping (String?) -> Void) -> some View {
         HStack {
-            Text(name).font(.system(size: 14))
+            Text(name).font(.geist(14))
             Spacer()
             Menu {
                 ForEach(options, id: \.self) { o in Button(o) { set(o) } }

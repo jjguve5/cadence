@@ -14,15 +14,15 @@ struct HomeView: View {
                 ForEach(store.all(Chore.self).sorted { $0.freshness < $1.freshness }) { c in
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
-                            HStack { Text(c.title).font(.system(size: 14)); Spacer(); Text(c.daysSince.map { "\($0) d" } ?? "–").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                            HStack { Text(c.title).font(.geist(14)); Spacer(); Text(c.daysSince.map { "\($0) d" } ?? "–").font(.geist(11.5)).foregroundStyle(Color.faint) }
                             Bar(progress: c.freshness, area: c.freshness < 0.2 ? .fuel : .water)
                         }
-                        Button { var x = c; x.history.append(Day.today); store.save(x) } label: { Image(systemName: "checkmark.circle").font(.system(size: 20)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
+                        Button { var x = c; x.history.append(Day.today); store.save(x) } label: { Image(systemName: "checkmark.circle").font(.geist(20)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
                     }
                     .onLongPressGesture { editingChore = c }
                 }
                 if (store.readiness()?.score ?? 70) < 50, !store.tidyQueue.isEmpty {
-                    Text("Low-energy day: just the 10-minute tidy queue: \(store.tidyQueue.map(\.title).joined(separator: ", ")).").font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                    Text("Low-energy day: just the 10-minute tidy queue: \(store.tidyQueue.map(\.title).joined(separator: ", ")).").font(.geist(12.5)).foregroundStyle(Color.soft)
                 }
             }
             Card(tint: .good) {
@@ -31,10 +31,10 @@ struct HomeView: View {
                     let due = store.plantDue(p)
                     HStack {
                         Image(systemName: p.outdoor ? "sun.max" : "house").foregroundStyle(Color.soft).frame(width: 20)
-                        Text(p.name).font(.system(size: 14))
+                        Text(p.name).font(.geist(14))
                         Spacer()
-                        Text(due.note).font(.system(size: 12)).foregroundStyle(due.due ? Color.warn : Color.faint)
-                        Button { var x = p; x.watered = Day.today; store.save(x) } label: { Image(systemName: "drop.circle").font(.system(size: 20)).foregroundStyle(Color.water) }.buttonStyle(.plain)
+                        Text(due.note).font(.geist(12)).foregroundStyle(due.due ? Color.warn : Color.faint)
+                        Button { var x = p; x.watered = Day.today; store.save(x) } label: { Image(systemName: "drop.circle").font(.geist(20)).foregroundStyle(Color.water) }.buttonStyle(.plain)
                     }
                     .onLongPressGesture { editingPlant = p }
                 }
@@ -44,7 +44,7 @@ struct HomeView: View {
                 ForEach(store.all(DocumentItem.self).sorted { $0.expires < $1.expires }) { d in
                     Button { editingDoc = d } label: {
                         HStack {
-                            Text(d.title).font(.system(size: 14))
+                            Text(d.title).font(.geist(14))
                             Spacer()
                             let days = Day.between(Day.today, d.expires)
                             Chip(text: days < 0 ? "expired" : "\(Day.date(d.expires).formatted(.dateTime.day().month().year()))", color: days <= d.leadDays ? .warn : .soft)
@@ -52,7 +52,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                ForEach(store.documentWarnings(), id: \.self) { Text($0).font(.system(size: 12)).foregroundStyle(Color.warn) }
+                ForEach(store.documentWarnings(), id: \.self) { Text($0).font(.geist(12)).foregroundStyle(Color.warn) }
             }
         }
         .navigationTitle("Home")
@@ -145,11 +145,11 @@ struct PeopleView: View {
                     Eyebrow(text: "Birthdays soon", icon: "gift.fill", color: Color(hex: 0xFF9FBF))
                     ForEach(soon, id: \.name) { b in
                         HStack {
-                            Text(b.name).font(.system(size: 14, weight: .medium))
+                            Text(b.name).font(.geist(14, .medium))
                             Spacer()
-                            Text(Day.date(b.date).formatted(.dateTime.weekday(.abbreviated).day().month())).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                            Text(Day.date(b.date).formatted(.dateTime.weekday(.abbreviated).day().month())).font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
-                        if let gifts = b.person?.gifts, !gifts.isEmpty { Text("Ideas: " + gifts.joined(separator: ", ")).font(.system(size: 12)).foregroundStyle(Color.soft) }
+                        if let gifts = b.person?.gifts, !gifts.isEmpty { Text("Ideas: " + gifts.joined(separator: ", ")).font(.geist(12)).foregroundStyle(Color.soft) }
                     }
                 }
             }
@@ -159,9 +159,9 @@ struct PeopleView: View {
                     Eyebrow(text: "It's been a while", icon: "bubble.left.and.bubble.right.fill")
                     ForEach(due) { p in
                         HStack {
-                            Text(p.name).font(.system(size: 14))
+                            Text(p.name).font(.geist(14))
                             Spacer()
-                            Button("Talked today") { var x = p; x.lastContact = Day.today; store.save(x) }.font(.system(size: 12.5, weight: .semibold)).tint(Color(hex: 0xFF9FBF))
+                            Button("Talked today") { var x = p; x.lastContact = Day.today; store.save(x) }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF))
                         }
                     }
                 }
@@ -171,14 +171,14 @@ struct PeopleView: View {
                 ForEach(store.all(Person.self).sorted { $0.name < $1.name }) { p in
                     Button { editing = p } label: {
                         HStack {
-                            Text(p.name).font(.system(size: 14))
+                            Text(p.name).font(.geist(14))
                             Spacer()
-                            if p.keepInTouch { Text("every \(p.everyWeeks) wk").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                            if p.keepInTouch { Text("every \(p.everyWeeks) wk").font(.geist(11.5)).foregroundStyle(Color.faint) }
                         }
                     }
                     .buttonStyle(.plain)
                 }
-                Text("Keep in touch is off unless you set it up for a person. Mentioning someone in a day's note counts as contact.").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                Text("Keep in touch is off unless you set it up for a person. Mentioning someone in a day's note counts as contact.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
         }
         .navigationTitle("People")
@@ -234,15 +234,15 @@ struct LearningView: View {
             Card(tint: Color(hex: 0x9BE27F)) {
                 Eyebrow(text: "Review · \(due.count) due", icon: "rectangle.stack.fill", color: Color(hex: 0x9BE27F))
                 if let c = due.first {
-                    Text(c.front).font(.system(size: 17, weight: .semibold))
+                    Text(c.front).font(.geist(17, .semibold))
                     if showBack {
-                        Text(c.back).font(.system(size: 15)).foregroundStyle(Color.soft)
+                        Text(c.back).font(.geist(15)).foregroundStyle(Color.soft)
                         HStack {
                             ForEach([(1, "Again"), (2, "Hard"), (3, "Good"), (4, "Easy")], id: \.0) { g, name in SoftButton(title: name) { store.review(c, grade: g); showBack = false } }
                         }
                     } else { SoftButton(title: "Show answer") { showBack = true } }
-                } else { Text("Nothing due. Spaced repetition brings each card back just before you'd forget it.").font(.system(size: 13)).foregroundStyle(Color.soft) }
-                if (store.readiness()?.score ?? 70) < 50 { Text("Low readiness: a lighter set today.").font(.system(size: 11.5)).foregroundStyle(Color.faint) }
+                } else { Text("Nothing due. Spaced repetition brings each card back just before you'd forget it.").font(.geist(13)).foregroundStyle(Color.soft) }
+                if (store.readiness()?.score ?? 70) < 50 { Text("Low readiness: a lighter set today.").font(.geist(11.5)).foregroundStyle(Color.faint) }
             }
             Card {
                 Eyebrow(text: "New card", icon: "plus.rectangle")
@@ -256,7 +256,7 @@ struct LearningView: View {
                 SoftButton(title: "Log") { store.save(SkillLog(skill: skill, minutes: minutes)); skill = "" }
                 let week = store.all(SkillLog.self).filter { Day.between($0.date, Day.today) < 7 }
                 ForEach(Dictionary(grouping: week, by: \.skill).sorted { $0.key < $1.key }, id: \.key) { s, logs in
-                    HStack { Text(s).font(.system(size: 14)); Spacer(); Text("\(logs.map(\.minutes).reduce(0, +)) min this week").font(.system(size: 12.5)).foregroundStyle(Color.soft) }
+                    HStack { Text(s).font(.geist(14)); Spacer(); Text("\(logs.map(\.minutes).reduce(0, +)) min this week").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 }
             }
         }

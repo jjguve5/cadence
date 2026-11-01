@@ -33,6 +33,7 @@ targets:
         BGTaskSchedulerPermittedIdentifiers: [com.jjguve5.cadence.refresh]
         NSSupportsLiveActivities: true
         LSApplicationQueriesSchemes: [fitbit]
+        UIAppFonts: [Geist-Regular.ttf, Geist-Medium.ttf, Geist-SemiBold.ttf, Geist-Bold.ttf, GeistMono-Regular.ttf, GeistMono-Medium.ttf, InstrumentSerif-Regular.ttf, InstrumentSerif-Italic.ttf]
         NSCameraUsageDescription: Scan food barcodes and receipt QR codes to log them.
         NSLocationWhenInUseUsageDescription: Live travel time for leave-by alerts and the weather where you are.
     settings:

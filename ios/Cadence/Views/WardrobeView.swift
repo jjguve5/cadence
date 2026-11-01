@@ -12,21 +12,21 @@ struct WeatherCard: View {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 3) {
                             Eyebrow(text: w.place, icon: call.umbrella ? "cloud.rain.fill" : "sun.max.fill", color: .water)
-                            Text(call.umbrella ? "Take the umbrella" : "No umbrella").font(.system(size: 17, weight: .bold))
-                            Text(call.summary).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                            Text(call.umbrella ? "Take the umbrella" : "No umbrella").font(.geist(17, .bold))
+                            Text(call.summary).font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
                         VStack(alignment: .trailing) {
-                            Text("\(Int(w.high.rounded()))°").font(.system(size: 26, weight: .bold))
-                            Text("low \(Int(w.low.rounded()))°").font(.system(size: 11.5)).foregroundStyle(Color.soft)
+                            Text("\(Int(w.high.rounded()))°").font(.geist(26, .bold))
+                            Text("low \(Int(w.low.rounded()))°").font(.geist(11.5)).foregroundStyle(Color.soft)
                         }
                     }
-                    if call.uvPeak >= 3, let h = call.uvHours { Text("UV \(Int(call.uvPeak)) from \(h): sunscreen before you go, reapply after 2 hours outside.").font(.system(size: 12)).foregroundStyle(Color.fuel) }
-                    if let a = call.airNote { Text(a).font(.system(size: 12)).foregroundStyle(Color.warn) }
+                    if call.uvPeak >= 3, let h = call.uvHours { Text("UV \(Int(call.uvPeak)) from \(h): sunscreen before you go, reapply after 2 hours outside.").font(.geist(12)).foregroundStyle(Color.fuel) }
+                    if let a = call.airNote { Text(a).font(.geist(12)).foregroundStyle(Color.warn) }
                     HStack {
-                        Text("Sunrise \(clock(w.sunrise)) · daylight in the first hour helps tonight's sleep").font(.system(size: 11.5)).foregroundStyle(Color.faint)
+                        Text("Sunrise \(clock(w.sunrise)) · daylight in the first hour helps tonight's sleep").font(.geist(11.5)).foregroundStyle(Color.faint)
                         Spacer()
-                        Button("I was outside") { store.put("outside", "\(Day.today)-\(Day.minuteOfDay())", .bool(true)) }.font(.system(size: 11.5, weight: .semibold)).tint(.water)
+                        Button("I was outside") { store.put("outside", "\(Day.today)-\(Day.minuteOfDay())", .bool(true)) }.font(.geist(11.5, .semibold)).tint(.water)
                     }
                 }
             }
@@ -47,12 +47,12 @@ struct WardrobeView: View {
             WeatherCard()
             Card {
                 HStack { Eyebrow(text: "Wear today · \(store.weatherCall()?.layers ?? 2) layers", icon: "tshirt.fill"); Spacer() }
-                if outfit.isEmpty { Text("Add some clothes and Cadence matches them to the weather and your day.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                if outfit.isEmpty { Text("Add some clothes and Cadence matches them to the weather and your day.").font(.geist(13)).foregroundStyle(Color.soft) }
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                     ForEach(outfit) { g in
                         VStack(spacing: 4) {
                             GarmentImage(garment: g).frame(height: 70)
-                            Text(g.name).font(.system(size: 10.5)).lineLimit(1).foregroundStyle(Color.soft)
+                            Text(g.name).font(.geist(10.5)).lineLimit(1).foregroundStyle(Color.soft)
                         }
                         .contextMenu { Button("Swap", systemImage: "arrow.triangle.2.circlepath") { store.swap(g) } }
                     }
@@ -60,51 +60,51 @@ struct WardrobeView: View {
                 if !outfit.isEmpty, store.record(OutfitLog.self, Day.today)?.worn != true {
                     HStack {
                         SoftButton(title: "Wearing this", icon: "checkmark") { store.wear(outfit) }
-                        Text("Long-press a piece to swap it").font(.system(size: 11)).foregroundStyle(Color.faint)
+                        Text("Long-press a piece to swap it").font(.geist(11)).foregroundStyle(Color.faint)
                     }
                 }
                 if store.weatherCall()?.umbrella == true, let white = store.garments.first(where: { $0.type == "shoes" && !$0.rainproof && $0.colors.contains(where: { $0.uppercased() == "FFFFFF" }) }) {
-                    Text("\(white.name) stay home: rain.").font(.system(size: 12)).foregroundStyle(Color.soft)
+                    Text("\(white.name) stay home: rain.").font(.geist(12)).foregroundStyle(Color.soft)
                 }
             }
             if gym.needed {
                 Card(tint: .train) {
                     Eyebrow(text: "Gym bag", icon: "bag.fill", color: .train)
-                    Text(gym.clean.isEmpty ? "No clean gym kit: wash a gym load today." : gym.clean.prefix(3).map(\.name).joined(separator: ", ")).font(.system(size: 14))
+                    Text(gym.clean.isEmpty ? "No clean gym kit: wash a gym load today." : gym.clean.prefix(3).map(\.name).joined(separator: ", ")).font(.geist(14))
                 }
             }
             Card(tint: .water) {
                 Eyebrow(text: "Laundry", icon: "washer.fill", color: .water)
                 let loads = store.laundryLoads()
-                if loads.isEmpty { Text("Nothing waiting to be washed.").font(.system(size: 13)).foregroundStyle(Color.soft) }
+                if loads.isEmpty { Text("Nothing waiting to be washed.").font(.geist(13)).foregroundStyle(Color.soft) }
                 ForEach(loads, id: \.group) { load in
                     HStack {
                         VStack(alignment: .leading) {
-                            Text("\(load.group.capitalized) · \(load.items.count) items").font(.system(size: 14, weight: .medium))
+                            Text("\(load.group.capitalized) · \(load.items.count) items").font(.geist(14, .medium))
                             Bar(progress: Double(load.items.count) / 11, area: .water)
                         }
                         Spacer()
-                        if load.full { SoftButton(title: "Washed") { store.washed(load.group) } } else { Text("\(load.items.count) of 11").font(.system(size: 12)).foregroundStyle(Color.faint) }
+                        if load.full { SoftButton(title: "Washed") { store.washed(load.group) } } else { Text("\(load.items.count) of 11").font(.geist(12)).foregroundStyle(Color.faint) }
                     }
                 }
                 let drying = store.garments.filter { $0.state == "drying" }
                 if !drying.isEmpty {
-                    HStack { Text("\(drying.count) drying").font(.system(size: 13)); Spacer(); SoftButton(title: "Put away") { store.putAway() } }
+                    HStack { Text("\(drying.count) drying").font(.geist(13)); Spacer(); SoftButton(title: "Put away") { store.putAway() } }
                 }
             }
             Card {
-                HStack { Eyebrow(text: "All clothes · \(store.garments.count)", icon: "square.grid.2x2"); Spacer(); Button { adding = true } label: { Label("Add", systemImage: "plus").font(.system(size: 13, weight: .semibold)) }.tint(Color(hex: 0x7FB8FF)) }
+                HStack { Eyebrow(text: "All clothes · \(store.garments.count)", icon: "square.grid.2x2"); Spacer(); Button { adding = true } label: { Label("Add", systemImage: "plus").font(.geist(13, .semibold)) }.tint(Color(hex: 0x7FB8FF)) }
                 ForEach(garmentTypes.sorted { $0.value < $1.value }, id: \.key) { type, name in
                     let items = store.garments.filter { $0.type == type }
                     if !items.isEmpty {
-                        Text(name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.soft)
+                        Text(name).font(.geist(12, .semibold)).foregroundStyle(Color.soft)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack {
                                 ForEach(items) { g in
                                     Button { editing = g } label: {
                                         VStack(spacing: 2) {
                                             GarmentImage(garment: g).frame(width: 64, height: 64)
-                                            Text(g.state).font(.system(size: 9.5)).foregroundStyle(g.state == "clean" ? Color.good : Color.faint)
+                                            Text(g.state).font(.geist(9.5)).foregroundStyle(g.state == "clean" ? Color.good : Color.faint)
                                         }
                                     }
                                     .buttonStyle(.plain)

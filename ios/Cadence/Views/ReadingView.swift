@@ -14,45 +14,45 @@ struct BooksView: View {
                     HStack(spacing: 14) {
                         BookCover(book: b).frame(width: 70, height: 100)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(b.title).font(.system(size: 17, weight: .bold))
-                            if !b.author.isEmpty { Text(b.author).font(.system(size: 13)).foregroundStyle(Color.soft) }
+                            Text(b.title).font(.geist(17, .bold))
+                            if !b.author.isEmpty { Text(b.author).font(.geist(13)).foregroundStyle(Color.soft) }
                             Bar(progress: Double(b.page) / Double(max(1, b.pages)), area: .read)
                             let pace = store.readingPace(b)
-                            Text("p. \(b.page) of \(b.pages)" + (pace.finish.map { " · done by \(Day.date($0).formatted(.dateTime.day().month()))" } ?? "")).font(.system(size: 12)).foregroundStyle(Color.soft)
+                            Text("p. \(b.page) of \(b.pages)" + (pace.finish.map { " · done by \(Day.date($0).formatted(.dateTime.day().month()))" } ?? "")).font(.geist(12)).foregroundStyle(Color.soft)
                         }
                     }
                     PrimaryButton(title: "▶  Read now", area: .read) { reading = true }
                 }
             }
             Card {
-                HStack { Eyebrow(text: "Books", icon: "books.vertical.fill"); Spacer(); Button { editing = Book(title: "") } label: { Label("Add", systemImage: "plus").font(.system(size: 13, weight: .semibold)) }.tint(.read) }
+                HStack { Eyebrow(text: "Books", icon: "books.vertical.fill"); Spacer(); Button { editing = Book(title: "") } label: { Label("Add", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.read) }
                 ForEach(store.all(Book.self).sorted { ($0.finished ?? "9") > ($1.finished ?? "9") }) { b in
                     Button { editing = b } label: {
                         HStack {
                             BookCover(book: b).frame(width: 26, height: 38)
-                            VStack(alignment: .leading) { Text(b.title).font(.system(size: 14, weight: .semibold)); Text(b.finished.map { "finished \(Day.date($0).formatted(.dateTime.day().month().year()))" } ?? "p. \(b.page) / \(b.pages)").font(.system(size: 11.5)).foregroundStyle(Color.soft) }
+                            VStack(alignment: .leading) { Text(b.title).font(.geist(14, .semibold)); Text(b.finished.map { "finished \(Day.date($0).formatted(.dateTime.day().month().year()))" } ?? "p. \(b.page) / \(b.pages)").font(.geist(11.5)).foregroundStyle(Color.soft) }
                             Spacer()
                         }
                     }
                     .buttonStyle(.plain)
                 }
                 let year = String(Day.today.prefix(4))
-                Text("\(store.all(Book.self).filter { $0.finished?.hasPrefix(year) ?? false }.count) finished in \(year)").font(.system(size: 12)).foregroundStyle(Color.faint)
+                Text("\(store.all(Book.self).filter { $0.finished?.hasPrefix(year) ?? false }.count) finished in \(year)").font(.geist(12)).foregroundStyle(Color.faint)
             }
             let quotes = store.all(ReadingSession.self).filter { $0.quote != nil }.sorted { $0.start > $1.start }.prefix(5)
             if !quotes.isEmpty {
                 Card {
                     Eyebrow(text: "Quotes", icon: "quote.opening")
-                    ForEach(Array(quotes)) { q in Text("“\(q.quote!)”").font(.system(size: 14, design: .serif)).italic() }
+                    ForEach(Array(quotes)) { q in Text("“\(q.quote!)”").font(.serif(14)).italic() }
                 }
             }
             if let rs = store.readingAndSleep() {
                 Card(tint: .sleep) {
                     Eyebrow(text: "Reading and sleep", icon: "moon.stars", color: .sleep)
-                    Text("After evenings with 15+ minutes of reading you slept \(duration(rs.with)), against \(duration(rs.without)) without (\(rs.nights) nights). Pattern, not proof.").font(.system(size: 13))
+                    Text("After evenings with 15+ minutes of reading you slept \(duration(rs.with)), against \(duration(rs.without)) without (\(rs.nights) nights). Pattern, not proof.").font(.geist(13))
                 }
             }
-            NavigationLink { ProjectsView() } label: { Text("Projects and deadlines").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.mint) }
+            NavigationLink { ProjectsView() } label: { Text("Projects and deadlines").font(.geist(14, .semibold)).foregroundStyle(Color.mint) }
         }
         .navigationTitle("Reading")
         .navigationBarTitleDisplayMode(.inline)
@@ -64,9 +64,21 @@ struct BooksView: View {
 struct BookCover: View {
     var book: Book
     var body: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .fill(LinearGradient(colors: [Color(hue: book.hue, saturation: 0.55, brightness: 0.45), Color(hue: book.hue, saturation: 0.6, brightness: 0.18)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay(Text(book.title).font(.system(size: 8, design: .serif)).foregroundStyle(Color(hex: 0xF1D9A8)).padding(4).minimumScaleFactor(0.5), alignment: .center)
+        GeometryReader { g in
+            ZStack(alignment: .topLeading) {
+                UnevenRoundedRectangle(topLeadingRadius: g.size.width * 0.06, bottomLeadingRadius: g.size.width * 0.06, bottomTrailingRadius: g.size.width * 0.12, topTrailingRadius: g.size.width * 0.12)
+                    .fill(LinearGradient(colors: [Color(hue: book.hue, saturation: 0.55, brightness: 0.38), Color(hue: book.hue, saturation: 0.6, brightness: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                Rectangle().fill(.white.opacity(0.08)).frame(width: max(2, g.size.width * 0.05))
+                VStack(alignment: .leading, spacing: 4) {
+                    Spacer()
+                    Text(book.title).font(.serif(max(7, g.size.width * 0.15))).foregroundStyle(Color(hex: 0xF1D9A8)).lineLimit(4).minimumScaleFactor(0.6)
+                    if !book.author.isEmpty { Text(book.author).font(.geist(max(5, g.size.width * 0.07))).foregroundStyle(Color(hex: 0xF1D9A8, opacity: 0.6)).lineLimit(1) }
+                    Spacer()
+                }
+                .padding(.horizontal, g.size.width * 0.12)
+            }
+            .shadow(color: .black.opacity(0.6), radius: g.size.width * 0.12, y: g.size.width * 0.1)
+        }
     }
 }
 
@@ -108,40 +120,54 @@ struct ReadingMode: View {
     @State private var quote = ""
     @State private var goal = 30
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    private let cream = Color(hex: 0xF6EAD2)
 
     private var elapsed: Double { (paused ?? now).timeIntervalSince(Date(timeIntervalSince1970: session.start / 1000)) - pausedTotal }
 
     var body: some View {
         let book = store.currentBook
         ZStack {
-            RadialGradient(colors: [Color(hex: 0x2B2113), Color(hex: 0x07090E)], center: .top, startRadius: 0, endRadius: 600).ignoresSafeArea()
-            VStack(spacing: 22) {
+            RadialGradient(colors: [Color(hex: 0x2B2113), Color(hex: 0x07090E)], center: UnitPoint(x: 0.5, y: 0.1), startRadius: 0, endRadius: 520).ignoresSafeArea()
+            VStack(spacing: 0) {
                 HStack {
-                    Button("Do Not Disturb") { openURL(URL(string: "shortcuts://run-shortcut?name=Cadence%20Reading")!) }.font(.system(size: 13)).foregroundStyle(Color(hex: 0xF6EAD2, opacity: 0.6))
+                    Button { openURL(URL(string: "shortcuts://run-shortcut?name=Cadence%20Reading")!) } label: {
+                        Text("DO NOT DISTURB · ON").font(.geist(11, .semibold)).tracking(1.1).foregroundStyle(cream.opacity(0.5))
+                    }
                     Spacer()
-                    Button("End") { finishing = true; page = book?.page ?? 0 }.foregroundStyle(Color(hex: 0xF6EAD2, opacity: 0.6))
+                    Button("End") { finishing = true; page = book?.page ?? 0 }.font(.geist(14)).foregroundStyle(cream.opacity(0.55))
                 }
-                Spacer()
-                if let book { BookCover(book: book).frame(width: 110, height: 160).shadow(color: .black.opacity(0.7), radius: 20, y: 14) }
+                .padding(.top, 6)
+                Spacer(minLength: 30)
+                if let book { BookCover(book: book).frame(width: 128, height: 186) }
+                Spacer(minLength: 34)
                 ZStack {
-                    Circle().stroke(Color.white.opacity(0.07), lineWidth: 6)
-                    Circle().trim(from: 0, to: min(1, elapsed / Double(goal * 60))).stroke(LinearGradient(colors: [.read, .read2], startPoint: .top, endPoint: .bottom), style: StrokeStyle(lineWidth: 6, lineCap: .round)).rotationEffect(.degrees(-90))
-                    VStack {
-                        Text(String(format: "%d:%02d", Int(elapsed) / 60, Int(elapsed) % 60)).font(.system(size: 44, weight: .medium, design: .monospaced)).foregroundStyle(Color(hex: 0xF6EAD2))
-                        Text("of \(goal) min" + (book.map { " · p. \($0.page)" } ?? "")).font(.system(size: 13)).foregroundStyle(Color(hex: 0xF6EAD2, opacity: 0.5))
+                    Circle().stroke(Color.white.opacity(0.07), lineWidth: 5)
+                    Circle().trim(from: 0, to: min(1, max(0.002, elapsed / Double(goal * 60))))
+                        .stroke(LinearGradient(colors: [Color(hex: 0xF6D48F), Color(hex: 0xC98B3A)], startPoint: .topLeading, endPoint: .bottomTrailing), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    VStack(spacing: 6) {
+                        Text(String(format: "%d:%02d", Int(elapsed) / 60, Int(elapsed) % 60)).font(.mono(46, .medium)).foregroundStyle(cream)
+                        Text("of \(goal) min" + (book.map { " · p. \($0.page)" } ?? "")).font(.geist(14)).foregroundStyle(cream.opacity(0.5))
                     }
                 }
-                .frame(width: 220, height: 220)
-                Text("Screen dimmed and kept on. Notifications wait.").font(.system(size: 12)).foregroundStyle(Color(hex: 0xF6EAD2, opacity: 0.4))
-                Spacer()
-                HStack {
-                    SoftButton(title: paused == nil ? "Pause" : "Resume") {
+                .frame(width: 236, height: 236)
+                Spacer(minLength: 30)
+                Text("Screen dimmed and kept on. Notifications wait.").font(.geist(13)).foregroundStyle(cream.opacity(0.42))
+                    .padding(.bottom, 14)
+                HStack(spacing: 10) {
+                    readingButton(paused == nil ? "Pause" : "Resume") {
                         if let p = paused { pausedTotal += Date().timeIntervalSince(p); paused = nil } else { paused = Date() }
                     }
-                    SoftButton(title: "Note") { finishing = true; page = book?.page ?? 0 }
+                    readingButton("Note") { finishing = true; page = book?.page ?? 0 }
+                    Button { finishing = true; page = book?.page ?? 0 } label: {
+                        Text("Done").font(.geist(15, .semibold)).foregroundStyle(Color(hex: 0x2B1A05)).frame(maxWidth: .infinity).padding(.vertical, 15)
+                            .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xF6D48F), Color(hex: 0xC98B3A)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                            .shadow(color: Color(hex: 0xC98B3A, opacity: 0.4), radius: 12, y: 5)
+                    }
+                    .buttonStyle(Pressable())
                 }
             }
-            .padding(24)
+            .padding(.horizontal, 22).padding(.bottom, 10)
         }
         .preferredColorScheme(.dark)
         .onReceive(timer) { now = $0 }
@@ -180,6 +206,14 @@ struct ReadingMode: View {
             }
         }
     }
+
+    private func readingButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.geist(15, .semibold)).foregroundStyle(cream).frame(maxWidth: .infinity).padding(.vertical, 15)
+                .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(.white.opacity(0.09)).overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1)))
+        }
+        .buttonStyle(Pressable())
+    }
 }
 
 struct ProjectsView: View {
@@ -194,15 +228,15 @@ struct ProjectsView: View {
                 Button { editing = p } label: {
                     Card(tint: late ? .warn : .mint) {
                         HStack {
-                            Text(p.title).font(.system(size: 17, weight: .bold))
+                            Text(p.title).font(.geist(17, .bold))
                             Spacer()
                             Chip(text: "due \(Day.date(p.deadline).formatted(.dateTime.day().month()))", color: late ? .warn : .good)
                         }
                         Bar(progress: p.done / max(1, p.target), area: .mint)
-                        Text("\(kg(p.done)) of \(kg(p.target)) \(p.unit) · need \(String(format: "%.1f", pace.needed))/day, doing \(String(format: "%.1f", pace.perDay))/day").font(.system(size: 12.5)).foregroundStyle(Color.soft)
-                        if let f = pace.finish { Text(late ? "At this pace: \(Day.date(f).formatted(.dateTime.day().month())), after the deadline. Add deep-work blocks." : "On track: done by \(Day.date(f).formatted(.dateTime.day().month())).").font(.system(size: 12.5)).foregroundStyle(late ? Color.warn : Color.good) }
+                        Text("\(kg(p.done)) of \(kg(p.target)) \(p.unit) · need \(String(format: "%.1f", pace.needed))/day, doing \(String(format: "%.1f", pace.perDay))/day").font(.geist(12.5)).foregroundStyle(Color.soft)
+                        if let f = pace.finish { Text(late ? "At this pace: \(Day.date(f).formatted(.dateTime.day().month())), after the deadline. Add deep-work blocks." : "On track: done by \(Day.date(f).formatted(.dateTime.day().month())).").font(.geist(12.5)).foregroundStyle(late ? Color.warn : Color.good) }
                         ForEach(p.milestones.filter { !$0.done }.prefix(3)) { m in
-                            HStack { Image(systemName: "flag").foregroundStyle(Color.soft); Text(m.title).font(.system(size: 13)); Spacer(); Text(Day.date(m.due).formatted(.dateTime.day().month())).font(.system(size: 12)).foregroundStyle(Color.soft) }
+                            HStack { Image(systemName: "flag").foregroundStyle(Color.soft); Text(m.title).font(.geist(13)); Spacer(); Text(Day.date(m.due).formatted(.dateTime.day().month())).font(.geist(12)).foregroundStyle(Color.soft) }
                         }
                     }
                 }
