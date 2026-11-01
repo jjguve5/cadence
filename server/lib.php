@@ -71,3 +71,29 @@ function http($method, $url, $headers = [], $body = null) {
 function self_url($file) {
 	return 'https://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['SCRIPT_NAME']), '/') . '/' . $file;
 }
+
+// Adds records to the sync store from the server side (Apple Pay entries, bank transactions), so they reach the
+// app like any other change. Records the app already has are never overwritten.
+function store_put($records) {
+	$handle = fopen(data_path('store'), 'c+');
+	if (!$handle) fail(500, 'cannot open the store');
+	flock($handle, LOCK_EX);
+	$store = json_decode(substr(stream_get_contents($handle), strlen(GUARD)), true);
+	if (!is_array($store)) $store = ['rev' => 0, 'records' => []];
+	$added = 0;
+	foreach ($records as [$type, $id, $data]) {
+		if (isset($store['records']["$type:$id"])) continue;
+		$store['rev']++;
+		$store['records']["$type:$id"] = ['type' => $type, 'id' => $id, 'rev' => $store['rev'], 'updated' => (int) (microtime(true) * 1000), 'deleted' => false, 'data' => $data];
+		$added++;
+	}
+	if ($added) {
+		ftruncate($handle, 0);
+		rewind($handle);
+		fwrite($handle, GUARD . json_encode($store, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+		fflush($handle);
+	}
+	flock($handle, LOCK_UN);
+	fclose($handle);
+	return $added;
+}

@@ -76,6 +76,35 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             if offset == 0 || offset == 1, let g = store.groomingDue.first {
                 planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: "\(g.daysSince ?? 0) days since last time; you usually do it every \(g.rhythm).", priority: 2, promise: false))
             }
+            // Life admin, each within the budget
+            if offset == 0 {
+                let f = store.fuel(on: day)
+                if f.protein < store.profile.proteinTarget * 0.6 {
+                    let gap = Int(store.profile.proteinTarget - f.protein)
+                    planned.append(Planned(id: "protein|\(day)", at: Day.at(18 * 60, on: day), title: "Protein catch-up", body: "\(gap) g left today. A shake or a fridge portion closes most of it.", priority: 2, promise: false))
+                }
+                for m in [15 * 60, 19 * 60] where store.fuel(on: day).water + 300 < store.waterGoal(on: day) * Double(m - store.profile.wakeMinute) / Double(max(60, store.sleepPlan().perform - 120 - store.profile.wakeMinute)) {
+                    planned.append(Planned(id: "water|\(day)|\(m)", at: Day.at(m, on: day), title: "Water", body: "Behind pace: a glass now.", priority: 3, promise: false))
+                }
+                for (g, at) in store.records("laundry").compactMap({ k, v -> (String, Double)? in if case .number(let t) = v, k.hasPrefix(day) { return (String(k.dropFirst(11)), t) }; return nil }) {
+                    planned.append(Planned(id: "dry|\(day)|\(g)", at: Date(timeIntervalSince1970: at / 1000 + 2 * 3600), title: "Laundry done", body: "\(g.capitalized): hang it or into the dryer.", priority: 2, promise: false))
+                }
+            }
+            for p in store.all(Plant.self) where store.plantDue(p).due && offset == 0 {
+                planned.append(Planned(id: "plant|\(p.id)|\(day)", at: Day.at(19 * 60, on: day), title: "Water \(p.name)", body: store.plantDue(p).note, priority: 3, promise: false))
+            }
+            for b in store.birthdaysSoon where b.date == Day.add(1, to: day) {
+                planned.append(Planned(id: "bday|\(b.name)|\(day)", at: Day.at(19 * 60, on: day), title: "\(b.name)'s birthday is tomorrow", body: b.person?.gifts.first.map { "Gift idea: \($0)" } ?? "Time for a message or a gift.", priority: 1, promise: false))
+            }
+            for (r, d) in store.upcomingRenewals where Day.between(day, d) == r.remindDays && r.amount < 0 {
+                planned.append(Planned(id: "renew|\(r.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(r.title) renews in \(r.remindDays) days", body: "\(euro(-r.amount, decimals: true))" + (r.cancelBy.map { " · cancel by \(Day.date($0).formatted(.dateTime.day().month())) if you don't need it" } ?? ""), priority: 1, promise: false))
+            }
+            for d in store.all(DocumentItem.self) where Day.between(day, d.expires) == d.leadDays || Day.between(day, d.expires) == 7 {
+                planned.append(Planned(id: "doc|\(d.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(d.title) expires soon", body: Day.date(d.expires).formatted(.dateTime.day().month().year()), priority: 1, promise: false))
+            }
+            if Day.weekday(day) == 1, offset <= 1, !store.keepInTouchDue.isEmpty {
+                planned.append(Planned(id: "touch|\(day)", at: Day.at(18 * 60, on: day), title: "Keep in touch", body: "It's been a while: " + store.keepInTouchDue.prefix(3).map(\.name).joined(separator: ", "), priority: 3, promise: false))
+            }
             // Wind-down: holds until must-dos are answered
             let plan = store.sleepPlan(for: day)
             let wind = Day.at(plan.windDown, on: day)

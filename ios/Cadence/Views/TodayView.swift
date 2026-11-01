@@ -18,6 +18,7 @@ struct TodayView: View {
                 header
                 if store.needsGoogle { googleCard }
                 if Day.minuteOfDay(store.tick) < 12 * 60, !briefHidden, !store.briefLines().isEmpty { brief }
+                if Day.minuteOfDay(store.tick) < 14 * 60 { WeatherCard() }
                 readinessCard
                 nextUp
                 rings

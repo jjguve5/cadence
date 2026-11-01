@@ -28,6 +28,7 @@ struct YouView: View {
                 }
                 VStack(spacing: 0) {
                     link("Promises", "bell", PromisesView())
+                    link("Learning", "graduationcap", LearningView())
                     link("Settings", "gearshape", SettingsView())
                     link("Credits", "heart", CreditsView())
                 }
@@ -69,30 +70,38 @@ struct DaysGrid: View {
 }
 
 struct LifeView: View {
+    @EnvironmentObject var store: Store
+
     var body: some View {
         NavigationStack {
             Screen(glow: Color(hex: 0x7FB8FF)) {
                 Title(eyebrow: "Money, wardrobe, home, people", title: "Life")
                     .padding(.top, 8)
-                ForEach([("Money", "creditcard.fill", "Bank sync, Apple Pay entries, safe to spend, savings goals"),
-                         ("Wardrobe and laundry", "tshirt.fill", "Outfit of the day from the weather, laundry loads"),
-                         ("Home and documents", "house.fill", "Freshness bars, plants, expiry dates"),
-                         ("People", "person.2.fill", "Birthdays, gift ideas, keeping in touch")], id: \.0) { name, icon, detail in
-                    Card {
-                        HStack(spacing: 12) {
-                            Image(systemName: icon).font(.system(size: 20)).foregroundStyle(Color(hex: 0x7FB8FF)).frame(width: 30)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(name).font(.system(size: 15, weight: .semibold))
-                                Text(detail).font(.system(size: 12.5)).foregroundStyle(Color.soft)
-                            }
-                            Spacer()
-                            Chip(text: "soon", color: .soft)
-                        }
-                    }
-                }
+                link(MoneyView(), "Money", "eurosign.circle.fill", Color(hex: 0xFFD166), "\(euro(store.moneyMonth().safePerDay)) a day safe to spend" + (store.reviewInbox.isEmpty ? "" : " · \(store.reviewInbox.count) to review"))
+                link(WardrobeView(), "Wardrobe and laundry", "tshirt.fill", Color(hex: 0x7FB8FF), "Outfit from the weather, laundry loads")
+                link(KitchenView(), "Meal prep and shopping", "cart.fill", Color(hex: 0xFFCF70), "Week plan, prep session, the list")
+                link(HomeView(), "Home and documents", "house.fill", Color(hex: 0x8FA8FF), "Freshness, plants, expiry dates")
+                link(PeopleView(), "People", "person.2.fill", Color(hex: 0xFF9FBF), "Birthdays, gift ideas, keeping in touch")
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+    }
+
+    private func link<D: View>(_ dest: D, _ name: String, _ icon: String, _ color: Color, _ detail: String) -> some View {
+        NavigationLink { dest } label: {
+            Card {
+                HStack(spacing: 12) {
+                    Image(systemName: icon).font(.system(size: 20)).foregroundStyle(color).frame(width: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name).font(.system(size: 15, weight: .semibold))
+                        Text(detail).font(.system(size: 12.5)).foregroundStyle(Color.soft)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
