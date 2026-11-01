@@ -121,12 +121,21 @@ struct FoodLogSheet: View {
     @State private var product: OFFProduct?
     @State private var grams = 100.0
     @State private var message: String?
+    @State private var choosing: CommonFood?
+    @State private var results: [OFFResult] = []
+    @State private var searching = false
+    @State private var group = "Eating out"
+
+    private func log(_ f: CommonFood, _ factor: Double, size: String) {
+        store.logFood(FoodEntry(name: f.name + (factor == 1 ? "" : " (\(size.lowercased()))"), kcal: (f.kcal * factor).rounded(), protein: (f.protein * factor).rounded()))
+        dismiss()
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 if let product {
-                    Section("Scanned") {
+                    Section("Product") {
                         Text(product.name).font(.headline)
                         Stepper("\(Int(grams)) g", value: $grams, in: 5...1000, step: 5)
                         Text("\(Int(product.kcal100 * grams / 100)) kcal · \(Int(product.protein100 * grams / 100)) g protein").foregroundStyle(Color.soft)
@@ -137,6 +146,26 @@ struct FoodLogSheet: View {
                     }
                 }
                 if let message { Section { Text(message).foregroundStyle(Color.warn) } }
+                if !search.isEmpty {
+                    let local = FoodSearch.local(search)
+                    if !local.isEmpty {
+                        Section("Common foods and meals") {
+                            ForEach(local.prefix(15)) { f in foodRow(f) }
+                        }
+                    }
+                    Section(searching ? "Products · searching…" : "Products") {
+                        if results.isEmpty && !searching { Text(search.count < 3 ? "Type a few letters." : "No packaged products found. Try another name, or quick add.").foregroundStyle(Color.soft) }
+                        ForEach(results) { r in
+                            Button { product = OFFProduct(name: r.name + (r.brand.map { " · \($0)" } ?? ""), kcal100: r.kcal100, protein100: r.protein100, carbs100: 0, fat100: 0, serving: r.serving); grams = r.serving ?? 100 } label: {
+                                HStack {
+                                    VStack(alignment: .leading) { Text(r.name).foregroundStyle(Color.ink).lineLimit(1); if let b = r.brand { Text(b).font(.caption).foregroundStyle(Color.faint) } }
+                                    Spacer()
+                                    Text("\(Int(r.kcal100)) kcal · \(Int(r.protein100)) g /100 g").font(.caption.monospaced()).foregroundStyle(Color.soft)
+                                }
+                            }
+                        }
+                    }
+                }
                 Section("Saved and recent") {
                     let items = store.quickFoods.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
                     if items.isEmpty { Text("Foods you log appear here, most used first.").foregroundStyle(Color.soft) }
@@ -148,6 +177,12 @@ struct FoodLogSheet: View {
                             HStack { Text(m.name).foregroundStyle(Color.ink); Spacer(); Text("\(Int(m.kcal)) · \(Int(m.protein)) g").font(.caption.monospaced()).foregroundStyle(Color.soft) }
                         }
                     }
+                }
+                if search.isEmpty {
+                    Section {
+                        Picker("", selection: $group) { ForEach(["Eating out", "Meals", "Breakfast", "Snacks", "Fruit", "Dairy", "Drinks"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.menu).tint(.fuel)
+                        ForEach(commonFoods.filter { $0.group == group }) { f in foodRow(f) }
+                    } header: { Text("Common foods · typical portions") } footer: { Text("Estimates for a normal portion; pick small, large or double when it was different.") }
                 }
                 Section("Caffeine") {
                     ForEach(caffeineDrinks, id: \.name) { d in
@@ -171,7 +206,23 @@ struct FoodLogSheet: View {
                 }
             }
             .cadenceList()
-            .searchable(text: $search, prompt: "Search your foods")
+            .searchable(text: $search, prompt: "Search foods, meals, products")
+            .task(id: search) {
+                results = []
+                guard search.count >= 3 else { return }
+                try? await Task.sleep(nanoseconds: 450_000_000) // wait for typing to pause
+                guard !Task.isCancelled else { return }
+                searching = true
+                results = await FoodSearch.products(search)
+                searching = false
+            }
+            .confirmationDialog(choosing.map { "\($0.name) · normal is \($0.portion)" } ?? "", isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }), titleVisibility: .visible) {
+                if let f = choosing {
+                    ForEach(portionSizes, id: \.name) { p in
+                        Button("\(p.name) · \(Int(f.kcal * p.factor)) kcal, \(Int(f.protein * p.factor)) g protein") { log(f, p.factor, size: p.name) }
+                    }
+                }
+            }
             .navigationTitle("Log food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -189,6 +240,18 @@ struct FoodLogSheet: View {
                     }
                 }
                 .ignoresSafeArea()
+            }
+        }
+    }
+}
+
+extension FoodLogSheet {
+    func foodRow(_ f: CommonFood) -> some View {
+        Button { choosing = f } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) { Text(f.name).foregroundStyle(Color.ink); Text(f.portion).font(.caption).foregroundStyle(Color.faint) }
+                Spacer()
+                Text("\(Int(f.kcal)) · \(Int(f.protein)) g").font(.caption.monospaced()).foregroundStyle(Color.soft)
             }
         }
     }

@@ -6,6 +6,7 @@ struct TodayView: View {
     @State private var closing = false
     @State private var editing: PromiseItem?
     @State private var briefHidden = false
+    @State private var loggingFood = false
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -30,6 +31,7 @@ struct TodayView: View {
             .refreshable { await store.refreshAll() }
             .sheet(isPresented: $closing) { CloseDayView() }
             .sheet(item: $editing) { PromiseEditor(promise: $0) }
+            .sheet(isPresented: $loggingFood) { FoodLogSheet() }
             .toolbar(.hidden, for: .navigationBar)
         }
     }
@@ -134,6 +136,20 @@ struct TodayView: View {
             ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .mint, "\(done)/\(due.count)"),
         ]
         return Card {
+            HStack {
+                Eyebrow(text: "Today so far", icon: "circle.dashed")
+                Spacer()
+                Button { loggingFood = true } label: {
+                    Label("Food", systemImage: "plus").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
+                        .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.fuel.gradient))
+                }
+                .buttonStyle(Pressable())
+                Button { store.addWater(250) } label: {
+                    Label("250 ml", systemImage: "drop.fill").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x03202A))
+                        .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.water.gradient))
+                }
+                .buttonStyle(Pressable())
+            }
             HStack {
                 ForEach(items, id: \.0) { item in
                     VStack(spacing: 6) {
