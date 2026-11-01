@@ -65,7 +65,7 @@ struct SignalsView: View {
                 row("Cardio fitness · VO₂ max", latest.first { $0.vo2 != nil }?.vo2.map { String(format: "%.0f", $0) })
                 row("Skin temperature", latest.first { $0.temp != nil }?.temp.map { String(format: "%+.1f° vs baseline", $0) })
                 if illness.count >= 2 {
-                    Text("Several signs are off together (\(illness.joined(separator: ", "))). In Fitbit's research this pattern often comes 1–2 days before feeling sick: take it easy today.")
+                    Text("Several signals are off together (\(illness.joined(separator: ", "))). This pattern can come 1–2 days before a cold, but alcohol, stress, heat or a late night do it too. A non-specific signal, not a diagnosis.")
                         .font(.geist(12.5)).foregroundStyle(Color.warn)
                 }
             }

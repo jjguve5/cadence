@@ -43,6 +43,14 @@ struct CloseDayView: View {
                             .buttonStyle(.plain)
                         }
                     }
+                    HStack {
+                        Text("Energy").font(.geist(13)).foregroundStyle(Color.soft)
+                        Spacer()
+                        ForEach(1...5, id: \.self) { n in
+                            Image(systemName: n <= (entry.energy ?? 0) ? "bolt.fill" : "bolt").foregroundStyle(Color.fuel).font(.system(size: 18))
+                                .onTapGesture { entry.energy = n }
+                        }
+                    }
                     TextField("One line about today (optional)", text: $entry.note, axis: .vertical).font(.geist(14))
                 }
 

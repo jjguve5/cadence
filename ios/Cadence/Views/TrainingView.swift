@@ -138,6 +138,7 @@ struct WorkoutView: View {
     @ObservedObject private var live = LiveWorkout.shared
     @State private var now = Date()
     @State private var picking = false
+    @State private var feel: Int?
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var session: WorkoutSession? { store.record(WorkoutSession.self, sessionId) }
@@ -156,8 +157,22 @@ struct WorkoutView: View {
                 ForEach(session.order) { ex in exerciseCard(ex, session) }
                 SoftButton(title: "Add exercise", icon: "plus") { picking = true }
                 if session.end == nil {
+                    Card {
+                        Eyebrow(text: "How did it feel?", icon: "bolt.heart")
+                        HStack(spacing: 6) {
+                            ForEach(1...5, id: \.self) { n in
+                                Button { feel = n } label: {
+                                    Text(["Awful", "Heavy", "OK", "Good", "Great"][n - 1]).font(.geist(12, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                                        .background(RoundedRectangle(cornerRadius: 10).fill(feel == n ? Color.train.opacity(0.5) : .white.opacity(0.07)))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        Text("Used to check whether readiness predicts your sessions.").font(.geist(11)).foregroundStyle(Color.faint)
+                    }
                     PrimaryButton(title: "Finish session", area: .train) {
                         var s = session
+                        s.feel = feel
                         s.end = nowMs()
                         s.sets.removeAll { !$0.done }
                         store.save(s)
@@ -178,7 +193,10 @@ struct WorkoutView: View {
                     store.save(s)
                 }
             }
-            .onAppear { Task { await LiveWorkout.shared.update(session: session) } }
+            .onAppear {
+                store.recordTrainingPrediction(session: session)
+                Task { await LiveWorkout.shared.update(session: session) }
+            }
         } else {
             Text("Session not found").foregroundStyle(Color.soft)
         }
@@ -477,7 +495,7 @@ struct GrowthCard: View {
             HStack { Eyebrow(text: "Are they growing?", icon: "leaf.fill", color: short ? .fuel : .soft); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
             if let c = check {
                 let names = c.status.filter { $0.value != .growing }.keys.compactMap { groupNames[$0] }.sorted()
-                Text(names.isEmpty ? "Everything you trained in \(c.session.name) is fed and rested." : "\(names.joined(separator: ", ")) aren't getting what they need to grow.").font(.geist(14))
+                Text(names.isEmpty ? "Everything you trained in \(c.session.name) is fed and rested." : "\(names.joined(separator: ", ")): protein or sleep below what supports recovery.").font(.geist(14))
             } else {
                 Text("For 48 hours after a session it checks protein and sleep for the muscles you trained.").font(.geist(13)).foregroundStyle(Color.soft)
             }

@@ -23,6 +23,8 @@ struct Readiness {
     var label: String
     var parts: [ReadinessPart]
     var summary: String
+    var confidence: Confidence = .moderate
+    var notes: [String] = []
 }
 
 struct SleepPlan {
@@ -75,51 +77,41 @@ extension Store {
         return Baseline(mean: mean, sd: max(sqrt(variance), mean * 0.04), count: values.count)
     }
 
+    /// Contextual guidance from the engine: robust 28-day baselines, blended with yesterday, with its confidence
     func readiness(on day: String = Day.today) -> Readiness? {
-        guard let today = health[day] else { return nil }
+        guard let r = readinessResult(on: day), let today = health[day] else { return nil }
         var parts: [ReadinessPart] = []
-        var weighted = 0.0, weights = 0.0
-        if let hrv = today.hrv, let b = baseline({ $0.hrv }, before: day) {
-            let pct = (hrv / b.mean - 1) * 100
-            let s = min(100, max(0, 60 + 18 * b.z(hrv)))
-            parts.append(ReadinessPart(name: "HRV", value: "\(Int(hrv)) ms", detail: String(format: "%+.0f%% vs your 14-day average", pct), score: s, good: pct >= -5))
-            weighted += s * 0.4; weights += 0.4
+        if let hrv = today.hrv, let z = r.hrvZ, let b = robust({ $0.hrv }, before: day) {
+            let pct = (hrv / b.median - 1) * 100
+            parts.append(ReadinessPart(name: "HRV", value: "\(Int(hrv)) ms", detail: String(format: "%+.0f%% vs your usual (median of %d days)", pct, b.n), score: min(100, max(0, 62 + 16 * z)), good: z > -1))
         }
-        if let rhr = today.rhr, let b = baseline({ $0.rhr }, before: day) {
-            let diff = rhr - b.mean
-            let s = min(100, max(0, 60 - 18 * b.z(rhr)))
-            parts.append(ReadinessPart(name: "Resting HR", value: "\(Int(rhr)) bpm", detail: String(format: "%+.0f vs average", diff), score: s, good: diff <= 2))
-            weighted += s * 0.3; weights += 0.3
+        if let rhr = today.rhr, let z = r.rhrZ, let b = robust({ $0.rhr }, before: day) {
+            parts.append(ReadinessPart(name: "Resting HR", value: "\(Int(rhr)) bpm", detail: String(format: "%+.0f vs your usual", rhr - b.median), score: min(100, max(0, 62 - 16 * z)), good: z < 1))
         }
-        if let sleep = today.sleep {
-            let ratio = Double(sleep.asleep) / Double(max(1, profile.sleepNeed))
-            let s = min(100, max(0, 100 * (ratio - 0.55) / 0.45))
-            parts.append(ReadinessPart(name: "Sleep", value: duration(sleep.asleep), detail: "\(Int(ratio * 100))% of your \(duration(profile.sleepNeed)) need", score: s, good: ratio >= 0.9))
-            weighted += s * 0.3; weights += 0.3
+        if let s = today.sleep, let ratio = r.sleepRatio {
+            parts.append(ReadinessPart(name: "Sleep", value: duration(s.asleep), detail: "\(Int(ratio * 100))% of your \(duration(profile.sleepNeed)) need", score: min(100, max(0, 100 * (ratio - 0.55) / 0.45)), good: ratio >= 0.9))
         }
         if let t = today.temp, abs(t) >= 0.5 {
-            parts.append(ReadinessPart(name: "Skin temp", value: String(format: "%+.1f°", t), detail: "Off your baseline: a sign of strain or illness", score: 40, good: false))
-            weighted -= 6 * weights
+            parts.append(ReadinessPart(name: "Skin temp", value: String(format: "%+.1f°", t), detail: "Off your baseline: alcohol, a warm room, stress or a coming cold can all do this", score: 50, good: false))
         }
-        guard weights > 0 else { return nil }
-        let score = Int(min(100, max(1, weighted / weights + profile.readinessOffset)).rounded())
-        let label = score >= 80 ? "Primed" : score >= 65 ? "Good to go" : score >= 50 ? "Steady" : score >= 35 ? "Go easy" : "Rest day"
-        let summary = parts.map { "\($0.name) \($0.value)" }.joined(separator: " · ")
-        return Readiness(score: score, label: label, parts: parts, summary: summary)
+        let score = r.score
+        let label = score >= 80 ? "Primed" : score >= 65 ? "Good to go" : score >= 50 ? "Steady" : score >= 35 ? "Go easy" : "Take it easy"
+        return Readiness(score: score, label: label, parts: parts, summary: parts.map { "\($0.name) \($0.value)" }.joined(separator: " · "), confidence: r.confidence, notes: r.notes)
     }
 
     // MARK: Sleep
 
     func sleepPlan(for day: String = Day.today) -> SleepPlan {
-        let nights = (0..<14).compactMap { health[Day.add(-$0, to: day)]?.sleep?.asleep }
+        let nights = (0..<7).compactMap { health[Day.add(-$0, to: day)]?.sleep?.asleep }
         let napMinutes = health[day]?.naps?.map(\.asleep).reduce(0, +) ?? 0
-        let debt = max(0, nights.map { profile.sleepNeed - $0 }.reduce(0, +))
+        let debt = Engine.sleepDebt(nights: nights, need: profile.sleepNeed)
         // Pay back in 15-minute steps, a little each night
         let repay = debt > 180 ? 30 : debt > 60 ? 15 : 0
         let need = profile.sleepNeed + repay - min(napMinutes, 60)
         let wake = profile.wakeMinute + 1440
         let fallAsleep = 15
-        let perform = wake - need - fallAsleep
+        let shift = records("bedshift")[day].flatMap { v -> Int? in if case .number(let n) = v { return Int(n) }; return nil } ?? 0 // "lights out earlier tonight"
+        let perform = wake - need - fallAsleep - shift
         return SleepPlan(need: need, debt: debt, peak: perform - 30, perform: perform, getBy: perform + 60, windDown: perform - profile.windDownLead)
     }
 
@@ -137,6 +129,7 @@ extension Store {
     /// 0–100 from what's switched on: promises, sleep, movement, protein and water, closing the day. Areas you
     /// haven't switched on don't count, so adding one never makes old days look worse.
     func score(on day: String = Day.today) -> Int {
+        if isMinimumDay(day) { return minimumScore(on: day) }
         guard !profile.on("fuel") else { return scoreWithFuel(on: day) }
         var got = 0.0
         let due = self.due(on: day)
@@ -219,6 +212,19 @@ extension Store {
     func pipLine() -> String {
         let minute = Day.minuteOfDay()
         let open = openMustDos()
+        if activeFocus != nil { return "Focusing. I'll be quiet." }
+        if isMinimumDay() {
+            return open.isEmpty ? "Light day, essentials done. That's a full day." : "Light day: just \(open.first!.title.lowercased()) and rest."
+        }
+        // Effort and consistency, noticed: one line, chosen by day so it doesn't repeat
+        var noticed: [String] = []
+        if let r = readiness(), r.score < 50, !sessions(on: Day.today).filter({ $0.end != nil }).isEmpty { noticed.append("You trained on a low day. Showing up counts.") }
+        for p in due().filter({ $0.kind == .mustDo }) {
+            let w = week(p)
+            if w.due >= 4, w.done == w.due, status(p) != nil { noticed.append("\(p.title) \(w.done)/\(w.total) this week. That's how habits stick.") }
+        }
+        if shortNightsInARow() == 0, let s = health[Day.today]?.sleep, s.asleep >= profile.sleepNeed - 15, minute < 12 * 60 { noticed.append("A full night. Today's yours.") }
+        if !noticed.isEmpty, minute % 3 == 0 || noticed.count == 1 { return noticed[(Day.between("2026-01-01", Day.today)) % noticed.count] }
         if let m = open.first, minute >= time(of: m) { return "\(m.title) first, then we rest." }
         switch pipMood() {
         case .sleepy: return minute < 12 * 60 ? "Short night. Let's keep today gentle." : "Wind-down time. Screens away, book out."

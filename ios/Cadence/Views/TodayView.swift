@@ -8,6 +8,8 @@ struct TodayView: View {
     @State private var briefHidden = false
     @State private var loggingFood = false
     @State private var settingUp = false
+    @State private var capturing = false
+    @State private var allRings = false
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -28,11 +30,12 @@ struct TodayView: View {
                     }
                     .buttonStyle(Pressable())
                 }
-                if Day.minuteOfDay(store.tick) < 12 * 60, !briefHidden, !store.briefLines().isEmpty { brief }
-                if Day.minuteOfDay(store.tick) < 14 * 60 { WeatherCard() }
-                readinessCard
+                MinimumDayBanner()
+                FocusCard()
                 nextUp
                 rings
+                readinessCard
+                if Day.minuteOfDay(store.tick) < 11 * 60 || store.weatherCall()?.umbrella == true { WeatherCard() }
                 promisesCard
                 top3Card
                 closeCard
@@ -43,14 +46,22 @@ struct TodayView: View {
             .sheet(item: $editing) { PromiseEditor(promise: $0) }
             .sheet(isPresented: $loggingFood) { FoodLogSheet() }
             .sheet(isPresented: $settingUp) { SmartSetup() }
+            .sheet(isPresented: $capturing) { QuickCaptureSheet() }
+            .onAppear { store.recordMorningPrediction() }
             .toolbar(.hidden, for: .navigationBar)
         }
     }
 
     private var header: some View {
         HStack(alignment: .bottom) {
-            Title(eyebrow: "\(store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide))) · score \(store.score())", title: greeting)
+            Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: greeting)
             Spacer()
+            Button { capturing = true } label: {
+                Image(systemName: "plus").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)
+                    .frame(width: 40, height: 40).background(Circle().fill(.white.opacity(0.09)).overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1)))
+            }
+            .buttonStyle(Pressable())
+            .padding(.trailing, 6)
             NavigationLink { PipPage() } label: {
                 ZStack(alignment: .bottomTrailing) {
                     PipHead(mood: store.pipMood(), size: 50)
@@ -88,28 +99,31 @@ struct TodayView: View {
 
     private var readinessCard: some View {
         NavigationLink { ReadinessView() } label: {
-            Card(tint: .mint) {
+            Card {
                 if let r = store.readiness() {
-                    HStack(spacing: 14) {
+                    HStack(spacing: 12) {
                         ZStack {
-                            Ring(progress: Double(r.score) / 100, area: .mint, width: 8)
-                            Text("\(r.score)").font(.geist(22, .bold))
+                            Ring(progress: Double(r.score) / 100, area: .mint, width: 5)
+                            Text("\(r.score)").font(.geist(15, .bold))
                         }
-                        .frame(width: 70, height: 70)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Eyebrow(text: "Readiness", icon: "gauge.with.dots.needle.50percent")
-                            Text(r.label).font(.geist(18, .bold))
-                            Text(r.summary).font(.geist(12.5)).foregroundStyle(Color.soft).lineLimit(2)
+                        .frame(width: 46, height: 46)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 6) {
+                                Text("Readiness · \(r.label)").font(.geist(14.5, .semibold))
+                                Chip(text: r.confidence.label + " confidence", color: r.confidence == .high ? .good : .soft)
+                            }
+                            Text(store.freshnessNote ?? r.summary).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(2)
                         }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint)
                     }
                 } else {
-                    Eyebrow(text: "Readiness", icon: "gauge.with.dots.needle.50percent")
-                    Text(store.health.isEmpty ? "Waiting for your first sync from the Air." : "Needs last night's sleep, HRV and resting HR: they arrive once the Air syncs.")
-                        .font(.geist(14)).foregroundStyle(Color.soft)
+                    Label(store.freshnessNote ?? (store.health.isEmpty ? "Waiting for your first sync from the Air." : "Readiness appears once last night's data arrives."), systemImage: "clock.arrow.circlepath")
+                        .font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Pressable())
     }
 
     private var nextUp: some View {
@@ -157,6 +171,10 @@ struct TodayView: View {
                         .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.fuel.gradient))
                 }
                 .buttonStyle(Pressable())
+                Button { withAnimation(.easeOut(duration: 0.2)) { allRings.toggle() } } label: {
+                    Image(systemName: allRings ? "chevron.up" : "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.soft).frame(width: 30, height: 28)
+                }
+                .buttonStyle(.plain)
                 Button { store.addWater(250) } label: {
                     Label("250 ml", systemImage: "drop.fill").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x03202A))
                         .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.water.gradient))
@@ -164,7 +182,7 @@ struct TodayView: View {
                 .buttonStyle(Pressable())
             }
             HStack {
-                ForEach(items, id: \.0) { item in
+                ForEach(allRings ? items : items.filter { ["Calories", "Protein", "Promises"].contains($0.0) }, id: \.0) { item in
                     VStack(spacing: 6) {
                         ZStack {
                             Ring(progress: item.1, area: item.2, width: 6)
@@ -287,6 +305,7 @@ struct PromiseRow: View {
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
                 Button { reading = true } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
             } else if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
+            else if store.isMinimumDay(day) { Chip(text: "optional today", color: .faint) }
             else { Chip(text: promise.schedule.summary, color: .soft) }
         }
         .fullScreenCover(isPresented: $brushing) { BrushingView() }

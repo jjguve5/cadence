@@ -128,6 +128,7 @@ struct WorkoutSession: Record, Equatable {
     var order: [TemplateExercise]
     var sets: [SetLog] = []
     var notes: [String: String] = [:]
+    var feel: Int? // 1–5 after the session: the outcome readiness is checked against
 
     var volume: Double { sets.filter { $0.done && $0.kind != .warmup }.map { $0.weight * Double($0.reps) }.reduce(0, +) }
 
@@ -147,6 +148,7 @@ struct WorkoutSession: Record, Equatable {
         order = (try? c.decode([TemplateExercise].self, forKey: .order)) ?? []
         sets = (try? c.decode([SetLog].self, forKey: .sets)) ?? []
         notes = (try? c.decode([String: String].self, forKey: .notes)) ?? [:]
+        feel = try? c.decodeIfPresent(Int.self, forKey: .feel)
     }
 }
 
@@ -181,14 +183,14 @@ extension Store {
         let last = lastSets(t.exerciseId, before: session)
         guard let top = last.map(\.weight).max() else { return (0, t.sets, "First time: pick a weight you could do for \(t.repHigh + 2)") }
         let readiness = self.readiness()?.score ?? 70
-        if readiness < 50 { return (top, max(1, t.sets - 1), "Readiness \(readiness): same weight, one set less") }
+        let lowNote = readiness < 50 ? " · readiness \(readiness): let the warm-up decide" : ""
         let hitTop = last.count >= t.sets && last.allSatisfy { $0.reps >= t.repHigh }
-        if hitTop { return (top + t.increment, t.sets, "+\(kg(t.increment)) kg: you hit \(last.count) × \(t.repHigh) at \(kg(top)) last time") }
+        if hitTop { return (top + t.increment, t.sets, "+\(kg(t.increment)) kg: you hit \(last.count) × \(t.repHigh) at \(kg(top)) last time" + lowNote) }
         let history = sessions().filter { $0.end != nil }.compactMap { s in s.sets.filter { $0.exerciseId == t.exerciseId && $0.kind == .working && $0.done }.map { e1rm($0.weight, $0.reps) }.max() }.prefix(4)
         if history.count == 4, let newest = history.first, history.dropFirst().allSatisfy({ $0 >= newest - 0.5 }) {
             return (((top * 0.9) / 2.5).rounded() * 2.5, t.sets, "Stalled for 3 sessions: a 10% deload, then build back")
         }
-        return (top, t.sets, "Same weight: aim for \(t.repHigh) on every set")
+        return (top, t.sets, "Same weight: aim for \(t.repHigh) on every set" + lowNote)
     }
 
     /// Best estimated 1RM per session date for one exercise, oldest first

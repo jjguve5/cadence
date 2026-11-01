@@ -10,6 +10,13 @@ struct YouGrowthView: View {
 
     var body: some View {
         Screen(glow: .mind) {
+            NavigationLink { LearnedView() } label: {
+                Card(tint: .mind) {
+                    HStack { Eyebrow(text: "What Cadence has learned", icon: "sparkle.magnifyingglass", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                    Text("How well its predictions match your days, with sample sizes and uncertainty.").font(.geist(12.5)).foregroundStyle(Color.soft)
+                }
+            }
+            .buttonStyle(Pressable())
             JournalCard()
             MoodGrid()
             challengeCard
@@ -58,6 +65,11 @@ struct YouGrowthView: View {
                 let r = store.experimentResult(e)
                 VStack(alignment: .leading, spacing: 3) {
                     HStack { Text(e.title).font(.geist(14, .semibold)); Spacer(); Chip(text: r.daysIn >= e.days ? "finished" : "day \(r.daysIn) of \(e.days)", color: .mind) }
+                    let before = (1...14).compactMap { store.metric(e.metric, on: Day.add(-$0, to: e.start)) }
+                    let during = (0..<r.daysIn).compactMap { store.metric(e.metric, on: Day.add($0, to: e.start)) }
+                    if let x = Engine.experiment(before: before, during: during) {
+                        Text(x.summary).font(.geist(12)).foregroundStyle(Color.faint)
+                    }
                     if let b = r.before, let d = r.during {
                         let diff = d - b
                         Text("\(e.metric.capitalized): \(format(e.metric, b)) before → \(format(e.metric, d)) during (\(diff >= 0 ? "+" : "")\(format(e.metric, diff, delta: true)))").font(.geist(12.5)).foregroundStyle(Color.soft)
@@ -91,13 +103,13 @@ struct YouGrowthView: View {
         Group {
             if let a = store.cadenceAge() {
                 Card(tint: .mint) {
-                    Eyebrow(text: "Cadence age", icon: "hourglass", color: .mint)
+                    Eyebrow(text: "Fitness age · estimate", icon: "hourglass", color: .mint)
                     HStack(alignment: .firstTextBaseline) {
                         Text(String(format: "%.1f", a.age)).font(.geist(30, .bold))
                         Text("vs \(store.profile.age) on the calendar").font(.geist(12.5)).foregroundStyle(Color.soft)
                     }
                     ForEach(a.parts, id: \.0) { name, years in HStack { Text(name).font(.geist(13)); Spacer(); Text(String(format: "%+.1f y", years)).font(.mono(13)).foregroundStyle(years <= 0 ? Color.good : Color.warn) } }
-                    Text("An estimate from resting HR, VO₂ max, steps and sleep regularity, in the spirit of WHOOP's healthspan. Not a medical measure.").font(.geist(11)).foregroundStyle(Color.faint)
+                    Text("A fitness estimate from resting HR, VO₂ max, steps and sleep regularity. It is not your biological age and not a medical measure.").font(.geist(11)).foregroundStyle(Color.faint)
                 }
             }
         }

@@ -139,6 +139,7 @@ struct DayEntry: Codable, Equatable {
     var closedAt: Double?
     var score: Int?
     var points: Int?
+    var energy: Int? // 1–5, how much energy the day had: the outcome readiness is checked against
 }
 
 // MARK: - Profile (synced) and this phone's connection (not synced)

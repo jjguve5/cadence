@@ -89,6 +89,7 @@ struct FocusView: View {
             PrimaryButton(title: "Start") {
                 let s = FocusSession(intention: intention.isEmpty ? "Focus" : intention, planned: planned, chimes: chimes, projectId: projectId)
                 store.save(s)
+                store.recordFocusPrediction(session: s)
                 sessionId = s.id
                 lastChime = Date()
                 UIApplication.shared.isIdleTimerDisabled = true

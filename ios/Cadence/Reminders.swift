@@ -14,7 +14,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         let done = UNNotificationAction(identifier: "done", title: "Done ✓", options: [])
         let snooze = UNNotificationAction(identifier: "snooze", title: "In 30 min", options: [])
         let skip = UNNotificationAction(identifier: "skip", title: "Skip", options: [.destructive])
-        center.setNotificationCategories([UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [])])
+        center.setNotificationCategories([
+            UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: "info", actions: [], intentIdentifiers: [], options: [.customDismissAction]),
+        ])
         center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
     }
 
@@ -117,6 +120,20 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
         // Within the daily budget, must-dos always first
         var perDay: [String: Int] = [:]
+        // Kinds you keep swiping away drop in priority, then stop; priority 0 (must-dos, medicines, leave-by) never does
+        planned = planned.compactMap { item in
+            guard item.priority > 0 else { return item }
+            var x = item
+            let kind = String(item.id.split(separator: "|").first ?? "")
+            switch NotificationLearning.dismissRate(kind) {
+            case let r? where r >= 0.9: return nil
+            case let r? where r >= 0.7: x.priority += 1
+            default: break
+            }
+            // On a minimum viable day only the essentials ring
+            if store.isMinimumDay(Day.key(item.at)), item.priority >= 2 { return nil }
+            return x
+        }
         let queue = planned.filter { $0.at > now && $0.at < horizon }.sorted { ($0.priority, $0.at) < ($1.priority, $1.at) }.filter {
             if $0.priority == 0 { return true }
             let d = Day.key($0.at)
@@ -130,7 +147,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             content.title = item.title
             content.body = item.body
             content.sound = .default
-            if item.promise { content.categoryIdentifier = Self.category }
+            content.categoryIdentifier = item.promise ? Self.category : "info"
             content.threadIdentifier = item.promise ? "promises" : "day"
             let parts = Day.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.at)
             center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
@@ -147,6 +164,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let parts = response.notification.request.identifier.split(separator: "|").map(String.init)
+        NotificationLearning.record(parts.first ?? "", engaged: response.actionIdentifier != UNNotificationDismissActionIdentifier)
+        if response.actionIdentifier == UNNotificationDismissActionIdentifier { return }
         if parts.count == 4, parts[0] == "m", let minute = Int(parts[3]) {
             await MainActor.run {
                 let store = Store.shared
@@ -184,5 +203,33 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         content.sound = .default
         content.categoryIdentifier = Self.category
         center.add(UNNotificationRequest(identifier: "s|\(promise.id)|\(day)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 30 * 60, repeats: false)))
+    }
+}
+
+/// What happens to each kind of notification: answered or opened counts as useful, swiped away as not.
+/// Kept on this phone only; the last 10 of each kind.
+enum NotificationLearning {
+    private static func key(_ kind: String) -> String { "notif.\(kind)" }
+
+    static func record(_ kind: String, engaged: Bool) {
+        guard !kind.isEmpty else { return }
+        var list = UserDefaults.standard.array(forKey: key(kind)) as? [Int] ?? []
+        list.append(engaged ? 1 : 0)
+        UserDefaults.standard.set(Array(list.suffix(10)), forKey: key(kind))
+    }
+
+    /// Share swiped away, once there are at least 6 answers
+    static func dismissRate(_ kind: String) -> Double? {
+        let list = UserDefaults.standard.array(forKey: key(kind)) as? [Int] ?? []
+        guard list.count >= 6 else { return nil }
+        return Double(list.filter { $0 == 0 }.count) / Double(list.count)
+    }
+
+    static var summary: [(kind: String, rate: Double, n: Int)] {
+        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave"]
+        return names.compactMap { k in
+            let list = UserDefaults.standard.array(forKey: key(k)) as? [Int] ?? []
+            return list.isEmpty ? nil : (k, Double(list.filter { $0 == 0 }.count) / Double(list.count), list.count)
+        }
     }
 }
