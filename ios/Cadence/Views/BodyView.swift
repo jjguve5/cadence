@@ -142,6 +142,7 @@ struct Hypnogram: View {
 
 struct SleepView: View {
     @EnvironmentObject var store: Store
+    @State private var breathing = false
     var body: some View {
         let s = store.health[Day.today]?.sleep
         let plan = store.sleepPlan()
@@ -178,6 +179,18 @@ struct SleepView: View {
                 Text(plan.debt > 60 ? "\(duration(plan.debt)) of debt over 14 nights: tonight's need includes a 15–30 minute payback." : "No real debt: keep the same rhythm.")
                     .font(.system(size: 12.5)).foregroundStyle(Color.soft)
             }
+            NapCard()
+            Card {
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Eyebrow(text: "Breathing and deep rest", icon: "wind")
+                        Text("Box breathing, the physiological sigh, 10–20 minutes of deep rest").font(.system(size: 13)).foregroundStyle(Color.soft)
+                    }
+                    Spacer()
+                    Button { breathing = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x14082B)).frame(width: 40, height: 40).background(Circle().fill(Area.sleep.gradient)) }
+                }
+            }
+            .fullScreenCover(isPresented: $breathing) { BreathingView() }
             Card {
                 Eyebrow(text: "Last 14 nights")
                 let nights = (0..<14).reversed().compactMap { i -> (String, Int)? in

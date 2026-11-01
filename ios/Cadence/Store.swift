@@ -308,6 +308,7 @@ final class Store: ObservableObject {
             lastHealth = Date()
             needsGoogle = false
             persist()
+            autoComplete()
         } catch {}
     }
 

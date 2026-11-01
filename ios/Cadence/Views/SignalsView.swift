@@ -92,6 +92,7 @@ struct SignalsView: View {
                 Text("Google's own models, not in the API: log the result when the monthly report arrives. If one says elevated, a week of cuff readings tells you more.")
                     .font(.system(size: 12)).foregroundStyle(Color.faint)
             }
+            HealthRecordsCard()
             Card(tint: .fuel) {
                 Eyebrow(text: "Habits behind them", color: .fuel)
                 let week = (0..<7).compactMap { store.health[Day.add(-$0, to: Day.today)] }

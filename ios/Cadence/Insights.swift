@@ -231,6 +231,23 @@ extension Store {
         }
     }
 
+    /// Promises that tick themselves once the Air syncs: a steps goal, a bedtime
+    func autoComplete() {
+        let today = Day.today
+        for p in due(on: today) where status(p, on: today) == nil {
+            let t = p.title.lowercased()
+            if t.contains("steps") || t.contains("walk"), let steps = health[today]?.steps, steps >= Double(profile.stepGoal) { log(p, on: today, .done) }
+        }
+        let yesterday = Day.add(-1, to: today)
+        for p in due(on: yesterday) where status(p, on: yesterday) == nil {
+            let t = p.title.lowercased()
+            guard t.contains("bed") || t.contains("lights out"), let s = health[today]?.sleep else { continue }
+            let start = Day.minuteOfDay(s.startDate), planned = p.schedule.minute
+            let a = start < 12 * 60 ? start + 1440 : start, b = planned < 12 * 60 ? planned + 1440 : planned
+            if a <= b + 15 { log(p, on: yesterday, .done) }
+        }
+    }
+
     // MARK: Brief and check-ins
 
     func briefLines() -> [MoodReason] {
