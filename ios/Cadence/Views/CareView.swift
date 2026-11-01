@@ -214,34 +214,92 @@ struct RoutineEditor: View {
     }
 }
 
-/// Brushing mode: four 30-second zones (or six for 3 minutes), a vibration and chime at each switch
+/// One step of brushing: which teeth, which surface, how long, and how
+struct BrushStep {
+    var area: String // upper-right, upper-front, upper-left, lower-left, lower-front, lower-right, upper, lower, all
+    var surface: String // outer, inner, chewing, all
+    var seconds: Double
+    var title: String
+    var tip: String
+}
+
+enum BrushPlan: String, CaseIterable {
+    case quadrants, thorough, sextants
+    var label: String { ["quadrants": "2 min · 4 zones", "thorough": "2 min · 12 steps", "sextants": "3 min · 6 zones"][rawValue]! }
+
+    var steps: [BrushStep] {
+        let outer = "Bristles at 45° to the gumline, small gentle circles."
+        let inner = "Tilt the brush, short strokes along the gums."
+        let chew = "Scrub back and forth over the tops."
+        switch self {
+        case .quadrants:
+            return [("upper-right", "Upper right"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-right", "Lower right")].map {
+                BrushStep(area: $0.0, surface: "all", seconds: 30, title: $0.1, tip: "Outside, inside, then the tops. " + outer)
+            }
+        case .thorough:
+            var out: [BrushStep] = []
+            for (a, name) in [("upper-right", "Upper right"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-right", "Lower right")] {
+                out.append(BrushStep(area: a, surface: "outer", seconds: 10, title: "\(name) · outside", tip: outer))
+                out.append(BrushStep(area: a, surface: "inner", seconds: 10, title: "\(name) · inside", tip: inner))
+                out.append(BrushStep(area: a, surface: "chewing", seconds: 10, title: "\(name) · tops", tip: chew))
+            }
+            return out
+        case .sextants:
+            return [("upper-right", "Upper right"), ("upper-front", "Upper front"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-front", "Lower front"), ("lower-right", "Lower right")].map {
+                BrushStep(area: $0.0, surface: "all", seconds: 30, title: $0.1, tip: $0.0.hasSuffix("front") ? "Brush upright for the backs of the front teeth. " + outer : "Outside, inside, then the tops. " + outer)
+            }
+        }
+    }
+}
+
+/// Brushing mode: a tooth chart that lights the teeth and the surface to brush now, a vibration and chime at
+/// each switch, then floss and mouthwash
 struct BrushingView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
-    @State private var zones = 4
+    @AppStorage("brushPlan") private var planName = BrushPlan.thorough.rawValue
     @State private var start: Date?
     @State private var now = Date()
-    @State private var lastZone = -1
+    @State private var lastStep = -1
     @State private var floss = false
     @State private var mouthwash = false
-    private let timer = Timer.publish(every: 0.25, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()
 
+    private var plan: BrushPlan { BrushPlan(rawValue: planName) ?? .thorough }
+    private var steps: [BrushStep] { plan.steps }
+    private var total: Double { steps.map(\.seconds).reduce(0, +) }
     private var elapsed: Double { start.map { now.timeIntervalSince($0) } ?? 0 }
-    private var total: Double { Double(zones * 30) }
-    private var zone: Int { min(zones - 1, Int(elapsed / 30)) }
-    private var finished: Bool { elapsed >= total }
+    private var finished: Bool { start != nil && elapsed >= total }
+    private var index: Int {
+        var t = 0.0
+        for (i, s) in steps.enumerated() { t += s.seconds; if elapsed < t { return i } }
+        return steps.count - 1
+    }
+    private var stepLeft: Double {
+        let end = steps.prefix(index + 1).map(\.seconds).reduce(0, +)
+        return max(0, end - elapsed)
+    }
 
     var body: some View {
+        let step = start == nil || finished ? nil : steps[index]
         ZStack {
             Color.bg.ignoresSafeArea()
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 HStack { Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
-                Text(finished ? "Done" : start == nil ? "Brush" : zoneName).font(.system(size: 26, weight: .bold))
-                MouthDiagram(zones: zones, current: start == nil || finished ? -1 : zone).frame(width: 220, height: 260)
-                Text(start == nil ? "\(zones * 30 / 60):\(String(format: "%02d", zones * 30 % 60))" : String(format: "%d:%02d", Int(max(0, total - elapsed)) / 60, Int(max(0, total - elapsed)) % 60))
-                    .font(.system(size: 44, weight: .medium, design: .monospaced))
+                Text(finished ? "Done" : step?.title ?? "Brush").font(.system(size: 26, weight: .bold))
+                ToothChart(area: step?.area, surface: step?.surface).frame(maxHeight: 340)
+                if let step {
+                    Text(step.tip).font(.system(size: 14)).foregroundStyle(Color.soft).multilineTextAlignment(.center).frame(minHeight: 40)
+                    HStack(spacing: 4) {
+                        ForEach(steps.indices, id: \.self) { i in
+                            Capsule().fill(i < index ? Color(hex: 0x5FE3D0) : i == index ? Color.ink : Color.white.opacity(0.12)).frame(height: 5)
+                        }
+                    }
+                }
+                Text(start == nil ? timeText(total) : finished ? "0:00" : timeText(stepLeft) + "  ·  " + timeText(total - elapsed) + " left")
+                    .font(.system(size: start == nil ? 44 : 22, weight: .medium, design: .monospaced))
                 if start == nil {
-                    Picker("", selection: $zones) { Text("2 min · 4 zones").tag(4); Text("3 min · 6 zones").tag(6) }.pickerStyle(.segmented)
+                    Picker("", selection: $planName) { ForEach(BrushPlan.allCases, id: \.self) { Text($0.label).tag($0.rawValue) } }.pickerStyle(.segmented)
                     PrimaryButton(title: "Start") { start = Date(); UIApplication.shared.isIdleTimerDisabled = true }
                 } else if finished {
                     Toggle("Floss", isOn: $floss).tint(.mint)
@@ -253,49 +311,142 @@ struct BrushingView: View {
                     }
                 }
             }
-            .padding(24)
+            .padding(22)
         }
         .onReceive(timer) { t in
             now = t
             guard start != nil else { return }
-            if zone != lastZone || (finished && lastZone != zones) {
-                if lastZone >= 0 { UINotificationFeedbackGenerator().notificationOccurred(.success); AudioServicesPlaySystemSound(1057) }
-                lastZone = finished ? zones : zone
+            let i = finished ? steps.count : index
+            if i != lastStep {
+                if lastStep >= 0 { UINotificationFeedbackGenerator().notificationOccurred(.success); AudioServicesPlaySystemSound(1057) }
+                lastStep = i
                 if finished { UIApplication.shared.isIdleTimerDisabled = false }
             }
         }
     }
 
-    private var zoneName: String {
-        zones == 4 ? ["Upper right", "Upper left", "Lower left", "Lower right"][zone]
-            : ["Upper right", "Upper front", "Upper left", "Lower left", "Lower front", "Lower right"][zone]
-    }
+    private func timeText(_ s: Double) -> String { String(format: "%d:%02d", Int(s) / 60, Int(s) % 60) }
 }
 
-struct MouthDiagram: View {
-    var zones: Int
-    var current: Int
-    var body: some View {
-        Canvas { ctx, size in
-            let w = size.width, h = size.height
-            let per = zones / 2
-            let r = w / 2 - 24
-            let step = 180.0 / Double(per)
-            // Clockwise from the upper right: the upper arch right to left, then the lower arch left to right
-            for i in 0..<zones {
-                var p = Path()
-                if i < per {
-                    let a1 = 360 - Double(i) * step, a0 = a1 - step
-                    p.addArc(center: CGPoint(x: w / 2, y: h / 2 - 8), radius: r, startAngle: .degrees(a0 + 3), endAngle: .degrees(a1 - 3), clockwise: false)
-                } else {
-                    let j = i - per
-                    let a1 = 180 - Double(j) * step, a0 = a1 - step
-                    p.addArc(center: CGPoint(x: w / 2, y: h / 2 + 8), radius: r, startAngle: .degrees(a0 + 3), endAngle: .degrees(a1 - 3), clockwise: false)
+/// A dental chart drawn like the body map: 16 teeth per arch along a U-shaped curve, sized by type (molars,
+/// premolars, canine, incisors), seen as in a mirror. The teeth to brush light up; the outer or inner side gets a band.
+struct ToothChart: View {
+    var area: String?
+    var surface: String?
+    var sextants = UserDefaults.standard.string(forKey: "brushPlan") == BrushPlan.sextants.rawValue
+
+    // From the middle to the back: 2 incisors, canine, 2 premolars, 3 molars (width, depth relative to a molar)
+    private static let types: [(w: CGFloat, d: CGFloat)] = [(0.72, 0.55), (0.6, 0.55), (0.66, 0.82), (0.74, 0.9), (0.74, 0.9), (1, 1.05), (1, 1.05), (1, 1.05)]
+    private static let sweep = 92.0 * Double.pi / 180
+
+    private struct Tooth { var center: CGPoint; var angle: Double; var w: CGFloat; var d: CGFloat; var upper: Bool; var right: Bool; var index: Int; var normal: CGVector }
+
+    private func point(_ t: Double, _ size: CGSize, upper: Bool) -> CGPoint {
+        let rx = size.width * 0.31, ry = size.height * 0.33
+        let y0 = upper ? size.height * 0.07 : size.height * 0.93
+        let y = ry * CGFloat(1 - cos(t))
+        return CGPoint(x: rx * CGFloat(sin(t)), y: upper ? y0 + y : y0 - y)
+    }
+
+    private func teeth(in size: CGSize) -> ([Tooth], CGFloat) {
+        var out: [Tooth] = []
+        var unit: CGFloat = 0
+        for upper in [true, false] {
+            var table: [(Double, CGFloat)] = [(0, 0)]
+            var length: CGFloat = 0
+            var prev = point(0, size, upper: upper)
+            for i in 1...400 {
+                let t = Self.sweep * Double(i) / 400
+                let p = point(t, size, upper: upper)
+                length += hypot(p.x - prev.x, p.y - prev.y)
+                table.append((t, length))
+                prev = p
+            }
+            let gap: CGFloat = 0.06
+            let widths = Self.types.map { $0.w }.reduce(0, +)
+            unit = length / (widths + gap * CGFloat(Self.types.count))
+            for right in [true, false] {
+                var s = gap * unit / 2
+                for (k, type) in Self.types.enumerated() {
+                    let w = type.w * unit, d = type.d * unit
+                    let c = s + w / 2
+                    s += w + gap * unit
+                    let t = table.first { $0.1 >= c }?.0 ?? Self.sweep
+                    let p = point(t, size, upper: upper), q = point(t + 0.002, size, upper: upper)
+                    let sx: CGFloat = right ? 1 : -1 // mirror view: your right is on the right
+                    let dx = sx * (q.x - p.x), dy = q.y - p.y
+                    let len = max(0.0001, hypot(dx, dy))
+                    var normal = CGVector(dx: -dy / len, dy: dx / len)
+                    let inside = CGPoint(x: size.width / 2, y: upper ? size.height * 0.3 : size.height * 0.7)
+                    let center = CGPoint(x: size.width / 2 + sx * p.x, y: p.y)
+                    if (center.x - inside.x) * normal.dx + (center.y - inside.y) * normal.dy < 0 { normal = CGVector(dx: -normal.dx, dy: -normal.dy) }
+                    out.append(Tooth(center: center, angle: atan2(Double(dy), Double(dx)), w: w, d: d, upper: upper, right: right, index: k, normal: normal))
                 }
-                let on = i == current
-                ctx.stroke(p, with: .color(on ? Color.mint : Color.white.opacity(0.14)), style: StrokeStyle(lineWidth: on ? 30 : 24, lineCap: .round))
             }
         }
+        return (out, unit)
+    }
+
+    private func active(_ t: Tooth) -> Bool {
+        guard let area else { return false }
+        let front = t.index <= 2 // incisors and canine
+        let side = !sextants || !front // in six zones the side zones stop before the canines
+        switch area {
+        case "all": return true
+        case "upper-right": return t.upper && t.right && side
+        case "upper-left": return t.upper && !t.right && side
+        case "lower-left": return !t.upper && !t.right && side
+        case "lower-right": return !t.upper && t.right && side
+        case "upper-front": return t.upper && front
+        case "lower-front": return !t.upper && front
+        default: return false
+        }
+    }
+
+    private func place(_ rect: CGRect, corner: CGFloat, _ t: Tooth, offset: CGFloat = 0) -> Path {
+        Path(roundedRect: rect, cornerRadius: corner)
+            .applying(CGAffineTransform(rotationAngle: CGFloat(t.angle)))
+            .applying(CGAffineTransform(translationX: t.center.x + t.normal.dx * offset, y: t.center.y + t.normal.dy * offset))
+    }
+
+    var body: some View {
+        Canvas { ctx, size in
+            let (list, unit) = teeth(in: size)
+            let mint = Color(hex: 0x5FE3D0)
+            for upper in [true, false] {
+                var gum = Path()
+                let steps = 60
+                for i in 0...(2 * steps) {
+                    let f = Double(i - steps) / Double(steps)
+                    let p = point(abs(f) * Self.sweep, size, upper: upper)
+                    let pt = CGPoint(x: size.width / 2 + (f < 0 ? -p.x : p.x), y: p.y)
+                    if i == 0 { gum.move(to: pt) } else { gum.addLine(to: pt) }
+                }
+                ctx.stroke(gum, with: .color(Color(hex: 0x6E2D3E)), style: StrokeStyle(lineWidth: unit * 1.4, lineCap: .round, lineJoin: .round))
+            }
+            for t in list {
+                let on = active(t)
+                let shape = place(CGRect(x: -t.w / 2, y: -t.d / 2, width: t.w, height: t.d), corner: min(t.w, t.d) * 0.32, t)
+                let sideOnly = surface == "inner" || surface == "outer"
+                let fill = on ? (sideOnly ? Color(hex: 0xDFF7F2) : mint) : Color(hex: 0xF4EFE6)
+                ctx.fill(shape, with: .color(fill))
+                ctx.stroke(shape, with: .color(on ? mint : Color(hex: 0x3C3240)), lineWidth: on ? 2 : 1)
+                if t.index >= 3 {
+                    let groove = place(CGRect(x: -t.w * 0.28, y: -0.75, width: t.w * 0.56, height: 1.5), corner: 0.75, t)
+                    ctx.fill(groove, with: .color(Color(hex: 0x3C3240, opacity: 0.35)))
+                }
+                if on, sideOnly {
+                    let dir: CGFloat = surface == "outer" ? 1 : -1
+                    let band = place(CGRect(x: -t.w / 2, y: -3, width: t.w, height: 6), corner: 3, t, offset: dir * (t.d / 2 + 5))
+                    ctx.fill(band, with: .color(mint))
+                }
+            }
+            ctx.draw(Text("your right").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width - 36, y: size.height / 2))
+            ctx.draw(Text("your left").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: 34, y: size.height / 2))
+            ctx.draw(Text("upper").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.24))
+            ctx.draw(Text("lower").font(.system(size: 11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.76))
+        }
+        .aspectRatio(360.0 / 420.0, contentMode: .fit)
     }
 }
 

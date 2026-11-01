@@ -4,11 +4,12 @@ import Foundation
 import UserNotifications
 
 @MainActor
-final class LiveWorkout {
+final class LiveWorkout: ObservableObject {
     static let shared = LiveWorkout()
     private var activity: Activity<WorkoutAttributes>?
     private var sessionId: String?
-    private var restEnd: Date?
+    @Published private(set) var restEnd: Date?
+    @Published private(set) var restTotal: Double = 120
 
     /// The next set to do: the first one not ticked
     private func current(_ s: WorkoutSession) -> (index: Int, ex: TemplateExercise)? {
@@ -31,9 +32,16 @@ final class LiveWorkout {
         return .init(exercise: ex.name, setLabel: label, weight: s.sets[i].weight, reps: s.sets[i].reps, restEnd: restEnd, next: nextText, volume: Int(s.volume))
     }
 
-    func update(session: WorkoutSession, restEnd: Date?) async {
+    /// Starts or changes the rest countdown (nil skips it), then updates the lock screen
+    func rest(_ end: Date?, total: Double? = nil, session: WorkoutSession) async {
+        if let total { restTotal = total }
+        setRest(end)
+        await update(session: session)
+    }
+
+    func update(session: WorkoutSession) async {
         guard ActivityAuthorizationInfo().areActivitiesEnabled, session.end == nil else { return }
-        self.restEnd = restEnd
+        if sessionId != session.id { restEnd = nil }
         sessionId = session.id
         let content = ActivityContent(state: state(session), staleDate: nil)
         if let activity, activity.activityState == .active {
@@ -59,7 +67,7 @@ final class LiveWorkout {
             case .done:
                 s.sets[i].done = true
                 s.sets[i].at = nowMs()
-                if s.sets[i].kind != .warmup { setRest(Date().addingTimeInterval(Double(ex.rest))) }
+                if s.sets[i].kind != .warmup { restTotal = Double(ex.rest); setRest(Date().addingTimeInterval(Double(ex.rest))) }
             case .weightUp: s.sets[i].weight += 2.5
             case .weightDown: s.sets[i].weight = max(0, s.sets[i].weight - 2.5)
             case .repUp: s.sets[i].reps += 1
@@ -70,7 +78,7 @@ final class LiveWorkout {
             }
             store.save(s)
         }
-        await update(session: s, restEnd: restEnd)
+        await update(session: s)
     }
 
     private func setRest(_ end: Date?) {

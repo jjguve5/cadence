@@ -135,8 +135,7 @@ struct WorkoutView: View {
     @ObservedObject var catalog = Catalog.shared
     @Environment(\.dismiss) private var dismiss
     var sessionId: String
-    @State private var restEnd: Date?
-    @State private var restTotal = 120.0
+    @ObservedObject private var live = LiveWorkout.shared
     @State private var now = Date()
     @State private var picking = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -153,7 +152,7 @@ struct WorkoutView: View {
                     }
                     Spacer()
                 }
-                if let end = restEnd, end > now { restCard(end) }
+                if let end = live.restEnd, end > now { restCard(end) }
                 ForEach(session.order) { ex in exerciseCard(ex, session) }
                 SoftButton(title: "Add exercise", icon: "plus") { picking = true }
                 if session.end == nil {
@@ -179,7 +178,7 @@ struct WorkoutView: View {
                     store.save(s)
                 }
             }
-            .onAppear { Task { await LiveWorkout.shared.update(session: session, restEnd: restEnd) } }
+            .onAppear { Task { await LiveWorkout.shared.update(session: session) } }
         } else {
             Text("Session not found").foregroundStyle(Color.soft)
         }
@@ -196,7 +195,7 @@ struct WorkoutView: View {
         return Card(tint: .train) {
             HStack(spacing: 14) {
                 ZStack {
-                    Ring(progress: left / restTotal, area: .train, width: 7)
+                    Ring(progress: left / max(1, live.restTotal), area: .train, width: 7)
                     Text(String(format: "%d:%02d", Int(left) / 60, Int(left) % 60)).font(.system(size: 16, weight: .semibold, design: .monospaced))
                 }
                 .frame(width: 70, height: 70)
@@ -213,17 +212,7 @@ struct WorkoutView: View {
     }
 
     private func setRest(_ end: Date?) {
-        restEnd = end
-        let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: ["rest"])
-        if let end, end > Date() {
-            let c = UNMutableNotificationContent()
-            c.title = "Rest done"
-            c.body = "Next set when you're ready."
-            c.sound = .default
-            center.add(UNNotificationRequest(identifier: "rest", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: end.timeIntervalSinceNow, repeats: false)))
-        }
-        if let s = session { Task { await LiveWorkout.shared.update(session: s, restEnd: end) } }
+        if let s = session { Task { await live.rest(end, session: s) } }
     }
 
     private func exerciseCard(_ ex: TemplateExercise, _ session: WorkoutSession) -> some View {
@@ -245,10 +234,11 @@ struct WorkoutView: View {
                     let wasDone = s.sets[index].done
                     s.sets[index] = updated
                     store.save(s)
-                    Task { await LiveWorkout.shared.update(session: s, restEnd: restEnd) }
+                    let saved = s
                     if updated.done && !wasDone && updated.kind != .warmup {
-                        restTotal = Double(ex.rest)
-                        setRest(Date().addingTimeInterval(Double(ex.rest)))
+                        Task { await live.rest(Date().addingTimeInterval(Double(ex.rest)), total: Double(ex.rest), session: saved) }
+                    } else {
+                        Task { await live.update(session: saved) }
                     }
                 }
             }
