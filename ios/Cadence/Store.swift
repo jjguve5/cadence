@@ -219,7 +219,7 @@ final class Store: ObservableObject {
         }
     }
 
-    private func request(_ path: String, body: Data? = nil) -> URLRequest? {
+    func request(_ path: String, body: Data? = nil) -> URLRequest? {
         guard connection.configured, let url = URL(string: connection.server.trimmingCharacters(in: .whitespaces) + "/" + path) else { return nil }
         var r = URLRequest(url: url, timeoutInterval: 90)
         r.setValue("Bearer \(connection.token)", forHTTPHeaderField: "Authorization")
@@ -339,6 +339,8 @@ final class Store: ObservableObject {
     func refreshAll() async {
         await sync()
         await refreshHealth()
+        await Agenda.shared.refresh()
+        await Agenda.shared.pullDeskEvents()
         tick = Date()
     }
 }

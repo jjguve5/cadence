@@ -1,8 +1,8 @@
 <Files "config.php">
   Require all denied
 </Files>
-<Files "lib.php">
+<FilesMatch "^(lib|google_token)\.php$">
   Require all denied
-</Files>
+</FilesMatch>
 RewriteEngine On
 RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

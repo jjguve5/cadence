@@ -1,0 +1,26 @@
+{
+  "name": "cadence-desk",
+  "displayName": "Cadence Desk",
+  "description": "Shows your Cadence focus session and runs desk breaks (20-20-20 eyes, stand up) while it lasts.",
+  "version": "0.1.0",
+  "publisher": "jjguve5",
+  "license": "GPL-3.0",
+  "repository": { "type": "git", "url": "https://github.com/jjguve5/cadence" },
+  "engines": { "vscode": "^1.80.0" },
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "cadence.setToken", "title": "Cadence: Set server token" },
+      { "command": "cadence.refresh", "title": "Cadence: Refresh focus session" }
+    ],
+    "configuration": {
+      "title": "Cadence",
+      "properties": {
+        "cadence.server": { "type": "string", "default": "", "description": "Your Cadence server folder, e.g. https://example.com/cadence" },
+        "cadence.eyesEvery": { "type": "number", "default": 20, "description": "Minutes between 20-20-20 eye breaks during focus" },
+        "cadence.standEvery": { "type": "number", "default": 50, "description": "Minutes between stand-up prompts during focus" }
+      }
+    }
+  }
+}

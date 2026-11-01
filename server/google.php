@@ -14,6 +14,7 @@ const SCOPES = [
 	'https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly',
 	'https://www.googleapis.com/auth/googlehealth.profile.readonly',
 	'https://www.googleapis.com/auth/googlehealth.irn.readonly',
+	'https://www.googleapis.com/auth/calendar.readonly',
 ];
 
 function page($title, $text, $link = null) {
