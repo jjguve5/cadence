@@ -1,0 +1,9 @@
+server/config.php
+server/data/*.php
+ios/*.xcodeproj/
+ios/build/
+ios/Info.plist
+*.ipa
+Payload/
+node_modules/
+vscode/*.vsix

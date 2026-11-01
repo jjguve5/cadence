@@ -1,0 +1,32 @@
+name: Build iPhone app (unsigned IPA)
+on:
+  push:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - run: >
+          xcodebuild -project Cadence.xcodeproj -scheme Cadence
+          -configuration Release -sdk iphoneos -destination generic/platform=iOS
+          -derivedDataPath build -skipPackagePluginValidation
+          CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+          | tee build.log | grep -E "error:|warning: unre|BUILD (SUCCEEDED|FAILED)" ; exit ${PIPESTATUS[0]}
+        shell: bash
+      - if: failure()
+        run: grep -B2 -A6 "error:" build.log | head -200
+      - run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/Cadence.app Payload/
+          zip -qr Cadence.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cadence-ipa
+          path: ios/Cadence.ipa
