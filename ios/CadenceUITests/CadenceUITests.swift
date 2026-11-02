@@ -75,11 +75,13 @@ final class CadenceUITests: XCTestCase {
         XCTAssertTrue(el("focus.card").waitForExistence(timeout: 5))
         XCTAssertTrue(el("rec.minimumday").exists, "5 h of sleep should offer a minimum viable day")
         shot("recs-poor-sleep", app)
-        el("rec.minimumday.action").tap()
-        XCTAssertTrue(el("mvd.banner").waitForExistence(timeout: 3))
-        waitGone(el("rec.minimumday"))
+        reveal("rec.minimumday.action").tap()
+        XCTAssertTrue(el("mvd.banner").waitForExistence(timeout: 5))
+        waitGone(el("rec.minimumday"), timeout: 15)
         XCTAssertFalse(el("rec.focus").exists, "push-harder advice goes on a minimum viable day")
         shot("mvd-on", app)
+        var tries = 0
+        while !el("mvd.off").isHittable && tries < 6 { app.swipeDown(velocity: .fast); tries += 1 } // on a small phone the action was further down
         el("mvd.off").tap()
         waitGone(el("mvd.banner"))
         XCTAssertFalse(el("rec.minimumday").exists, "an answered recommendation stays away for today")

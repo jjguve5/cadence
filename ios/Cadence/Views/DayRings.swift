@@ -74,6 +74,7 @@ extension Store {
         let p = profile, plan = sleepPlan(), h = health[Day.today], f = fuel()
         let eat = Engine.paceShare(minute: minute, wake: p.wakeMinute, end: kitchenClose())
         let walk = Engine.paceShare(minute: minute, wake: p.wakeMinute, end: plan.windDown)
+        let drink = Engine.paceShare(minute: minute, wake: p.wakeMinute, end: plan.perform - 120)
         let goal = waterGoal()
         let due = self.due()
         let done = due.filter { status($0).map { $0 != .skipped } ?? false }.count
@@ -92,7 +93,7 @@ extension Store {
         let day = [
             RingStat(name: "Calories", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "of \(k(p.kcal))", now: "now \(k(p.kcal * eat))"),
             RingStat(name: "Protein", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "of \(Int(p.proteinTarget))g", now: "now \(Int(p.proteinTarget * eat))g"),
-            RingStat(name: "Water", value: f.water, target: goal, pace: waterPace() / max(1, goal), area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(waterPace()))"),
+            RingStat(name: "Water", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(goal * drink))"),
             RingStat(name: "Move", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "of \(k(Double(p.stepGoal)))", now: "now \(k(Double(p.stepGoal) * walk))"),
             RingStat(name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? nil : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
         ]

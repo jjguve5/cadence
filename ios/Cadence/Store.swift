@@ -1,5 +1,6 @@
 // Everything the app knows, saved on the phone first (offline) and synced with the PHP server: records go up when
 // they change here and come down when they changed elsewhere. Health days come from health.php.
+import Combine
 import Foundation
 import SwiftUI
 
@@ -75,6 +76,16 @@ final class Store: ObservableObject {
     @Published var captureOpen = false
 
     var recordCache: [String: Any] = [:] // decoded typed records, per type (see Records.swift)
+    // Worked out once per change: one redraw asks for these hundreds of times. Emptied whenever anything is about to change.
+    var planCache: [String: SleepPlan] = [:]
+    var busyCache: [String: [Busy]] = [:]
+    var readinessCache: [String: Readiness?] = [:]
+    var activeCache: [PromiseItem]?
+    private var cacheWatch: [AnyCancellable] = []
+
+    private func emptyCaches() {
+        planCache = [:]; busyCache = [:]; readinessCache = [:]; activeCache = nil
+    }
     private var dirty: [String: Int] = [:]
     private var tombstones: [String] = []
     private var rev: Int?
@@ -83,6 +94,8 @@ final class Store: ObservableObject {
     private let file = TestMode.active ? TestMode.storeFile : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json")
 
     private init() {
+        objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
+        Agenda.shared.objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
         if TestMode.active {
             if TestMode.reset { try? FileManager.default.removeItem(at: file) }
             let fresh = !FileManager.default.fileExists(atPath: file.path)
@@ -214,7 +227,12 @@ final class Store: ObservableObject {
 
     func status(_ promise: PromiseItem, on day: String = Day.today) -> LogStatus? { logs["\(promise.id)|\(day)"]?.status }
 
-    var activePromises: [PromiseItem] { promises.values.filter(\.active).sorted { time(of: $0) < time(of: $1) } }
+    var activePromises: [PromiseItem] {
+        if let activeCache { return activeCache }
+        let sorted = promises.values.filter(\.active).map { (time(of: $0), $0) }.sorted { $0.0 < $1.0 }.map(\.1)
+        activeCache = sorted
+        return sorted
+    }
 
     func due(on day: String = Day.today) -> [PromiseItem] { activePromises.filter { $0.schedule.isDue(on: day) } }
 

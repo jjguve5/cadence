@@ -80,6 +80,13 @@ extension Store {
 
     /// Contextual guidance from the engine: robust 28-day baselines, blended with yesterday, with its confidence
     func readiness(on day: String = Day.today) -> Readiness? {
+        if let cached = readinessCache[day] { return cached }
+        let r = workOutReadiness(on: day)
+        readinessCache[day] = .some(r)
+        return r
+    }
+
+    private func workOutReadiness(on day: String) -> Readiness? {
         guard let r = readinessResult(on: day), let today = health[day] else { return nil }
         var parts: [ReadinessPart] = []
         if let hrv = today.hrv, let z = r.hrvZ, let b = robust({ $0.hrv }, before: day) {
@@ -106,6 +113,13 @@ extension Store {
     // MARK: Sleep
 
     func sleepPlan(for day: String = Day.today) -> SleepPlan {
+        if let cached = planCache[day] { return cached }
+        let plan = workOutSleepPlan(for: day)
+        planCache[day] = plan
+        return plan
+    }
+
+    private func workOutSleepPlan(for day: String) -> SleepPlan {
         let nights = (0..<7).compactMap { health[Day.add(-$0, to: day)]?.sleep?.asleep }
         let napMinutes = health[day]?.naps?.map(\.asleep).reduce(0, +) ?? 0
         let debt = Engine.sleepDebt(nights: nights, need: profile.sleepNeed)
