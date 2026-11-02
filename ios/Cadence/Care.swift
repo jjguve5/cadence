@@ -1,5 +1,6 @@
 // Care: brushing, grooming that learns your rhythm, step-by-step routines, medicines and products with stock,
 // and travel (regular trips with leave-by alerts, one-off trips with a jet lag plan and a packing list).
+import CoreLocation
 import Foundation
 
 // MARK: - Self-care
@@ -232,8 +233,13 @@ extension Store {
                                        movedToday: (health[day]?.azm ?? 0) >= 20, wake: profile.wakeMinute, leaveTomorrow: commutes(on: tomorrow).map(\.leave).min(),
                                        nightFeels: day == Day.today ? nightFeels(from: plan.perform, to: profile.wakeMinute + 1440) : nil)
         let when = picked ?? auto.0
-        let why = picked == nil ? auto.1 : (when == .tonight ? "You picked tonight" : "You picked tomorrow morning")
+        // your pick wins, and the reason still shows when it differs from what Cadence would do
+        let why = picked == nil || picked == auto.0 ? auto.1 : "You picked this. Cadence would say \(auto.0 == .tonight ? "tonight" : "tomorrow morning"): \(auto.1.prefix(1).lowercased() + String(auto.1.dropFirst()))"
         if when == .morning { return (.morning, Day.at(profile.wakeMinute + 20, on: tomorrow), why) }
+        // training still to come today: the shower is the one right after it, and that session will count
+        if let t = trainingSlot(on: day), !t.done, day != Day.today || t.end > Day.minuteOfDay() {
+            return (.tonight, Day.at(t.end, on: day), "Right after \(t.title), which counts as today's shower")
+        }
         let m = Engine.outside(min(plan.perform - 90, plan.windDown - 15), busy: busy(on: day))
         return (.tonight, Day.at(max(m, day == Day.today ? Day.minuteOfDay() + 5 : 0), on: day), why)
     }
@@ -241,6 +247,20 @@ extension Store {
     /// The warmest it feels outside between lights out and waking, from the forecast
     func nightFeels(from: Int, to: Int) -> Double? {
         WeatherStore.shared.today?.hours.filter { $0.minute >= from && $0.minute <= to }.map(\.feels).max()
+    }
+
+    /// Set once in Settings, kept on this phone only: it rings the "unpack the gym bag" reminder on arriving
+    var homeCoordinate: CLLocationCoordinate2D? {
+        let d = UserDefaults.standard
+        guard d.object(forKey: "homeLat") != nil else { return nil }
+        return CLLocationCoordinate2D(latitude: d.double(forKey: "homeLat"), longitude: d.double(forKey: "homeLon"))
+    }
+
+    func setHomeHere() async {
+        let here = await WeatherStore.shared.currentLocation()
+        UserDefaults.standard.set(here.coordinate.latitude, forKey: "homeLat")
+        UserDefaults.standard.set(here.coordinate.longitude, forKey: "homeLon")
+        Reminders.shared.reschedule()
     }
 
     func logShower() {

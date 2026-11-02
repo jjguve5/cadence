@@ -57,19 +57,15 @@ final class CadenceUITests: XCTestCase {
     func testLaunchShowsToday() {
         launch("normal")
         XCTAssertTrue(el("capture.open").exists)
-        for r in ["calories", "protein", "promises"] { XCTAssertTrue(el("ring.\(r)").exists, "ring \(r) missing") }
-        XCTAssertFalse(el("ring.water").exists, "only three rings by default")
+        for r in ["sleep", "recovery", "strain", "calories", "protein", "water", "move", "promises"] { XCTAssertTrue(el("ring.\(r)").exists, "ring \(r) missing") }
         shot("today-normal", app)
     }
 
-    func testRingExpansion() {
+    func testAllRingsAlwaysShow() {
         launch("normal")
-        el("rings.toggle").tap()
-        XCTAssertTrue(el("ring.water").waitForExistence(timeout: 3))
-        XCTAssertTrue(el("ring.move").exists)
-        shot("rings-expanded", app)
-        el("rings.toggle").tap()
-        waitGone(el("ring.water"))
+        XCTAssertFalse(el("rings.toggle").exists, "nothing to expand: all the rings are always there")
+        XCTAssertTrue(el("ring.water").exists)
+        shot("rings", app)
     }
 
     // MARK: Recommendations and the minimum viable day
@@ -194,7 +190,7 @@ final class CadenceUITests: XCTestCase {
 
     func testCalibrationPage() {
         launch("calibration")
-        app.tabBars.buttons["You"].tap()
+        el("you.open").tap()
         reveal("you.growth").tap()
         reveal("growth.learned").tap()
         XCTAssertTrue(el("learned.screen").waitForExistence(timeout: 5))

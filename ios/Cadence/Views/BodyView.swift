@@ -39,10 +39,9 @@ struct BodyView: View {
 
     private var careCard: some View {
         let doses = store.doses().filter { $0.log == nil }.count
-        let groom = store.groomingDue.count
         return Card(tint: .mind) {
-            HStack { Eyebrow(text: "Care", icon: "sparkles", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-            Text([doses > 0 ? "\(doses) doses to take" : "Medicines done", groom > 0 ? "\(groom) grooming due" : nil, store.brushes().isEmpty ? "not brushed yet" : "brushed \(store.brushes().count)×"].compactMap { $0 }.joined(separator: " · ")).font(.geist(13.5))
+            HStack { Eyebrow(text: "Medicines", icon: "pills.fill", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+            Text(doses > 0 ? "\(doses) doses to take" : "Medicines done").font(.geist(13.5))
         }
     }
 

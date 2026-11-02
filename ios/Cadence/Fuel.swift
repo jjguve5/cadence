@@ -16,6 +16,7 @@ struct FoodEntry: Record, Equatable {
     var caffeine: Double? // mg
     var mealId: String?
     var promiseId: String? // logged by ticking a routine
+    var group: String? // comma-separated: fruit, soup, veg... Wins over name keywords (FoodGoals)
 }
 
 struct SavedMeal: Record, Equatable {
@@ -29,6 +30,8 @@ struct SavedMeal: Record, Equatable {
     var caffeine: Double?
     var uses = 0
     var lastUsed: Double = 0
+    var group: String?
+    var built: Bool? // favourite from the meal builder
 }
 
 struct WaterEntry: Record, Equatable {
@@ -105,7 +108,7 @@ extension Store {
         var out = meals
         for e in recent where !seen.contains(e.name.lowercased()) {
             seen.insert(e.name.lowercased())
-            out.append(SavedMeal(id: "recent-" + e.id, name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine))
+            out.append(SavedMeal(id: "recent-" + e.id, name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine, group: e.group))
             if out.count > 40 { break }
         }
         return out

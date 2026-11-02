@@ -17,7 +17,7 @@ struct YouView: View {
                             PipHead(mood: store.pipMood(), size: 64)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("Pip · \(store.pipMood().label)").font(.geist(17, .bold))
-                                Text(store.pipLine()).font(.geist(13)).foregroundStyle(Color.soft).lineLimit(2)
+                                Text(store.pipLine()).font(.geist(13)).foregroundStyle(Color.soft).lineLimit(3)
                             }
                         }
                     }
@@ -135,13 +135,16 @@ struct SettingsView: View {
             } header: { Text("Areas") } footer: { Text("Start small and switch areas on when you want them. The score only counts what's on.") }
             Section {
                 LabeledContent("Widgets", value: store.widgetsAvailable ? "working" : "not available with this signing")
-            } footer: { Text(store.widgetsAvailable ? "Long-press the home screen and add Cadence." : "The widgets need an App Group, which this install didn't get.") }
+            } footer: { Text(store.widgetsAvailable ? "Long-press the home screen and add Cadence." : "Live numbers on widgets need an App Group, which free signing doesn't give. Instead the widget is a set of shortcuts: water, brushing, quick add.") }
+            Section {
+                Button(store.homeCoordinate == nil ? "I'm home: remember this place" : "I'm home: update this place") { Task { await store.setHomeHere() } }.accessibilityIdentifier("home.set")
+            } header: { Text("Home") } footer: { Text("Used on this phone only, to remind you to unpack the gym bag when you arrive after a workout. Without it, the reminder comes 45 minutes after you finish.") }
             Section("Your data") {
                 ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Export everything (JSON)", systemImage: "square.and.arrow.up") }
             }
             Section("Server") {
                 LabeledContent("Address", value: store.connection.server)
-                Button("Sync now") { Task { await store.refreshAll(); await store.refreshHealth(force: true) } }
+                Button("Sync now") { Task { await store.refreshAll(force: true); await store.refreshHealth(force: true) } }
                 if let e = store.syncError { Text(e).font(.footnote).foregroundStyle(Color.warn) }
                 Button("Forget this server", role: .destructive) { store.connection = Connection() }
             }

@@ -240,8 +240,9 @@ struct SleepRecord: Codable, Equatable {
     var stages: [String: Int]?
     var timeline: [[JSONValue]]?
 
-    var startDate: Date { ISO8601DateFormatter().date(from: start) ?? Date() }
-    var endDate: Date { ISO8601DateFormatter().date(from: end) ?? Date() }
+    private static let iso = ISO8601DateFormatter()
+    var startDate: Date { Self.iso.date(from: start) ?? Date() }
+    var endDate: Date { Self.iso.date(from: end) ?? Date() }
 
     struct Segment: Identifiable { let id: Int; let stage: String; let from: Int; let to: Int }
     var segments: [Segment] {

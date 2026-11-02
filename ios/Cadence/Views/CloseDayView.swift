@@ -27,10 +27,12 @@ struct CloseDayView: View {
                 if !open.isEmpty {
                     Card(tint: .warn) {
                         Eyebrow(text: "Still open", color: .warn)
-                        ForEach(open) { PromiseRow(promise: $0) }
+                        ForEach(open) { PromiseRow(promise: $0, insideSheet: true) }
                     }
                 }
 
+                DisclosureGroup("Journal, if you have a minute") { JournalCard(day: Day.today) }
+                    .font(.geist(13.5, .medium)).tint(.soft).padding(.horizontal, 4)
                 Card {
                     Eyebrow(text: "How was today?")
                     HStack(spacing: 6) {

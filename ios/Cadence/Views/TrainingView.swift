@@ -141,6 +141,7 @@ struct WorkoutView: View {
     @State private var now = Date()
     @State private var picking = false
     @State private var feel: Int?
+    @State private var guiding: TempoGuideRequest?
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var session: WorkoutSession? { store.record(WorkoutSession.self, sessionId) }
@@ -197,6 +198,11 @@ struct WorkoutView: View {
                     store.save(s)
                 }
             }
+            .fullScreenCover(item: $guiding) { g in
+                TempoGuideView(exercise: g.exercise.name, weight: g.weight, plan: TempoPlan.forExercise(id: g.exercise.exerciseId, name: g.exercise.name), target: g.target) { reached in
+                    completeGuided(g, reps: reached)
+                }
+            }
             .onAppear {
                 store.recordTrainingPrediction(session: session)
                 Task { await LiveWorkout.shared.update(session: session) }
@@ -251,18 +257,7 @@ struct WorkoutView: View {
                 }
             }
             ForEach(sets, id: \.element.id) { index, set in
-                SetRow(set: set, number: sets.filter { $0.element.kind != .warmup && $0.offset <= index }.count, plates: store.plates(for: set.weight)) { updated in
-                    var s = session
-                    let wasDone = s.sets[index].done
-                    s.sets[index] = updated
-                    store.save(s)
-                    let saved = s
-                    if updated.done && !wasDone && updated.kind != .warmup {
-                        Task { await live.rest(Date().addingTimeInterval(Double(ex.rest)), total: Double(ex.rest), session: saved) }
-                    } else {
-                        Task { await live.update(session: saved) }
-                    }
-                }
+                setRow(set, number: sets.filter { $0.element.kind != .warmup && $0.offset <= index }.count, ex: ex, canGuide: session.end == nil)
             }
             HStack {
                 Button { var s = session; let last = sets.last?.element; s.sets.append(SetLog(exerciseId: ex.exerciseId, weight: last?.weight ?? 0, reps: last?.reps ?? ex.repHigh)); store.save(s) } label: { Label("Set", systemImage: "plus").font(.geist(12.5, .semibold)) }
@@ -272,6 +267,44 @@ struct WorkoutView: View {
             .tint(.train)
         }
     }
+
+    private func setRow(_ set: SetLog, number: Int, ex: TemplateExercise, canGuide: Bool) -> some View {
+        var guide: (() -> Void)?
+        if canGuide && !set.done { guide = { startGuide(set, ex) } }
+        return SetRow(set: set, number: number, plates: store.plates(for: set.weight), change: { applySet($0, ex: ex) }, guide: guide)
+    }
+
+    /// The one path for changing a set: it starts from the session as saved now and finds the set by id, because the
+    /// guide can run for minutes while the lock screen or a sync changes the session underneath it.
+    private func applySet(_ updated: SetLog, ex: TemplateExercise) {
+        guard var s = session, let index = s.sets.firstIndex(where: { $0.id == updated.id }) else { return }
+        let wasDone = s.sets[index].done
+        s.sets[index] = updated
+        store.save(s)
+        let saved = s
+        if updated.done && !wasDone && updated.kind != .warmup {
+            Task { await live.rest(Date().addingTimeInterval(Double(ex.rest)), total: Double(ex.rest), session: saved) }
+        } else {
+            Task { await live.update(session: saved) }
+        }
+    }
+
+    private func startGuide(_ set: SetLog, _ ex: TemplateExercise) {
+        if live.restEnd != nil { setRest(nil) } // starting the set ends the rest, so its alert can't sound mid-set
+        guiding = TempoGuideRequest(id: set.id, exercise: ex, weight: set.weight, target: set.reps > 0 ? set.reps : ex.repHigh)
+    }
+
+    private func completeGuided(_ g: TempoGuideRequest, reps: Int) {
+        guard var updated = session?.sets.first(where: { $0.id == g.id }) else { return }
+        updated.reps = reps
+        if !updated.done { updated.done = true; updated.at = nowMs() }
+        applySet(updated, ex: g.exercise)
+    }
+}
+
+enum SetField: String, Identifiable {
+    case weight, reps
+    var id: String { rawValue }
 }
 
 struct SetRow: View {
@@ -279,16 +312,34 @@ struct SetRow: View {
     var number: Int
     var plates: [Double]
     var change: (SetLog) -> Void
+    var guide: (() -> Void)? = nil
+    @State private var typing: SetField?
 
     var body: some View {
+        VStack(spacing: 6) {
+            controls
+            if let guide {
+                Button(action: guide) {
+                    Label("Guide", systemImage: "metronome.fill").font(.geist(13, .semibold)).foregroundStyle(Color.train)
+                        .frame(maxWidth: .infinity, minHeight: 34)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.train.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("workout.guide")
+            }
+        }
+        .sheet(item: $typing) { field in SetValueEntry(field: field, set: set, change: change) }
+    }
+
+    private var controls: some View {
         HStack(spacing: 8) {
             Menu {
                 ForEach(SetKind.allCases, id: \.self) { k in Button(k.rawValue.capitalized) { var s = set; s.kind = k; change(s) } }
             } label: {
                 Text(set.kind == .working ? "\(number)" : set.kind.short).font(.geist(12, .bold)).frame(width: 26).foregroundStyle(set.kind == .warmup ? Color.faint : Color.soft)
             }
-            stepper(kg(set.weight) + " kg", minus: { var s = set; s.weight = max(0, s.weight - 2.5); change(s) }, plus: { var s = set; s.weight += 2.5; change(s) })
-            stepper("\(set.reps)", minus: { var s = set; s.reps = max(0, s.reps - 1); change(s) }, plus: { var s = set; s.reps += 1; change(s) })
+            stepper(kg(set.weight) + " kg", field: .weight, minus: { var s = set; s.weight = max(0, s.weight - 2.5); change(s) }, plus: { var s = set; s.weight += 2.5; change(s) })
+            stepper("\(set.reps)", field: .reps, minus: { var s = set; s.reps = max(0, s.reps - 1); change(s) }, plus: { var s = set; s.reps += 1; change(s) })
             Button { var s = set; s.done.toggle(); s.at = s.done ? nowMs() : nil; change(s) } label: {
                 Image(systemName: "checkmark").opacity(set.done ? 1 : 0).font(.geist(13, .bold)).foregroundStyle(Color(hex: 0x04210F))
                     .frame(width: 30, height: 30)
@@ -300,15 +351,81 @@ struct SetRow: View {
         .opacity(set.kind == .warmup && !set.done ? 0.7 : 1)
     }
 
-    private func stepper(_ text: String, minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
+    private func stepper(_ text: String, field: SetField, minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
         HStack(spacing: 0) {
             Button(action: minus) { Image(systemName: "minus").frame(width: 28, height: 32) }
-            Text(text).font(.mono(14, .semibold)).frame(maxWidth: .infinity).lineLimit(1).minimumScaleFactor(0.7)
+            Button { typing = field } label: {
+                Text(text).font(.mono(14, .semibold)).lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, minHeight: 32).contentShape(Rectangle())
+            }
+            .accessibilityHint("Tap to type a value")
+            .accessibilityIdentifier("workout.\(field.rawValue)")
             Button(action: plus) { Image(systemName: "plus").frame(width: 28, height: 32) }
         }
         .buttonStyle(.plain)
         .foregroundStyle(Color.ink)
         .background(RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.08)))
+    }
+}
+
+/// Type a weight or reps. The field starts empty with the current value behind it, so typing replaces it, and the set
+/// is written once when editing ends: on Set or on swiping the sheet away, and only if the value changed.
+struct SetValueEntry: View {
+    var field: SetField
+    var set: SetLog
+    var change: (SetLog) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft = ""
+    @State private var closed = false
+    @FocusState private var focused: Bool
+
+    private var isWeight: Bool { field == .weight }
+    private var valid: Bool { isWeight ? NumberInput.weight(draft) != nil : NumberInput.reps(draft) != nil }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Eyebrow(text: isWeight ? "Weight in kg" : "Reps")
+            TextField("Value", text: $draft, prompt: Text(isWeight ? kg(set.weight) : "\(set.reps)"))
+                .keyboardType(isWeight ? .decimalPad : .numberPad)
+                .font(.mono(38, .semibold))
+                .multilineTextAlignment(.center)
+                .focused($focused)
+                .onSubmit { finish() }
+                .accessibilityIdentifier("workout.entry")
+            HStack(spacing: 10) {
+                SoftButton(title: "Cancel") { closed = true; dismiss() }
+                PrimaryButton(title: "Set", area: .train) { finish() }
+                    .disabled(!valid)
+                    .opacity(valid ? 1 : 0.4)
+                    .accessibilityIdentifier("workout.entry.set")
+            }
+        }
+        .padding(16)
+        .presentationDetents([.height(210)])
+        .presentationDragIndicator(.visible)
+        .task {
+            try? await Task.sleep(nanoseconds: 100_000_000) // the sheet takes focus only once it's on screen
+            focused = true
+        }
+        .onDisappear { if !closed { commit() } }
+    }
+
+    private func finish() {
+        guard valid else { return }
+        closed = true
+        commit()
+        dismiss()
+    }
+
+    private func commit() {
+        var s = set
+        if isWeight, let v = NumberInput.weight(draft), v != s.weight {
+            s.weight = v
+            change(s)
+        } else if !isWeight, let v = NumberInput.reps(draft), v != s.reps {
+            s.reps = v
+            change(s)
+        }
     }
 }
 

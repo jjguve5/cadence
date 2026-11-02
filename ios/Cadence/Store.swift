@@ -70,6 +70,9 @@ final class Store: ObservableObject {
     @Published private(set) var appleHealthProblem: String?
     @Published var tick = Date() // redraws time-based views
     @Published var openWorkout: OpenSession?
+    @Published var brushingOpen = false
+    @Published var readingOpen = false
+    @Published var captureOpen = false
 
     var recordCache: [String: Any] = [:] // decoded typed records, per type (see Records.swift)
     private var dirty: [String: Int] = [:]
@@ -105,21 +108,57 @@ final class Store: ObservableObject {
         }
     }
 
+    /// Every change is in memory at once and on disk moments later, away from the main thread, so tapping never waits
+    private var saveWork: DispatchWorkItem?
+    private let saveQueue = DispatchQueue(label: "cadence.save", qos: .utility)
+
     private func persist() {
+        saveWork?.cancel()
+        let s = savedState(), target = file
+        if TestMode.active { Self.write(s, to: target); return } // UI tests kill the app straight after a change
+        let work = DispatchWorkItem { Self.write(s, to: target) }
+        saveWork = work
+        saveQueue.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    private nonisolated static func write(_ s: Saved, to file: URL) {
+        if let data = try? JSONEncoder().encode(s) { try? data.write(to: file, options: .atomic) }
+    }
+
+    /// Going to the background: nothing is left waiting in memory
+    func persistNow() {
+        saveWork?.cancel()
+        let s = savedState(), target = file
+        saveQueue.sync { Self.write(s, to: target) }
+    }
+
+    private func savedState() -> Saved {
         var s = Saved()
         s.promises = promises; s.logs = logs; s.days = days; s.profile = profile; s.feedback = feedback; s.extra = extra
         s.health = health; s.device = device; s.healthErrors = healthErrors; s.lastHealth = lastHealth?.timeIntervalSince1970
         s.connection = connection; s.dirty = dirty; s.tombstones = tombstones; s.rev = rev; s.seeded = true
-        if let data = try? JSONEncoder().encode(s) { try? data.write(to: file, options: .atomic) }
+        return s
     }
 
     private func mark(_ key: String) {
         version += 1
         dirty[key] = version
         persist()
-        writeSnapshot()
+        scheduleSnapshot()
         Reminders.shared.reschedule()
         scheduleSync()
+    }
+
+    private var snapshotTask: Task<Void, Never>?
+
+    private func scheduleSnapshot() {
+        guard widgetsAvailable else { return }
+        snapshotTask?.cancel()
+        snapshotTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.writeSnapshot()
+        }
     }
 
     /// The first promises, so the app is useful on day one
@@ -235,14 +274,45 @@ final class Store: ObservableObject {
     // MARK: - Sync
 
     private var syncTask: Task<Void, Never>?
+    private var syncFailures = 0
+    private var syncPausedUntil = Date.distantPast
+    private var lastRefreshAll = Date.distantPast
 
+    /// The phone is the source of truth and the server a copy: changes go up in one batch, 30 seconds after the last
+    /// one, so a burst of sets and reps is a single request. When the server refuses, it waits longer each time.
     func scheduleSync() {
+        guard Date() >= syncPausedUntil else { return } // the retry already scheduled carries these changes too
         syncTask?.cancel()
         syncTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            try? await Task.sleep(nanoseconds: 30_000_000_000)
             guard !Task.isCancelled else { return }
             await self?.sync()
         }
+    }
+
+    private func syncFailed(_ message: String) {
+        syncError = message
+        syncFailures += 1
+        let wait = Engine.syncBackoff(failures: syncFailures)
+        syncPausedUntil = Date().addingTimeInterval(wait)
+        syncTask?.cancel()
+        syncTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.sync()
+        }
+    }
+
+    /// Leaving the app: save, plan the notifications and send what's waiting, since nothing else will run for a while
+    func wentToBackground() {
+        persistNow()
+        Reminders.shared.flush()
+        guard !dirty.isEmpty, Date() >= syncPausedUntil else { return }
+        syncTask?.cancel()
+        let app = UIApplication.shared
+        var id = UIBackgroundTaskIdentifier.invalid
+        id = app.beginBackgroundTask { app.endBackgroundTask(id) }
+        Task { await sync(); app.endBackgroundTask(id) }
     }
 
     func request(_ path: String, body: Data? = nil) -> URLRequest? {
@@ -291,7 +361,7 @@ final class Store: ObservableObject {
     }
 
     func sync() async {
-        guard connection.configured, !syncing else { return }
+        guard connection.configured, !syncing, Date() >= syncPausedUntil else { return }
         syncing = true
         defer { syncing = false }
         let sent = dirty
@@ -301,7 +371,7 @@ final class Store: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard code == 200 else { syncError = code == 403 ? "The server refused the token" : "Sync failed (\(code))"; return }
+            guard code == 200 else { syncFailed(code == 403 ? "The server refused this for now: saved on the phone, retrying later" : "Sync failed (\(code)): saved on the phone"); return }
             let reply = try JSONDecoder().decode(SyncReply.self, from: data)
             for (key, v) in sent where dirty[key] == v { dirty[key] = nil }
             tombstones.removeAll { sent[$0] != nil && dirty[$0] == nil }
@@ -309,10 +379,11 @@ final class Store: ObservableObject {
             if reply.changes.contains(where: { $0.type == WeightEntry.kind }) { followLatestWeight() }
             rev = reply.rev
             syncError = nil
+            syncFailures = 0
             persist()
-            Reminders.shared.reschedule()
+            if !reply.changes.isEmpty { Reminders.shared.reschedule() }
         } catch {
-            syncError = "Offline: changes wait on the phone"
+            syncFailed("Offline: changes wait on the phone")
         }
     }
 
@@ -398,6 +469,14 @@ final class Store: ObservableObject {
         } else if url.host == "workout" {
             let id = value("id").flatMap { $0.isEmpty ? nil : $0 } ?? activeSession?.id
             if let id { openWorkout = OpenSession(id: id) }
+        } else if url.host == "brush" {
+            brushingOpen = true
+        } else if url.host == "read" {
+            readingOpen = true
+        } else if url.host == "water" {
+            addWater(250)
+        } else if url.host == "capture" {
+            captureOpen = true
         }
     }
 
@@ -414,7 +493,11 @@ final class Store: ObservableObject {
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 
-    func refreshAll() async {
+    /// Coming back to the app shouldn't mean a round of requests every time; pull to refresh forces it
+    func refreshAll(force: Bool = false) async {
+        guard force || Date().timeIntervalSince(lastRefreshAll) > 5 * 60 else { return }
+        lastRefreshAll = Date()
+        if force { syncPausedUntil = .distantPast }
         await sync()
         await refreshHealth()
         await Agenda.shared.refresh()

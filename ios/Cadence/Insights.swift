@@ -220,29 +220,61 @@ extension Store {
     func pipLine() -> String {
         let minute = Day.minuteOfDay()
         let open = openMustDos()
-        if activeFocus != nil { return "Focusing. I'll be quiet." }
+        if activeFocus != nil { return Pip.stable(.focusing, store: self) }
         if isMinimumDay() {
-            return open.isEmpty ? "Light day, essentials done. That's a full day." : "Light day: just \(open.first!.title.lowercased()) and rest."
+            if let first = open.first { return Pip.stable(.minimumDayOpen, store: self, key: first.id, what: first.title) }
+            return Pip.stable(.minimumDayDone, store: self)
         }
         // Effort and consistency, noticed: one line, chosen by day so it doesn't repeat
-        var noticed: [String] = []
-        if let r = readiness(), r.score < 50, !sessions(on: Day.today).filter({ $0.end != nil }).isEmpty { noticed.append("You trained on a low day. Showing up counts.") }
+        var noticed: [(situation: PipSituation, lead: String?, key: String)] = []
+        if let r = readiness(), r.score < 50, !sessions(on: Day.today).filter({ $0.end != nil }).isEmpty { noticed.append((.trainedLowDay, nil, "")) }
         for p in due().filter({ $0.kind == .mustDo }) {
             let w = week(p)
-            if w.due >= 4, w.done == w.due, status(p) != nil { noticed.append("\(p.title) \(w.done)/\(w.total) this week. That's how habits stick.") }
+            if w.due >= 4, w.done == w.due, status(p) != nil { noticed.append((.streak, "\(p.title) \(w.done)/\(w.total) this week.", p.id)) }
         }
-        if shortNightsInARow() == 0, let s = health[Day.today]?.sleep, s.asleep >= profile.sleepNeed - 15, minute < 12 * 60 { noticed.append("A full night. Today's yours.") }
-        if !noticed.isEmpty, minute % 3 == 0 || noticed.count == 1 { return noticed[(Day.between("2026-01-01", Day.today)) % noticed.count] }
-        if let m = open.first, minute >= time(of: m) { return "\(m.title) first, then we rest." }
+        if shortNightsInARow() == 0, let s = health[Day.today]?.sleep, s.asleep >= profile.sleepNeed - 15, minute < 12 * 60 { noticed.append((.sleepGood, nil, "")) }
+        if !noticed.isEmpty, minute % 3 == 0 || noticed.count == 1 {
+            let n = noticed[(Day.between("2026-01-01", Day.today)) % noticed.count]
+            return Pip.stable(n.situation, store: self, key: n.key, lead: n.lead)
+        }
+        if let m = open.first, minute >= time(of: m) { return Pip.stable(.mustDoOpen, store: self, key: m.id, what: m.title) }
         switch pipMood() {
-        case .sleepy: return minute < 12 * 60 ? "Short night. Let's keep today gentle." : "Wind-down time. Screens away, book out."
-        case .celebrate: return "Everything done. Proud of you."
-        case .sad: return "Yesterday slipped. One small thing today and we're back."
-        case .happy: return "Good day so far. Keep it rolling."
+        case .sleepy: return Pip.stable(minute < 12 * 60 ? .sleepShort : .windDown, store: self)
+        case .celebrate: return Pip.stable(.promisesDone, store: self)
+        case .sad: return Pip.stable(.comeback, store: self)
+        case .happy: return Pip.stable(pipTopic(minute: minute) ?? .goodDay, store: self)
         default:
             let next = due().first { status($0) == nil && time(of: $0) >= minute }
-            return next.map { "Next: \($0.title.lowercased()) at \(timeLabel($0))." } ?? "Morning! Let's make today count."
+            let topic = pipTopic(minute: minute)
+            // What's next stays the main thing; every other hour Pip mentions what it has noticed instead
+            if let next, topic == nil || (minute / 60) % 2 == 1 {
+                return Pip.stable(.generic, store: self, key: "next", lead: "Next: \(next.title.lowercased()) at \(timeLabel(next)).")
+            }
+            return Pip.stable(topic ?? (minute < 12 * 60 ? .morning : .generic), store: self)
         }
+    }
+
+    /// Something from today worth mentioning when nothing more pressing is going on
+    private func pipTopic(minute: Int) -> PipSituation? {
+        let today = Day.today
+        if minute < 14 * 60, let r = readiness() {
+            if r.score < 50 { return .recoveryLow }
+            if r.score >= 80 { return .recoveryHigh }
+        }
+        if !sessions(on: today).filter({ $0.end != nil }).isEmpty { return .trainingDone }
+        let trainingWords = ["train", "gym", "workout"]
+        if due().contains(where: { p in status(p) == .skipped && trainingWords.contains { p.title.lowercased().contains($0) } }) { return .trainingSkipped }
+        if profile.on("fuel") {
+            let f = fuel()
+            if f.water + 600 < waterPace() { return .waterBehind }
+            if minute >= 18 * 60, f.protein < profile.proteinTarget * 0.65 { return .proteinBehind }
+        }
+        if minute >= 18 * 60, !showerTimes.isEmpty, showerPlan(for: today) != nil { return .shower }
+        if minute >= 20 * 60 {
+            if readingMinutes(on: today) == 0, all(Book.self).contains(where: { $0.finished == nil }) { return .reading }
+            if day().closedAt == nil { return .eveningClose }
+        }
+        return minute < 11 * 60 ? .morning : nil
     }
 
     /// Promises that tick themselves once the Air syncs: a steps goal, a bedtime

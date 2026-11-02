@@ -9,7 +9,7 @@ struct TodayView: View {
     @State private var loggingFood = false
     @State private var settingUp = false
     @State private var capturing = false
-    @State private var allRings = false
+    @State private var showingYou = false
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -31,10 +31,14 @@ struct TodayView: View {
                     }
                     .buttonStyle(Pressable())
                 }
+                if store.journalDue { JournalCard(canPostpone: true) }
                 MinimumDayBanner()
+                DayRings(loggingFood: $loggingFood)
                 FocusCard()
                 nextUp
-                rings
+                FoodGoalsCard()
+                ShowerTodayCard()
+                GymBagCard()
                 readinessCard
                 if Day.minuteOfDay(store.tick) < 11 * 60 || store.weatherCall()?.umbrella == true { WeatherCard() }
                 promisesCard
@@ -42,12 +46,14 @@ struct TodayView: View {
                 closeCard
                 syncLine
             }
-            .refreshable { await store.refreshAll() }
+            .refreshable { await store.refreshAll(force: true) }
             .sheet(isPresented: $closing) { CloseDayView() }
             .sheet(item: $editing) { PromiseEditor(promise: $0) }
             .sheet(isPresented: $loggingFood) { FoodLogSheet() }
             .sheet(isPresented: $settingUp) { SmartSetup() }
             .sheet(isPresented: $capturing) { QuickCaptureSheet() }
+            .sheet(isPresented: $showingYou) { YouView() }
+            .onChange(of: store.captureOpen) { _, open in if open { capturing = true; store.captureOpen = false } }
             .onAppear { store.recordMorningPrediction() }
             .toolbar(.hidden, for: .navigationBar)
         }
@@ -64,13 +70,24 @@ struct TodayView: View {
             .buttonStyle(Pressable())
             .accessibilityLabel("Quick capture").accessibilityIdentifier("capture.open")
             .padding(.trailing, 6)
+            Button { showingYou = true } label: {
+                Image(systemName: "person.fill").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
+                    .frame(width: 40, height: 40).background(Circle().fill(.white.opacity(0.09)).overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1)))
+            }
+            .buttonStyle(Pressable())
+            .accessibilityLabel("You").accessibilityIdentifier("you.open")
+            .padding(.trailing, 6)
             NavigationLink { PipPage() } label: {
-                ZStack(alignment: .bottomTrailing) {
+                ZStack(alignment: .topTrailing) {
                     PipHead(mood: store.pipMood(), size: 50)
-                    Text("\(store.level.level)").font(.geist(11, .bold)).foregroundStyle(Color(hex: 0x032018))
-                        .padding(.horizontal, 6).padding(.vertical, 2).background(Capsule().fill(Color.mint)).offset(x: 4, y: 2)
+                    // only a number when Pip is waiting on something, like any other notification badge
+                    if store.pipNotices > 0 {
+                        Text("\(store.pipNotices)").font(.geist(11, .bold)).foregroundStyle(.white)
+                            .frame(minWidth: 18, minHeight: 18).background(Circle().fill(Color.red)).offset(x: 4, y: -2)
+                    }
                 }
             }
+            .accessibilityLabel(store.pipNotices > 0 ? "Pip, \(store.pipNotices) waiting" : "Pip")
         }
         .padding(.top, 8)
     }
@@ -154,61 +171,13 @@ struct TodayView: View {
                             Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
-                        Button { store.log(next, .done) } label: {
-                            Image(systemName: "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
+                        let brush = next.title.lowercased().contains("brush"), read = next.title.lowercased().hasPrefix("read")
+                        Button { if brush { store.brushingOpen = true } else if read { store.readingOpen = true } else { store.log(next, .done) } } label: {
+                            Image(systemName: brush || read ? "play.fill" : "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
                                 .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
                         }
+                        .accessibilityLabel(brush || read ? "Start \(next.title)" : "Mark \(next.title) done").accessibilityIdentifier("next.action")
                     }
-                }
-            }
-        }
-    }
-
-    private var rings: some View {
-        let today = store.health[Day.today]
-        let due = store.due()
-        let done = due.filter { store.status($0).map { $0 != .skipped } ?? false }.count
-        let fuel = store.fuel()
-        let kcalTarget = store.profile.kcal
-        let items: [(String, Double, Area, String)] = [
-            ("Calories", fuel.kcal / max(1, kcalTarget), .fuel, fuel.kcal >= 1000 ? String(format: "%.1fk", fuel.kcal / 1000) : "\(Int(fuel.kcal))"),
-            ("Protein", fuel.protein / store.profile.proteinTarget, .train, "\(Int(fuel.protein))g"),
-            ("Water", fuel.water / store.waterGoal(), .water, String(format: "%.1fL", fuel.water / 1000)),
-            ("Move", (today?.steps ?? 0) / Double(store.profile.stepGoal), .mint, today?.steps.map { "\(Int($0 / 100) / 10).\(Int($0 / 100) % 10)k" } ?? "–"),
-            ("Promises", due.isEmpty ? 1 : Double(done) / Double(due.count), .mind, "\(done)/\(due.count)"),
-        ]
-        return Card {
-            HStack {
-                Eyebrow(text: "Today so far", icon: "circle.dashed")
-                Spacer()
-                Button { loggingFood = true } label: {
-                    Label("Food", systemImage: "plus").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
-                        .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.fuel.gradient))
-                }
-                .buttonStyle(Pressable())
-                Button { withAnimation(.easeOut(duration: 0.2)) { allRings.toggle() } } label: {
-                    Image(systemName: allRings ? "chevron.up" : "ellipsis").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.soft).frame(width: 44, height: 44).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(allRings ? "Show fewer rings" : "Show all rings").accessibilityIdentifier("rings.toggle")
-                Button { store.addWater(250) } label: {
-                    Label("250 ml", systemImage: "drop.fill").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x03202A))
-                        .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Area.water.gradient))
-                }
-                .buttonStyle(Pressable())
-            }
-            HStack {
-                ForEach(allRings ? items : items.filter { ["Calories", "Protein", "Promises"].contains($0.0) }, id: \.0) { item in
-                    VStack(spacing: 6) {
-                        ZStack {
-                            Ring(progress: item.1, area: item.2, width: 6)
-                            Text(item.3).font(.geist(11.5, .semibold)).minimumScaleFactor(0.7)
-                        }
-                        .frame(width: 54, height: 54)
-                        Text(item.0).font(.geist(11.5)).foregroundStyle(Color.soft)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(item.0.lowercased())")
                 }
             }
         }
@@ -297,6 +266,7 @@ struct PromiseRow: View {
     var promise: PromiseItem
     var day: String = Day.today
     var edit: () -> Void = {}
+    var insideSheet = false // a sheet is already up, so brushing and reading open from here instead of the root
     @State private var brushing = false
     @State private var reading = false
 
@@ -318,9 +288,9 @@ struct PromiseRow: View {
             }
             Spacer()
             if status == nil, promise.title.lowercased().contains("brush") {
-                Button { brushing = true } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
+                Button { if insideSheet { brushing = true } else { store.brushingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
-                Button { reading = true } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
+                Button { if insideSheet { reading = true } else { store.readingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
             } else if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
             else if store.isMinimumDay(day) { Chip(text: "optional today", color: .faint) }
             else { Chip(text: promise.schedule.summary, color: .soft) }

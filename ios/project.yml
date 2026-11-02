@@ -29,7 +29,7 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.jjguve5.cadence
             CFBundleURLSchemes: [cadence]
-        UIBackgroundModes: [fetch]
+        UIBackgroundModes: [fetch, audio]
         BGTaskSchedulerPermittedIdentifiers: [com.jjguve5.cadence.refresh]
         NSSupportsLiveActivities: true
         LSApplicationQueriesSchemes: [fitbit]

@@ -6,6 +6,7 @@ import VisionKit
 struct FuelView: View {
     @EnvironmentObject var store: Store
     @State private var adding = false
+    @State private var building = false
     @State private var weighing = false
     @State private var weightText = ""
 
@@ -38,12 +39,12 @@ struct FuelView: View {
                 Card(tint: .fuel) {
                     Eyebrow(text: "Protein catch-up", icon: "fork.knife", color: .fuel)
                     Text("\(Int(c.gap)) g protein left today." + (c.meal.map { " Your \($0.name.lowercased()) covers \(Int($0.protein)) g." } ?? "")).font(.geist(14))
-                    if let m = c.meal { SoftButton(title: "Log \(m.name)", icon: "plus") { store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, mealId: m.id)) } }
+                    if let m = c.meal { SoftButton(title: "Log \(m.name)", icon: "plus") { store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, mealId: m.id, group: m.group)) } }
                 }
             }
             WaterCard()
             Card {
-                HStack { Eyebrow(text: "Today", icon: "list.bullet"); Spacer(); Button { adding = true } label: { Label("Log food", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.fuel) }
+                HStack { Eyebrow(text: "Today", icon: "list.bullet"); Spacer(); Button { building = true } label: { Label("Build", systemImage: "square.stack.3d.up").font(.geist(13, .semibold)) }.tint(.fuel).accessibilityIdentifier("fuel.build"); Button { adding = true } label: { Label("Log food", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.fuel) }
                 let foods = store.foods()
                 if foods.isEmpty { Text("Nothing logged yet.").font(.geist(14)).foregroundStyle(Color.soft) }
                 ForEach(foods) { e in
@@ -54,12 +55,11 @@ struct FuelView: View {
                         Text("\(Int(e.kcal)) · \(Int(e.protein)) g").font(.mono(12.5)).foregroundStyle(Color.soft)
                     }
                     .contextMenu {
-                        Button("Save as a meal", systemImage: "star") { store.save(SavedMeal(name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine)) }
+                        Button("Save as a meal", systemImage: "star") { store.save(SavedMeal(name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine, group: e.group)) }
                         Button("Delete", systemImage: "trash", role: .destructive) { store.remove(e) }
                     }
                 }
-                let plan = store.sleepPlan()
-                if let last = f.lastMeal, last > plan.perform - 180 { Text("Late meal: the kitchen closed at \(clock(plan.perform - 180)). Late eating raises night heart rate.").font(.geist(12)).foregroundStyle(Color.warn) }
+                if let last = f.lastMeal, last > store.kitchenClose() { Text("Late meal: the kitchen closed at \(clock(store.kitchenClose())). Late eating raises night heart rate.").font(.geist(12)).foregroundStyle(Color.warn) }
             }
             Card {
                 HStack { Eyebrow(text: "Weight and targets", icon: "scalemass"); Spacer(); Button("Log weight") { weighing = true }.font(.geist(13, .semibold)).tint(.fuel) }
@@ -84,6 +84,7 @@ struct FuelView: View {
         .navigationTitle("Fuel")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { FoodLogSheet() }
+        .sheet(isPresented: $building) { NavigationStack { MealBuilderView() } }
         .alert("Weight today", isPresented: $weighing) {
             TextField("kg", text: $weightText).keyboardType(.decimalPad)
             Button("Save") {
@@ -136,10 +137,17 @@ struct FoodLogSheet: View {
     @State private var results: [OFFResult] = []
     @State private var searching = false
     @State private var group = "Eating out"
+    @State private var offeringAddOns = false
+    @State private var loggedMeal = ""
 
     private func log(_ f: CommonFood, _ factor: Double, size: String) {
-        store.logFood(FoodEntry(name: f.name + (factor == 1 ? "" : " (\(size.lowercased()))"), kcal: (f.kcal * factor).rounded(), protein: (f.protein * factor).rounded()))
-        dismiss()
+        logAndFinish(FoodEntry(name: f.name + (factor == 1 ? "" : " (\(size.lowercased()))"), kcal: (f.kcal * factor).rounded(), protein: (f.protein * factor).rounded()))
+    }
+
+    /// A full meal goes on to its add-ons (fruit, soup, salad...); anything smaller just closes
+    private func logAndFinish(_ e: FoodEntry) {
+        store.logFood(e)
+        if MealBuilder.isFullMeal(kcal: e.kcal) { loggedMeal = e.name; offeringAddOns = true } else { dismiss() }
     }
 
     var body: some View {
@@ -182,16 +190,16 @@ struct FoodLogSheet: View {
                     if items.isEmpty { Text("Foods you log appear here, most used first.").foregroundStyle(Color.soft) }
                     ForEach(items.prefix(25)) { m in
                         Button {
-                            store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, caffeine: m.caffeine, mealId: m.id.hasPrefix("recent-") ? nil : m.id))
-                            dismiss()
+                            logAndFinish(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, caffeine: m.caffeine, mealId: m.id.hasPrefix("recent-") ? nil : m.id, group: m.group))
                         } label: {
                             HStack { Text(m.name).foregroundStyle(Color.ink); Spacer(); Text("\(Int(m.kcal)) · \(Int(m.protein)) g").font(.caption.monospaced()).foregroundStyle(Color.soft) }
                         }
                     }
                 }
+                if search.isEmpty { buildSection }
                 if search.isEmpty {
                     Section {
-                        Picker("", selection: $group) { ForEach(["Eating out", "Meals", "Breakfast", "Snacks", "Fruit", "Dairy", "Drinks"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.menu).tint(.fuel)
+                        Picker("", selection: $group) { ForEach(["Eating out", "Meals", "Soups and salads", "Breakfast", "Snacks", "Fruit", "Dairy", "Desserts", "Drinks"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.menu).tint(.fuel)
                         ForEach(commonFoods.filter { $0.group == group }) { f in foodRow(f) }
                     } header: { Text("Common foods · typical portions") } footer: { Text("Estimates for a normal portion; pick small, large or double when it was different.") }
                 }
@@ -210,8 +218,7 @@ struct FoodLogSheet: View {
                         var e = custom
                         e.minute = Day.minuteOfDay()
                         if e.name.isEmpty { e.name = "Quick add" }
-                        store.logFood(e)
-                        dismiss()
+                        logAndFinish(e)
                     }
                     .disabled(custom.kcal <= 0 && custom.protein <= 0)
                 }
@@ -234,6 +241,7 @@ struct FoodLogSheet: View {
                     }
                 }
             }
+            .navigationDestination(isPresented: $offeringAddOns) { MealAddOnsView(meal: loggedMeal) { dismiss() } }
             .navigationTitle("Log food")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -257,6 +265,13 @@ struct FoodLogSheet: View {
 }
 
 extension FoodLogSheet {
+    var buildSection: some View {
+        Section {
+            NavigationLink { MealBuilderView(onDone: { dismiss() }) } label: { Label("Build a meal", systemImage: "square.stack.3d.up").foregroundStyle(Color.ink) }
+                .accessibilityIdentifier("food.build")
+        } footer: { Text("Pick a base, protein, vegetables and sauces for a live estimate.") }
+    }
+
     func foodRow(_ f: CommonFood) -> some View {
         Button { choosing = f } label: {
             HStack {

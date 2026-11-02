@@ -157,6 +157,37 @@ enum Engine {
         return m
     }
 
+    /// Seconds to wait after the server refuses or can't be reached: 1, 2, 4... up to 30 minutes
+    static func syncBackoff(failures: Int) -> Double {
+        min(30 * 60, 60 * pow(2, Double(max(0, failures - 1))))
+    }
+
+    /// Effort today on a 0–21 scale, an estimate: minutes of effort (active zone minutes or a logged workout,
+    /// whichever is more) plus steps. Rises fast at first, slowly near the top.
+    static func strain(azm: Double, workoutMinutes: Double, steps: Double) -> Double {
+        let load = max(azm, workoutMinutes) + steps / 500
+        return 21 * (1 - exp(-max(0, load) / 120))
+    }
+
+    /// How much effort today's recovery can take; a minimum day asks for little
+    static func strainTarget(recovery: Int?, minimumDay: Bool) -> Double {
+        if minimumDay { return 6 }
+        guard let r = recovery else { return 10 }
+        return r >= 67 ? 14 : r >= 34 ? 10 : 6
+    }
+
+    /// The share of the day's target that should be done by now, from waking to `end`
+    static func paceShare(minute: Int, wake: Int, end: Int) -> Double {
+        min(1, max(0, Double(minute - wake) / Double(max(60, end - wake))))
+    }
+
+    /// Last meal: 3 h before bed, but never before you've trained, showered and had time to eat; never in the last hour
+    static func kitchenClose(lightsOut: Int, trainingEnd: Int?) -> Int {
+        let base = lightsOut - 180
+        guard let t = trainingEnd else { return base }
+        return min(max(base, t + 75), max(base, lightsOut - 60))
+    }
+
     static func sleepDebt(nights: [Int], need: Int) -> Int {
         let recent = nights.prefix(7)
         let total = recent.map { n -> Int in

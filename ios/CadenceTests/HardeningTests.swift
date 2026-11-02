@@ -399,3 +399,39 @@ final class HealthSourceTests: XCTestCase {
         XCTAssertFalse(kinds.contains("battery"))
     }
 }
+
+
+final class DayRulesTests: XCTestCase {
+    func testKitchenLeavesRoomForTrainingAndShower() {
+        // training 18:00 to 19:10 with lights out at 21:45: not 18:45
+        XCTAssertEqual(Engine.kitchenClose(lightsOut: 21 * 60 + 45, trainingEnd: 19 * 60 + 10), 20 * 60 + 25)
+        // no training: 3 h before bed
+        XCTAssertEqual(Engine.kitchenClose(lightsOut: 23 * 60, trainingEnd: nil), 20 * 60)
+        // a late session never pushes the last meal into the last hour
+        XCTAssertEqual(Engine.kitchenClose(lightsOut: 22 * 60, trainingEnd: 21 * 60), 21 * 60)
+    }
+
+    func testStrainGrowsAndTargetFollowsRecovery() {
+        XCTAssertEqual(Engine.strain(azm: 0, workoutMinutes: 0, steps: 0), 0)
+        let walk = Engine.strain(azm: 0, workoutMinutes: 0, steps: 8000)
+        let gym = Engine.strain(azm: 10, workoutMinutes: 70, steps: 8000)
+        XCTAssertGreaterThan(gym, walk)
+        XCTAssertLessThan(Engine.strain(azm: 600, workoutMinutes: 0, steps: 30000), 21.01)
+        XCTAssertEqual(Engine.strainTarget(recovery: 80, minimumDay: false), 14)
+        XCTAssertEqual(Engine.strainTarget(recovery: 50, minimumDay: false), 10)
+        XCTAssertEqual(Engine.strainTarget(recovery: 20, minimumDay: false), 6)
+        XCTAssertEqual(Engine.strainTarget(recovery: 80, minimumDay: true), 6)
+    }
+
+    func testPaceBetweenWakingAndTheEnd() {
+        XCTAssertEqual(Engine.paceShare(minute: 7 * 60, wake: 7 * 60, end: 19 * 60), 0)
+        XCTAssertEqual(Engine.paceShare(minute: 13 * 60, wake: 7 * 60, end: 19 * 60), 0.5)
+        XCTAssertEqual(Engine.paceShare(minute: 23 * 60, wake: 7 * 60, end: 19 * 60), 1)
+    }
+
+    func testSyncWaitsLongerEachFailure() {
+        XCTAssertEqual(Engine.syncBackoff(failures: 1), 60)
+        XCTAssertEqual(Engine.syncBackoff(failures: 3), 240)
+        XCTAssertEqual(Engine.syncBackoff(failures: 20), 1800)
+    }
+}

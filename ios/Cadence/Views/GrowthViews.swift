@@ -149,11 +149,16 @@ struct YouGrowthView: View {
 
 struct JournalCard: View {
     @EnvironmentObject var store: Store
+    var day: String = Day.add(-1, to: Day.today)
+    var canPostpone = false
     var body: some View {
-        let day = Day.add(-1, to: Day.today)
         let entry = store.record(JournalDay.self, day) ?? JournalDay(date: day)
         Card(tint: .mind) {
-            Eyebrow(text: "Yesterday, quickly", icon: "book.pages", color: .mind)
+            HStack {
+                Eyebrow(text: day == Day.today ? "Today, quickly" : "Yesterday, quickly", icon: "book.pages", color: .mind)
+                Spacer()
+                if canPostpone { Button("Not now") { store.put("journalLater", Day.today, .bool(true)) }.font(.geist(12)).tint(.soft).accessibilityIdentifier("journal.later") }
+            }
             ForEach(journalQuestions, id: \.self) { q in
                 HStack {
                     Text(q).font(.geist(13.5))

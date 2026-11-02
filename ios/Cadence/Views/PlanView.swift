@@ -23,7 +23,7 @@ extension Store {
             PlanItem(id: "wake", minute: profile.wakeMinute, title: "Wake up", detail: "Daylight in the first hour sets tonight's sleep", icon: "sunrise.fill", color: .read),
             PlanItem(id: "wind", minute: plan.windDown, title: "Wind-down", detail: plan.after.map { "Once you're back from \($0.title) · brush, two pages, bed" } ?? "Screens away, lights low, reading slot", icon: "moon.fill", color: .sleep),
             PlanItem(id: "lights", minute: plan.perform, title: "Lights out", detail: "For \(duration(plan.need)) of sleep" + (plan.after.map { " · later than ideal because of \($0.title)" } ?? ""), icon: "bed.double.fill", color: .sleep),
-            PlanItem(id: "kitchen", minute: plan.perform - 180, title: "Kitchen closes", detail: "Last meal 3 h before bed", icon: "fork.knife", color: .fuel),
+            PlanItem(id: "kitchen", minute: kitchenClose(on: day), title: "Kitchen closes", detail: kitchenClose(on: day) > plan.perform - 180 ? "Later today: time to train, shower and eat" : "Last meal 3 h before bed", icon: "fork.knife", color: .fuel),
             PlanItem(id: "caffeine", minute: plan.perform - 8 * 60, title: "Last caffeine", detail: "Cola, iced tea, energy drinks", icon: "cup.and.saucer.fill", color: .warn),
         ]
         for e in Agenda.shared.events(on: day) {
@@ -34,9 +34,7 @@ extension Store {
             items.append(PlanItem(id: "b" + b.id, minute: b.start, end: b.start + b.minutes, title: b.title, detail: "\(duration(b.minutes)) · placed by you", icon: icon, color: .mint, block: b))
         }
         if let t = templates.first(where: { $0.weekdays.contains(Day.weekday(day)) }), !all(PlanBlock.self).contains(where: { $0.date == day && $0.type == "training" }) {
-            // 18:00 unless a trip or event is in the way, then finished 15 minutes before it
-            var start = 18 * 60
-            if let b = busy(on: day).first(where: { $0.start < start + t.minutes + 15 && $0.end > start }) { start = max(profile.wakeMinute + 60, b.start - t.minutes - 15) }
+            let start = trainingSlot(on: day)?.start ?? 18 * 60
             items.append(PlanItem(id: "train-" + t.id, minute: start, end: start + t.minutes, title: t.name, detail: "\(t.exercises.count) exercises · about \(duration(t.minutes)) · hold a block to move it", icon: "dumbbell.fill", color: .train))
         }
         if let s = showerPlan(for: day), s.when == .tonight {

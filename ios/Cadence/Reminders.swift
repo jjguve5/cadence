@@ -1,6 +1,7 @@
 // Local notifications. iOS keeps at most 64 per app, so Cadence queues the next 48 hours by priority and tops the
 // queue up whenever it runs. Must-dos ask at their time, then 90 and 150 minutes later, and at wind-down if still
 // open. Each one can be answered from the lock screen: Done, In 30 min, Skip.
+import CoreLocation
 import Foundation
 import UserNotifications
 
@@ -14,7 +15,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         let done = UNNotificationAction(identifier: "done", title: "Done ✓", options: [])
         let snooze = UNNotificationAction(identifier: "snooze", title: "In 30 min", options: [])
         let skip = UNNotificationAction(identifier: "skip", title: "Skip", options: [.destructive])
+        let start = UNNotificationAction(identifier: "start", title: "Start ▶", options: [.foreground])
         center.setNotificationCategories([
+            UNNotificationCategory(identifier: "startable", actions: [start, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: "gymbag", actions: [UNNotificationAction(identifier: "done", title: "Unpacked ✓", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: "info", actions: [], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: "shower", actions: [UNNotificationAction(identifier: "done", title: "Showered ✓", options: []), UNNotificationAction(identifier: "morning", title: "Tomorrow morning", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
@@ -30,6 +34,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         var priority: Int // 0 = always gets through
         var promise: Bool
         var category: String?
+        var arriving: CLLocationCoordinate2D? // ring on getting there rather than at a time
     }
 
     private var pending: DispatchWorkItem?
@@ -39,7 +44,15 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         pending?.cancel()
         let work = DispatchWorkItem { Task { @MainActor in self.rebuild() } }
         pending = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+    }
+
+    /// The queue must be right before the app stops running
+    @MainActor func flush() {
+        guard let work = pending, !work.isCancelled else { return }
+        work.cancel()
+        pending = nil
+        rebuild()
     }
 
     @MainActor private func rebuild() {
@@ -70,7 +83,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                     }
                 } else if !quiet(at) {
                     let body = promise.tiny.map { "Short on time? \($0)." } ?? promise.schedule.summary.capitalized
-                    planned.append(Planned(id: "p|\(promise.id)|\(day)|0", at: at, title: promise.title, body: body, priority: 2, promise: true))
+                    let startable = promise.title.lowercased().contains("brush") || promise.title.lowercased().hasPrefix("read")
+                    planned.append(Planned(id: "p|\(promise.id)|\(day)|0", at: at, title: promise.title, body: body, priority: 2, promise: true, category: startable ? "startable" : nil))
                 }
             }
             // Medicines and products: always get through when they're must-dos
@@ -121,6 +135,12 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 let m = Day.minuteOfDay(planned[i].at), moved = Engine.outside(m, busy: busy)
                 if moved != m { planned[i].at = Day.at(moved, on: day) }
             }
+            // Home from the gym: when you arrive if Cadence knows where home is, otherwise 45 minutes after finishing
+            if offset == 0, store.gymBagDue, let end = store.sessions(on: day).compactMap(\.end).max() {
+                let arrival = CLLocationManager().authorizationStatus == .authorizedWhenInUse || CLLocationManager().authorizationStatus == .authorizedAlways ? store.homeCoordinate : nil
+                let at = max(now.addingTimeInterval(60), Date(timeIntervalSince1970: end / 1000).addingTimeInterval(45 * 60))
+                planned.append(Planned(id: "gymbag|\(day)", at: at, title: "Unpack the gym bag", body: "Clothes in the wash, towel out to dry.", priority: 1, promise: false, category: "gymbag", arriving: arrival))
+            }
             // The day's shower, tonight or tomorrow morning
             if offset <= 1, let s = store.showerPlan(for: day) {
                 planned.append(Planned(id: "shower|\(day)|\(s.when.rawValue)", at: s.at, title: s.when == .morning ? "Shower (for yesterday)" : "Shower", body: s.why + ".", priority: 1, promise: false, category: s.when == .tonight ? "shower" : "info"))
@@ -164,7 +184,14 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             content.categoryIdentifier = item.category ?? (item.promise ? Self.category : "info")
             content.threadIdentifier = item.promise ? "promises" : "day"
             let parts = Day.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.at)
-            center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)))
+            var trigger: UNNotificationTrigger = UNCalendarNotificationTrigger(dateMatching: parts, repeats: false)
+            if let place = item.arriving {
+                let region = CLCircularRegion(center: place, radius: 150, identifier: item.id)
+                region.notifyOnEntry = true
+                region.notifyOnExit = false
+                trigger = UNLocationNotificationTrigger(region: region, repeats: false)
+            }
+            center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: trigger))
         }
     }
 
@@ -202,6 +229,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             }
             return
         }
+        if parts.count == 2, parts[0] == "gymbag" {
+            if response.actionIdentifier == "done" { await MainActor.run { Store.shared.unpackedGymBag(on: parts[1]) } }
+            return
+        }
         if parts.count == 3, parts[0] == "shower" {
             await MainActor.run {
                 switch response.actionIdentifier {
@@ -221,6 +252,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             case "done": store.log(promise, on: day, .done)
             case "skip": store.log(promise, on: day, .skipped)
             case "snooze": self.snooze(promise, day: day)
+            case "start", UNNotificationDefaultActionIdentifier:
+                // Start, or tapping the notification: brushing and reading open ready to go
+                if promise.title.lowercased().contains("brush") { store.brushingOpen = true }
+                else if promise.title.lowercased().hasPrefix("read") { store.readingOpen = true }
             default: break
             }
         }
@@ -260,7 +295,7 @@ enum NotificationLearning {
     }
 
     static var summary: [(kind: String, rate: Double, n: Int)] {
-        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave", "shower"]
+        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave", "shower", "gymbag"]
         return names.compactMap { k in
             let list = UserDefaults.standard.array(forKey: key(k)) as? [Int] ?? []
             return list.isEmpty ? nil : (k, Double(list.filter { $0 == 0 }.count) / Double(list.count), list.count)

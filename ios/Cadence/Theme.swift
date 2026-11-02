@@ -99,12 +99,18 @@ struct Ring: View {
     var progress: Double
     var area: Area
     var width: CGFloat = 7
+    var marker: Double? = nil // a tick at this share of the circle: where you should be by now
     var body: some View {
         ZStack {
             Circle().stroke(.white.opacity(0.08), lineWidth: width)
             Circle().trim(from: 0, to: max(0.001, min(1, progress)))
                 .stroke(AngularGradient(colors: area.colors + [area.colors[0]], center: .center), style: StrokeStyle(lineWidth: width, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+            if let marker, marker > 0.005, marker < 0.995 {
+                Circle().trim(from: max(0, marker - 0.008), to: min(1, marker + 0.008))
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: width + 3))
+                    .rotationEffect(.degrees(-90))
+            }
         }
     }
 }

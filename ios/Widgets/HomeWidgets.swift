@@ -26,7 +26,7 @@ struct CadenceHomeWidget: Widget {
             TodayWidgetView(entry: entry).containerBackground(for: .widget) { Color(red: 0.03, green: 0.04, blue: 0.06) }
         }
         .configurationDisplayName("Today")
-        .description("Score, readiness, what's next and Pip.")
+        .description("Shortcuts for water, brushing and quick add.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryCircular, .accessoryInline])
     }
 }
@@ -62,10 +62,43 @@ struct TodayWidgetView: View {
                 small(s)
             }
         } else {
-            VStack(spacing: 4) {
-                Image(systemName: "leaf.fill").foregroundStyle(mint)
-                Text("Open Cadence").font(.caption)
+            shortcuts
+        }
+    }
+
+    /// No shared data with free signing, so instead of a message the widget is a set of shortcuts into the app
+    @ViewBuilder private var shortcuts: some View {
+        switch family {
+        case .systemMedium:
+            HStack(spacing: 8) {
+                shortcut("Water", "drop.fill", water, "cadence://water")
+                shortcut("Brush", "mouth.fill", mint, "cadence://brush")
+                shortcut("Add", "plus", fuel, "cadence://capture")
+                shortcut("Train", "dumbbell.fill", warn, "cadence://workout")
             }
+        case .systemSmall:
+            VStack(spacing: 6) {
+                Image(systemName: "plus.circle.fill").font(.system(size: 34)).foregroundStyle(mint)
+                Text("Quick add").font(.caption.bold()).foregroundStyle(.white)
+            }
+            .widgetURL(URL(string: "cadence://capture"))
+        case .accessoryInline:
+            Label("Quick add", systemImage: "plus")
+        case .accessoryRectangular:
+            Label("Cadence: quick add", systemImage: "plus.circle.fill").font(.headline).widgetURL(URL(string: "cadence://capture"))
+        default:
+            Image(systemName: "plus").font(.title2.bold()).widgetURL(URL(string: "cadence://capture"))
+        }
+    }
+
+    private func shortcut(_ name: String, _ icon: String, _ color: Color, _ url: String) -> some View {
+        Link(destination: URL(string: url)!) {
+            VStack(spacing: 6) {
+                Image(systemName: icon).font(.system(size: 20, weight: .semibold)).foregroundStyle(color)
+                Text(name).font(.caption2.weight(.semibold)).foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.08)))
         }
     }
 

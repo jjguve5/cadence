@@ -27,6 +27,7 @@ struct PipAttributes: ActivityAttributes {
         var mood: String // head image name
         var promiseId: String?
         var icon: String
+        var startURL: String? = nil // brushing and reading can start from here
     }
     var started: Date
 }

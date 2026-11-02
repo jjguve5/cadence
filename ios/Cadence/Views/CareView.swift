@@ -1,17 +1,31 @@
-// Care screens: brushing mode, grooming freshness, the routine player, medicines and products.
+// Hygiene (brushing mode, showers, grooming freshness, the routine player) and Care (medicines and products).
 import AVFoundation
 import AudioToolbox
 import SwiftUI
 
 struct CareView: View {
     @EnvironmentObject var store: Store
-    @State private var brushing = false
-    @State private var playing: CareRoutine?
     @State private var editingMed: Medicine?
-    @State private var editingRoutine: CareRoutine?
 
     var body: some View {
         Screen(glow: Color(hex: 0x5FE3D0)) {
+            MedicinesCard(editing: $editingMed)
+        }
+        .navigationTitle("Medicines")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editingMed) { MedicineEditor(med: $0) }
+    }
+}
+
+struct HygieneView: View {
+    @EnvironmentObject var store: Store
+    @State private var playing: CareRoutine?
+    @State private var editingRoutine: CareRoutine?
+
+    var body: some View {
+        NavigationStack {
+        Screen(glow: Color(hex: 0x5FE3D0)) {
+            Title(eyebrow: "Teeth, showers, grooming and routines", title: "Hygiene").padding(.top, 8)
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -21,7 +35,7 @@ struct CareView: View {
                         if store.brushHeadDue { Text("3 months on this brush head: time for a new one.").font(.geist(12)).foregroundStyle(Color.warn) }
                     }
                     Spacer()
-                    Button { brushing = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x032018)).frame(width: 44, height: 44).background(Circle().fill(Color(hex: 0x5FE3D0))) }
+                    Button { store.brushingOpen = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x032018)).frame(width: 44, height: 44).background(Circle().fill(Color(hex: 0x5FE3D0))) }
                 }
                 if store.brushHeadDue { SoftButton(title: "Changed it", icon: "checkmark") { store.put("brushhead", Day.today, .bool(true)) } }
             }
@@ -59,15 +73,12 @@ struct CareView: View {
                     }
                 }
             }
-            MedicinesCard(editing: $editingMed)
         }
-        .navigationTitle("Care")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .task { store.seedCare() }
-        .fullScreenCover(isPresented: $brushing) { BrushingView() }
         .fullScreenCover(item: $playing) { RoutinePlayer(routine: $0) }
-        .sheet(item: $editingMed) { MedicineEditor(med: $0) }
         .sheet(item: $editingRoutine) { RoutineEditor(routine: $0) }
+        }
     }
 }
 
@@ -259,11 +270,12 @@ struct BrushingView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @AppStorage("brushPlan2") private var planName = BrushPlan.sextants.rawValue
-    @State private var start: Date?
+    @AppStorage("brushStart") private var startedAt = 0.0 // survives the screen locking and the view being rebuilt
+    @AppStorage("brushFloss") private var floss = false
+    @AppStorage("brushMouthwash") private var mouthwash = false
     @State private var now = Date()
     @State private var lastStep = -1
-    @State private var floss = false
-    @State private var mouthwash = false
+    private var start: Date? { startedAt > 0 ? Date(timeIntervalSince1970: startedAt) : nil }
     private let timer = Timer.publish(every: 0.2, on: .main, in: .common).autoconnect()
 
     private var plan: BrushPlan { BrushPlan(rawValue: planName) ?? .sextants }
@@ -286,7 +298,7 @@ struct BrushingView: View {
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 16) {
-                HStack { Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
+                HStack { Spacer(); Button("Close") { clear(); dismiss() }.foregroundStyle(Color.soft) }
                 Text(finished ? "Done" : step?.title ?? "Brush").font(.geist(26, .bold))
                 ToothChart(area: step?.area, surface: step?.surface, sextants: plan == .sextants).frame(maxHeight: 340)
                 if let step {
@@ -301,13 +313,14 @@ struct BrushingView: View {
                     .font(.system(size: start == nil ? 44 : 22, weight: .medium, design: .monospaced))
                 if start == nil {
                     Picker("", selection: $planName) { ForEach(BrushPlan.allCases, id: \.self) { Text($0.label).tag($0.rawValue) } }.pickerStyle(.segmented)
-                    PrimaryButton(title: "Start") { start = Date(); UIApplication.shared.isIdleTimerDisabled = true }
+                    PrimaryButton(title: "Start") { startedAt = Date().timeIntervalSince1970; now = Date() }
                 } else if finished {
                     Toggle("Floss", isOn: $floss).tint(.mint)
                     Toggle("Mouthwash", isOn: $mouthwash).tint(.mint)
                     PrimaryButton(title: "Save") {
                         store.save(BrushLog(seconds: Int(total), floss: floss, mouthwash: mouthwash))
                         if let p = store.due().first(where: { $0.title.lowercased().contains("brush") && store.status($0) == nil && abs(store.time(of: $0) - Day.minuteOfDay()) < 180 }) { store.log(p, .done) }
+                        clear()
                         dismiss()
                     }
                 }
@@ -321,9 +334,19 @@ struct BrushingView: View {
             if i != lastStep {
                 if lastStep >= 0 { UINotificationFeedbackGenerator().notificationOccurred(.success); AudioServicesPlaySystemSound(1057) }
                 lastStep = i
-                if finished { UIApplication.shared.isIdleTimerDisabled = false }
             }
         }
+        // awake from opening until saved or closed, so the last two questions don't get lost behind the lock screen
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = true; now = Date(); if !BrushingView.pending { clear() } }
+        .onDisappear { UIApplication.shared.isIdleTimerDisabled = false }
+    }
+
+    private func clear() { startedAt = 0; floss = false; mouthwash = false }
+
+    /// A session that was started and never saved, recent enough to come back to
+    static var pending: Bool {
+        let t = UserDefaults.standard.double(forKey: "brushStart")
+        return t > 0 && Date().timeIntervalSince1970 - t < 20 * 60
     }
 
     private func timeText(_ s: Double) -> String { String(format: "%d:%02d", Int(s) / 60, Int(s) % 60) }

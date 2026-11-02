@@ -137,6 +137,7 @@ struct DocForm: View {
 struct PeopleView: View {
     @EnvironmentObject var store: Store
     @State private var editing: Person?
+    @State private var sayingTo: Person?
     var body: some View {
         Screen(glow: Color(hex: 0xFF9FBF)) {
             let soon = store.birthdaysSoon
@@ -161,6 +162,7 @@ struct PeopleView: View {
                         HStack {
                             Text(p.name).font(.geist(14))
                             Spacer()
+                            Button("What to say") { sayingTo = p }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF)).accessibilityIdentifier("friend.open")
                             Button("Talked today") { var x = p; x.lastContact = Day.today; store.save(x) }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF))
                         }
                     }
@@ -169,21 +171,25 @@ struct PeopleView: View {
             Card {
                 HStack { Eyebrow(text: "People", icon: "person.2.fill"); Spacer(); Button { editing = Person(name: "") } label: { Image(systemName: "plus") }.tint(Color(hex: 0xFF9FBF)) }
                 ForEach(store.all(Person.self).sorted { $0.name < $1.name }) { p in
-                    Button { editing = p } label: {
-                        HStack {
-                            Text(p.name).font(.geist(14))
-                            Spacer()
-                            if p.keepInTouch { Text("every \(p.everyWeeks) wk").font(.geist(11.5)).foregroundStyle(Color.faint) }
+                    HStack(spacing: 12) {
+                        Button { editing = p } label: {
+                            HStack {
+                                Text(p.name).font(.geist(14))
+                                Spacer()
+                                if p.keepInTouch { Text("every \(p.everyWeeks) wk").font(.geist(11.5)).foregroundStyle(Color.faint) }
+                            }
                         }
+                        .buttonStyle(.plain)
+                        Button { sayingTo = p } label: { Image(systemName: "text.bubble") }.tint(Color(hex: 0xFF9FBF)).accessibilityLabel("What to say to \(p.name)")
                     }
-                    .buttonStyle(.plain)
                 }
                 Text("Keep in touch is off unless you set it up for a person. Mentioning someone in a day's note counts as contact.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
         }
         .navigationTitle("People")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editing) { p in SimpleEditor(title: p.name.isEmpty ? "New person" : p.name, onDelete: { store.remove(p) }) { PersonForm(person: p) } }
+        .sheet(item: $editing) { p in SimpleEditor(title: p.name.isEmpty ? "New person" : p.name, onDelete: { store.remove(p); store.put(FriendMessages.recordType, p.id, nil) }) { PersonForm(person: p) } }
+        .sheet(item: $sayingTo) { p in FriendSuggestionsSheet(person: p) }
         .task {
             // A mention in a closed day's note counts as contact
             for var p in store.all(Person.self) where p.keepInTouch {

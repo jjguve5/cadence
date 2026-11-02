@@ -10,7 +10,7 @@ struct CadenceApp: App {
         Reminders.shared.setUp()
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.jjguve5.cadence.refresh", using: nil) { task in
             Task { @MainActor in
-                await Store.shared.refreshAll()
+                await Store.shared.refreshAll(force: true)
                 await PipNudge.shared.refresh()
                 Reminders.shared.reschedule()
                 CadenceApp.scheduleRefresh()
@@ -43,7 +43,9 @@ struct CadenceApp: App {
                 }
                 Task { await store.refreshAll() }
                 Reminders.shared.reschedule()
+                if BrushingView.pending, store.openWorkout == nil { store.brushingOpen = true } // back from the lock screen mid-brush
             } else if now == .background {
+                store.wentToBackground()
                 CadenceApp.scheduleRefresh()
             }
         }
@@ -62,8 +64,8 @@ struct RootView: View {
                     TodayView().tabItem { Label("Today", systemImage: "house") }.tag(0)
                     PlanView().tabItem { Label("Plan", systemImage: "calendar") }.tag(1)
                     BodyView().tabItem { Label("Body", systemImage: "heart.text.square") }.tag(2)
-                    LifeView().tabItem { Label("Life", systemImage: "square.stack.3d.up") }.tag(3)
-                    YouView().tabItem { Label("You", systemImage: "person") }.tag(4)
+                    if store.profile.on("care") { HygieneView().tabItem { Label("Hygiene", systemImage: "shower.fill") }.tag(3) }
+                    LifeView().tabItem { Label("Life", systemImage: "square.stack.3d.up") }.tag(4)
                 }
                 .tint(.mint)
             } else {
@@ -78,5 +80,7 @@ struct RootView: View {
             }
             .environmentObject(store)
         }
+        .fullScreenCover(isPresented: $store.brushingOpen) { BrushingView().environmentObject(store) }
+        .fullScreenCover(isPresented: $store.readingOpen) { ReadingMode().environmentObject(store) }
     }
 }

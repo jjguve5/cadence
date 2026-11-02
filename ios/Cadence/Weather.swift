@@ -51,6 +51,9 @@ final class WeatherStore: NSObject, ObservableObject, CLLocationManagerDelegate 
         Task { @MainActor in waiting?.resume(returning: nil); waiting = nil }
     }
 
+    /// Where the phone is now, asking for permission if it hasn't been asked
+    func currentLocation() async -> CLLocation { await location() }
+
     private func location() async -> CLLocation {
         if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization() }
         guard manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways else { return manager.location ?? fallback }

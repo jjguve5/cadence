@@ -97,15 +97,15 @@ struct MinimumDayBanner: View {
     @EnvironmentObject var store: Store
     var body: some View {
         if store.isMinimumDay() {
-            Card(tint: .good) {
-                HStack {
-                    Eyebrow(text: "Minimum viable day", icon: "leaf.fill", color: .good)
-                    Spacer()
-                    Button("Turn off") { store.setMinimumDay(false) }.font(.geist(12.5, .semibold)).tint(.soft)
-                        .frame(minHeight: 44).accessibilityIdentifier("mvd.off")
-                }
-                Text("Essentials only: must-dos, medicines, water and an early night. Optional routines can wait, and doing the essentials is a full day.").font(.geist(13)).foregroundStyle(Color.ink.opacity(0.9))
+            HStack(spacing: 8) {
+                Image(systemName: "leaf.fill").font(.geist(12)).foregroundStyle(Color.good)
+                Text("Minimum day: essentials only").font(.geist(12.5, .medium)).foregroundStyle(Color.ink.opacity(0.9))
+                Spacer()
+                Button("Turn off") { store.setMinimumDay(false) }.font(.geist(12.5, .semibold)).tint(.soft)
+                    .frame(minHeight: 44).accessibilityIdentifier("mvd.off")
             }
+            .padding(.horizontal, 14)
+            .background(Capsule().fill(Color.good.opacity(0.12)))
             .accessibilityElement(children: .contain).accessibilityIdentifier("mvd.banner")
         }
     }
@@ -205,7 +205,7 @@ struct LearnedView: View {
 
     private func kindName(_ k: String) -> String {
         ["p": "Promises", "wind": "Wind-down", "close": "Close the day", "brief": "Morning brief", "protein": "Protein catch-up", "water": "Water", "plant": "Plants",
-         "dry": "Laundry", "bday": "Birthdays", "renew": "Renewals", "doc": "Documents", "touch": "Keep in touch", "groom": "Grooming", "m": "Medicines", "leave": "Leave-by", "shower": "Shower"][k] ?? k
+         "dry": "Laundry", "bday": "Birthdays", "renew": "Renewals", "doc": "Documents", "touch": "Keep in touch", "groom": "Grooming", "m": "Medicines", "leave": "Leave-by", "shower": "Shower", "gymbag": "Gym bag"][k] ?? k
     }
 
     private func calibration(_ title: String, _ pairs: [(predicted: Double, observed: Double)]) -> some View {
