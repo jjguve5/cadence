@@ -162,6 +162,8 @@ enum Engine {
         min(30 * 60, 60 * pow(2, Double(max(0, failures - 1))))
     }
 
+    static let strainMax = 21.0 // the top of the strain scale; shown as 100%
+
     /// Effort today on a 0–21 scale, an estimate: minutes of effort (active zone minutes or a logged workout,
     /// whichever is more) plus steps. Rises fast at first, slowly near the top.
     static func strain(azm: Double, workoutMinutes: Double, steps: Double) -> Double {

@@ -1,5 +1,5 @@
-// The rings on Today: sleep, recovery and strain on top, the day's five below. A full circle is the target for the whole
-// day; the small tick on each is where you should be by now.
+// The rings on Today: sleep, recovery and strain on top, the day's five below. On the five, a full circle is the target
+// for the whole day and the bar is where you should be by now. On strain, the circle is the scale and the bar the target.
 import SwiftUI
 
 struct RingStat: Identifiable {
@@ -88,7 +88,8 @@ extension Store {
         let main = [
             RingStat(name: "Sleep", value: Double(asleep ?? 0), target: Double(p.sleepNeed), pace: nil, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
             RingStat(name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: nil, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: r?.label ?? "waiting for data"),
-            RingStat(name: "Strain", value: strain, target: strainGoal, pace: walk, area: .train, center: String(format: "%.1f", strain), goal: String(format: "target %.0f", strainGoal), now: String(format: "now %.1f", strainGoal * walk)),
+            // strain runs on a fixed 0–100% scale, so the circle is the maximum and the bar is today's target on it
+            RingStat(name: "Strain", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "target \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
         ]
         let day = [
             RingStat(name: "Calories", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "of \(k(p.kcal))", now: "now \(k(p.kcal * eat))"),
@@ -116,7 +117,7 @@ struct DayRings: View {
                 ForEach(stats.day) { smallRing($0) }
             }
             HStack {
-                Text("Full circle: the whole day. Tick: where you should be by now. Strain is an estimate.").font(.geist(10.5)).foregroundStyle(Color.faint)
+                Text("Bar: where you should be by now. On strain, the bar is today's target and a full circle is the maximum, an estimate from steps and workouts.").font(.geist(10.5)).foregroundStyle(Color.faint)
                 Spacer()
             }
             HStack {
