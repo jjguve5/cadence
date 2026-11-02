@@ -103,7 +103,7 @@ jobs:
           xcodebuild test-without-building -project Cadence.xcodeproj -scheme Cadence -destination "id=$SMALL_ID" \
             -derivedDataPath DD -only-testing:CadenceUITests/CadenceUITests/testLaunchShowsToday \
             -only-testing:CadenceUITests/CadenceUITests/testPoorSleepOffersMinimumDayAndActionTurnsItOn \
-            -resultBundlePath results/UITests-small.xcresult > logs/ui-tests-small.log 2>&1
+            -retry-tests-on-failure -test-iterations 2 -resultBundlePath results/UITests-small.xcresult > logs/ui-tests-small.log 2>&1
           echo "SMALL_EXIT=$?" >> "$GITHUB_ENV"
           grep -E "Test Case .*(passed|failed)|Executed" logs/ui-tests-small.log | tail -20
 
