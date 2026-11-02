@@ -106,8 +106,9 @@ struct Ring: View {
             Circle().trim(from: 0, to: max(0.001, min(1, progress)))
                 .stroke(AngularGradient(colors: area.colors + [area.colors[0]], center: .center), style: StrokeStyle(lineWidth: width, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            if let marker, marker > 0.005, marker < 0.995 {
-                Circle().trim(from: max(0, marker - 0.008), to: min(1, marker + 0.008))
+            if let marker {
+                let m = min(0.992, max(0.008, marker)) // at the very start or end too: the bar is always there
+                Circle().trim(from: m - 0.008, to: m + 0.008)
                     .stroke(Color.white, style: StrokeStyle(lineWidth: width + 3))
                     .rotationEffect(.degrees(-90))
             }

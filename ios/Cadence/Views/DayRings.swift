@@ -1,5 +1,5 @@
-// The rings on Today: sleep, recovery and strain on top, the day's five below. On the five, a full circle is the target
-// for the whole day and the bar is where you should be by now. On strain, the circle is the scale and the bar the target.
+// The rings on Today: sleep, recovery and strain on top, the day's five below. Every ring has a bar for the target right
+// now. On the five a full circle is the whole day; on the top three the circle is a fixed scale and the bar the target.
 import SwiftUI
 
 struct RingStat: Identifiable {
@@ -45,6 +45,12 @@ extension Store {
         return Engine.strain(azm: h?.azm ?? 0, workoutMinutes: trained, steps: h?.steps ?? 0)
     }
 
+    /// Your typical recovery: the median of the last 14 days, or a good day until there's history
+    var usualRecovery: Int {
+        let scores = (1...14).compactMap { readiness(on: Day.add(-$0, to: Day.today))?.score }.sorted()
+        return scores.count >= 4 ? scores[scores.count / 2] : 67
+    }
+
     var strainTarget: Double { Engine.strainTarget(recovery: readiness()?.score, minimumDay: isMinimumDay()) }
 
     /// Things Pip is waiting on right now: the only reason for a number on Pip's head
@@ -83,11 +89,13 @@ extension Store {
         let r = readiness()
         let asleep = h?.sleep?.asleep
         let strain = strainToday, strainGoal = strainTarget
+        let sleepScale = Double(max(600, p.sleepNeed + 60)), usual = usualRecovery
         func k(_ v: Double) -> String { v >= 1000 ? String(format: "%.1fk", v / 1000) : "\(Int(v))" }
         func litres(_ v: Double) -> String { String(format: "%.1fL", v / 1000) }
         let main = [
-            RingStat(name: "Sleep", value: Double(asleep ?? 0), target: Double(p.sleepNeed), pace: nil, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
-            RingStat(name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: nil, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: r?.label ?? "waiting for data"),
+            // sleep and recovery run on a fixed scale too, with the bar on what you need and what's usual for you
+            RingStat(name: "Sleep", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
+            RingStat(name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "usual \(usual)"),
             // strain runs on a fixed 0–100% scale, so the circle is the maximum and the bar is today's target on it
             RingStat(name: "Strain", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "target \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
         ]
@@ -96,7 +104,7 @@ extension Store {
             RingStat(name: "Protein", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "of \(Int(p.proteinTarget))g", now: "now \(Int(p.proteinTarget * eat))g"),
             RingStat(name: "Water", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(goal * drink))"),
             RingStat(name: "Move", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "of \(k(Double(p.stepGoal)))", now: "now \(k(Double(p.stepGoal) * walk))"),
-            RingStat(name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? nil : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
+            RingStat(name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
         ]
         return (main, day)
     }
@@ -117,7 +125,7 @@ struct DayRings: View {
                 ForEach(stats.day) { smallRing($0) }
             }
             HStack {
-                Text("Bar: where you should be by now. On strain, the bar is today's target and a full circle is the maximum, an estimate from steps and workouts.").font(.geist(10.5)).foregroundStyle(Color.faint)
+                Text("Bar: your target right now. Sleep shows what you need, recovery what's usual for you, strain today's target (an estimate). The rest: where you should be by now, with a full circle for the whole day.").font(.geist(10.5)).foregroundStyle(Color.faint)
                 Spacer()
             }
             HStack {

@@ -135,7 +135,7 @@ struct TodayView: View {
                 if let r = store.readiness() {
                     HStack(spacing: 12) {
                         ZStack {
-                            Ring(progress: Double(r.score) / 100, area: .mint, width: 5)
+                            Ring(progress: Double(r.score) / 100, area: .mint, width: 5, marker: Double(store.usualRecovery) / 100)
                             Text("\(r.score)").font(.geist(15, .bold))
                         }
                         .frame(width: 46, height: 46)
@@ -316,7 +316,7 @@ struct ReadinessView: View {
         Screen(glow: .mint) {
             if let r = store.readiness() {
                 HStack(spacing: 16) {
-                    ZStack { Ring(progress: Double(r.score) / 100, area: .mint, width: 10); Text("\(r.score)").font(.geist(34, .bold)) }.frame(width: 110, height: 110)
+                    ZStack { Ring(progress: Double(r.score) / 100, area: .mint, width: 10, marker: Double(store.usualRecovery) / 100); Text("\(r.score)").font(.geist(34, .bold)) }.frame(width: 110, height: 110)
                     VStack(alignment: .leading) {
                         Text(r.label).font(.geist(24, .bold))
                         Text("Against your own 14-day baseline").font(.geist(13)).foregroundStyle(Color.soft)

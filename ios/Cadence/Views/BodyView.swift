@@ -57,7 +57,7 @@ struct BodyView: View {
 
     private func mini(_ name: String, _ progress: Double, _ area: Area, _ value: String) -> some View {
         HStack(spacing: 8) {
-            Ring(progress: progress, area: area, width: 5).frame(width: 30, height: 30)
+            Ring(progress: progress, area: area, width: 5, marker: store.ringStats().day.first { $0.name == name }?.pace).frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {
                 Text(value).font(.geist(13, .bold))
                 Text(name).font(.geist(10.5)).foregroundStyle(Color.soft)
