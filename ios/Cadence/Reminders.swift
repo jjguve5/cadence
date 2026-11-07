@@ -57,6 +57,9 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
     @MainActor private func rebuild() {
         let store = Store.shared
+        // Protected or a failed save: the data in memory isn't the real data, so the queue stays as it was instead of
+        // being rebuilt from nothing (which would cancel every reminder)
+        guard store.canChange else { return }
         let now = Date()
         let horizon = now.addingTimeInterval(48 * 3600)
         var planned: [Planned] = []
