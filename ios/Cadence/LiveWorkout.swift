@@ -61,23 +61,36 @@ final class LiveWorkout: ObservableObject {
 
     func handle(_ action: WorkoutAction) async {
         let store = Store.shared
+        // While the data isn't safe, the lock screen must not show a set as done that was never saved
+        guard store.canChange else { return }
         guard let id = sessionId ?? store.activeSession?.id, var s = store.record(WorkoutSession.self, id) else { return }
         if let cur = current(s) {
             let (i, ex) = (cur.index, cur.ex)
+            var changed = true
+            var rest: Date?? = .none // .some(nil) clears the rest timer
             switch action {
             case .done:
                 s.sets[i].done = true
                 s.sets[i].at = nowMs()
-                if s.sets[i].kind != .warmup { restTotal = Double(ex.rest); setRest(Date().addingTimeInterval(Double(ex.rest))) }
+                if s.sets[i].kind != .warmup { rest = .some(Date().addingTimeInterval(Double(ex.rest))) }
             case .weightUp: s.sets[i].weight += 2.5
             case .weightDown: s.sets[i].weight = max(0, s.sets[i].weight - 2.5)
             case .repUp: s.sets[i].reps += 1
             case .repDown: s.sets[i].reps = max(0, s.sets[i].reps - 1)
-            case .restUp: setRest(restEnd?.addingTimeInterval(15))
-            case .restDown: setRest(restEnd?.addingTimeInterval(-15))
-            case .restSkip: setRest(nil)
+            case .restUp: changed = false; rest = .some(restEnd?.addingTimeInterval(15))
+            case .restDown: changed = false; rest = .some(restEnd?.addingTimeInterval(-15))
+            case .restSkip: changed = false; rest = .some(nil)
             }
-            store.save(s)
+            // A set shows as done on the lock screen, and its rest starts, only once it's really saved. If saving fails,
+            // the activity keeps its previous state and the app opens on what happened.
+            if changed {
+                store.save(s)
+                guard store.commit() else { return }
+            }
+            if case .some(let end) = rest {
+                if action == .done { restTotal = Double(ex.rest) }
+                setRest(end)
+            }
         }
         await update(session: s)
     }

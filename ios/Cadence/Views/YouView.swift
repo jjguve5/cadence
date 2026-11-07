@@ -144,6 +144,9 @@ struct SettingsView: View {
                 LabeledContent("Registos", value: "\(store.personalRecordCount)")
                 LabeledContent("Cópias locais", value: store.localCopies.first.map { "\(store.localCopies.count) · última \($0.date.formatted(date: .abbreviated, time: .omitted))" } ?? "nenhuma ainda")
                 LabeledContent("Por enviar ao servidor", value: "\(store.pendingSyncCount)")
+                if !store.syncRefused.isEmpty {
+                    LabeledContent("Recusados pelo servidor", value: "\(store.syncRefused.count)")
+                }
                 if store.lastRecoveryArchive != nil {
                     Button("Desfazer a última recuperação", role: .destructive) { try? store.undoRecovery() }
                 }

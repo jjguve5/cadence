@@ -228,11 +228,12 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 case "skip": store.take(med, minute: minute, on: parts[2], taken: false)
                 default: break
                 }
+                store.commit() // a save that fails now shows when the app opens, instead of passing for saved
             }
             return
         }
         if parts.count == 2, parts[0] == "gymbag" {
-            if response.actionIdentifier == "done" { await MainActor.run { Store.shared.unpackedGymBag(on: parts[1]) } }
+            if response.actionIdentifier == "done" { await MainActor.run { Store.shared.unpackedGymBag(on: parts[1]); Store.shared.commit() } }
             return
         }
         if parts.count == 3, parts[0] == "shower" {
@@ -242,6 +243,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 case "morning": Store.shared.pickShower(.morning, for: parts[1])
                 default: break
                 }
+                Store.shared.commit()
             }
             return
         }
@@ -251,8 +253,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             let store = Store.shared
             guard let promise = store.promises[promiseId] else { return }
             switch response.actionIdentifier {
-            case "done": store.log(promise, on: day, .done)
-            case "skip": store.log(promise, on: day, .skipped)
+            case "done": store.log(promise, on: day, .done); store.commit()
+            case "skip": store.log(promise, on: day, .skipped); store.commit()
             case "snooze": self.snooze(promise, day: day)
             case "start", UNNotificationDefaultActionIdentifier:
                 // Start, or tapping the notification: brushing and reading open ready to go

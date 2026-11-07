@@ -249,10 +249,14 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(store.storage, .ok)
         store.persistNow() // the save loading schedules, done now with the real disk
         let afterLoad = bytes()
+        let savedAt = store.lastSaved
+        XCTAssertNotNil(savedAt)
         store.disk = failing(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)))
         store.addWater(250)
         store.persistNow()
         guard case .unsaved(let message) = store.storage else { return XCTFail("should be unsaved") }
+        XCTAssertEqual(store.lastSaved, savedAt, "a failed save must not look saved")
+        XCTAssertFalse(store.canChange)
         XCTAssertTrue(message.hasPrefix("Espaço insuficiente"))
         XCTAssertEqual(store.unsavedSummary, "água 1")
         XCTAssertEqual(bytes(), afterLoad)
@@ -269,6 +273,110 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(back.extra["water"]?.count, waters)
         XCTAssertEqual(back.logs, Self.sample().logs)
         XCTAssertEqual(back.promises, Self.sample().promises)
+    }
+
+    /// Regression: loading used to save before the sync queue was loaded, so the file could lose the queue
+    @MainActor
+    func testTheSyncQueueSurvivesClosingAndReopeningTheStore() async throws {
+        try Storage.write(Self.sample(), to: file)
+        do {
+            let store = Store(file: file)
+            XCTAssertEqual(store.pendingSyncCount, 1)
+            try await Task.sleep(nanoseconds: 900_000_000) // the save that loading schedules, left to run on its own
+        }
+        guard case .ok(let afterLoad, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(afterLoad.dirty, Self.sample().dirty)
+        XCTAssertEqual(afterLoad.tombstones, Self.sample().tombstones)
+        XCTAssertEqual(afterLoad.rev, Self.sample().rev)
+
+        let store = Store(file: file)
+        store.addWater(250)
+        store.persistNow()
+        let reopened = Store(file: file)
+        XCTAssertEqual(reopened.pendingSyncCount, 2)
+        guard case .ok(let back, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(back.dirty["water:W1"], 3)
+        XCTAssertEqual(back.dirty.keys.filter { $0.hasPrefix("water:") }.count, 2)
+        XCTAssertEqual(back.tombstones, Self.sample().tombstones)
+        XCTAssertEqual(back.rev, 192)
+        XCTAssertEqual(back.logs, Self.sample().logs) // and nothing else moved
+        XCTAssertEqual(back.promises, Self.sample().promises)
+    }
+
+    func testARecoveryThatCantWriteLeavesTheFileAndTheCopyAsTheyWere() throws {
+        let data = try Storage.write(Self.sample(), to: file)
+        _ = Storage.rotate(validated: data, copies: copies, today: "2026-11-07", build: "b", lastBuild: "b")
+        let broken = Data("{\"promises\":".utf8)
+        try broken.write(to: file)
+        let copy = try XCTUnwrap(Storage.listCopies(in: copies).first)
+        let copyBytes = try Data(contentsOf: copy.url)
+        XCTAssertThrowsError(try Storage.recover(file: file, from: copy.url, copies: copies, disk: failing(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)))))
+        XCTAssertEqual(bytes(), broken)
+        XCTAssertEqual(try Data(contentsOf: copy.url), copyBytes)
+    }
+
+    // MARK: Things that can't be taken back wait for a verified save
+
+    /// Desk events: acknowledged (and so deleted on the server) only once on disk; a failed save acknowledges nothing;
+    /// getting the same events again after an acknowledgement that never arrived adds nothing twice
+    @MainActor
+    func testDeskEventsAreAcknowledgedOnlyOnceSavedAndNeverKeptTwice() throws {
+        try Storage.write(Self.sample(), to: file)
+        let events = [DeskInput(kind: "eyes", answer: "done", at: 1_794_000_000_000, minutes: nil),
+                      DeskInput(kind: "stand", answer: "skipped", at: 1_794_000_600_000, minutes: 5)]
+        let store = Store(file: file)
+
+        // 1. Saved: the newest time may be acknowledged, and the events are already on disk
+        XCTAssertEqual(DeskSync.keep(events, in: store), 1_794_000_600_000)
+        guard case .ok(let first, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(first.extra["desk"]?.count, 2)
+        XCTAssertEqual(first.extra["desk"]?["1794000600000-stand"], store.records("desk")["1794000600000-stand"])
+
+        // 2. The acknowledgement never reached the server, so the same events come again: still two, unchanged
+        XCTAssertEqual(DeskSync.keep(events, in: store), 1_794_000_600_000)
+        guard case .ok(let again, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(again.extra["desk"], first.extra["desk"])
+
+        // 3. Saving fails: nothing may be acknowledged, the file keeps what it had, and after a retry the event is kept once
+        let third = [DeskInput(kind: "active", answer: "", at: 1_794_001_200_000, minutes: 40)]
+        let before = bytes()
+        store.disk = failing(NSError(domain: NSPOSIXErrorDomain, code: Int(ENOSPC)))
+        XCTAssertNil(DeskSync.keep(third, in: store))
+        XCTAssertEqual(bytes(), before)
+        XCTAssertNil(DeskSync.keep(third, in: store)) // blocked while unsaved
+        store.disk = .real
+        store.retrySave()
+        XCTAssertEqual(DeskSync.keep(third, in: store), 1_794_001_200_000)
+        guard case .ok(let after, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(after.extra["desk"]?.count, 3)
+    }
+
+    /// A 200 from the server isn't proof: only what it sends back counts as taken
+    func testASyncReplyClearsOnlyWhatTheServerSentBack() {
+        let sent = ["water:W1": 3, "log:P1|2026-11-04": 4, "gymBag:2026-11-02": 5, "food:F1": 6]
+        var dirty = sent
+        dirty["food:F1"] = 7   // changed again while the request was on its way
+        dirty["water:W9"] = 8  // new, not in this request
+        let r = Store.settle(sent: sent, dirty: dirty, returned: ["water:W1", "food:F1"])
+        XCTAssertEqual(r.dirty, ["log:P1|2026-11-04": 4, "gymBag:2026-11-02": 5, "food:F1": 7, "water:W9": 8])
+        XCTAssertEqual(r.refused, ["gymBag:2026-11-02", "log:P1|2026-11-04"])
+        let all = Store.settle(sent: ["water:W1": 3], dirty: ["water:W1": 3], returned: ["water:W1"])
+        XCTAssertTrue(all.dirty.isEmpty)
+        XCTAssertTrue(all.refused.isEmpty)
+    }
+
+    @MainActor
+    func testCommitSaysWhetherTheChangeIsReallyOnDisk() throws {
+        try Storage.write(Self.sample(), to: file)
+        let store = Store(file: file)
+        XCTAssertTrue(store.commit())
+        store.disk = failing(NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError))
+        store.addWater(250)
+        XCTAssertFalse(store.commit())
+        XCTAssertFalse(store.commit()) // stays false until a retry works
+        store.disk = .real
+        store.retrySave()
+        XCTAssertTrue(store.commit())
     }
 
     @MainActor

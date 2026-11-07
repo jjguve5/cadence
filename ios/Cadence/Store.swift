@@ -98,6 +98,7 @@ final class Store: ObservableObject {
     @Published private(set) var storageNote: String?
     @Published private(set) var localCopies: [LocalCopy] = []
     @Published private(set) var lastRecoveryArchive: URL?
+    @Published private(set) var syncRefused: [String] = [] // sent, answered 200, but not taken by the server: still queued
     private(set) var unsaved: [String: Int] = [:] // "type:id" changed since the last verified write, with its version
     var canChange: Bool { storage == .ok }
 
@@ -237,6 +238,15 @@ final class Store: ObservableObject {
     }
 
     func retrySave() { persistNow() }
+
+    /// Saves now and says whether it's really on disk. Anything that can't be taken back (an acknowledgement to the
+    /// server, a set shown as done on the lock screen, a reminder answered) happens only after this returns true.
+    @discardableResult
+    func commit() -> Bool {
+        guard storage == .ok else { return false }
+        persistNow()
+        return storage == .ok
+    }
 
     /// "Tentar outra vez" on the recovery screen, and on coming back to the app when the file couldn't be opened
     func retryLoad() {
@@ -534,7 +544,9 @@ final class Store: ObservableObject {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard code == 200 else { syncFailed(code == 403 ? "The server refused this for now: saved on the phone, retrying later" : "Sync failed (\(code)): saved on the phone"); return }
             let reply = try JSONDecoder().decode(SyncReply.self, from: data)
-            for (key, v) in sent where dirty[key] == v { dirty[key] = nil }
+            let settled = Self.settle(sent: sent, dirty: dirty, returned: Set(reply.changes.map { "\($0.type):\($0.id)" }))
+            dirty = settled.dirty
+            syncRefused = settled.refused
             tombstones.removeAll { sent[$0] != nil && dirty[$0] == nil }
             for c in reply.changes where dirty["\(c.type):\(c.id)"] == nil { apply(c) }
             if reply.changes.contains(where: { $0.type == WeightEntry.kind }) { followLatestWeight() }
@@ -546,6 +558,19 @@ final class Store: ObservableObject {
         } catch {
             syncFailed("Offline: changes wait on the phone")
         }
+    }
+
+    /// What a sync reply proves. A 200 isn't enough: the server skips some records without an error (ids with "|",
+    /// values that aren't objects). Every record it takes comes back in the reply with its new revision, so a change
+    /// counts as sent only when it comes back; the rest stay queued and are listed. A change made while the request was
+    /// on its way stays queued too.
+    nonisolated static func settle(sent: [String: Int], dirty: [String: Int], returned: Set<String>) -> (dirty: [String: Int], refused: [String]) {
+        var left = dirty
+        var refused: [String] = []
+        for (key, version) in sent where dirty[key] == version {
+            if returned.contains(key) { left[key] = nil } else { refused.append(key) }
+        }
+        return (left, refused.sorted())
     }
 
     /// Targets use the profile weight, so it follows the newest weigh-in, typed or from Apple Health
@@ -637,6 +662,7 @@ final class Store: ObservableObject {
             readingOpen = true
         } else if url.host == "water" {
             addWater(250)
+            commit() // from a widget: on disk before anything else happens
         } else if url.host == "capture" {
             captureOpen = true
         }

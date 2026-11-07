@@ -69,15 +69,34 @@ final class Agenda: ObservableObject {
     /// Desk breaks answered in VS Code become records, then are acknowledged on the server
     func pullDeskEvents() async {
         guard let req = Store.shared.request("focus.php") else { return }
-        struct Event: Decodable { var kind: String; var answer: String; var at: Double; var minutes: Int? }
-        struct Reply: Decodable { var events: [Event] }
-        guard let (data, _) = try? await URLSession.shared.data(for: req), let r = try? JSONDecoder().decode(Reply.self, from: data), let last = r.events.map(\.at).max() else { return }
-        let store = Store.shared
-        for e in r.events {
-            store.save(DeskEvent(id: "\(Int(e.at))-\(e.kind)", date: Day.key(Date(timeIntervalSince1970: e.at / 1000)), kind: e.kind, answer: e.answer, at: e.at, minutes: e.minutes ?? 0))
-        }
+        struct Reply: Decodable { var events: [DeskInput] }
+        guard let (data, _) = try? await URLSession.shared.data(for: req), let r = try? JSONDecoder().decode(Reply.self, from: data),
+              let last = DeskSync.keep(r.events, in: Store.shared) else { return }
         struct Ack: Encodable { var ack: Double }
         if let body = try? JSONEncoder().encode(Ack(ack: last)), let ack = Store.shared.request("focus.php", body: body) { _ = try? await URLSession.shared.data(for: ack) }
+    }
+}
+
+/// A desk event as focus.php sends it
+struct DeskInput: Decodable, Equatable {
+    var kind: String
+    var answer: String
+    var at: Double
+    var minutes: Int?
+}
+
+@MainActor
+enum DeskSync {
+    /// Keeps desk events as records and says what may be acknowledged: the newest time, and only once they're really
+    /// on disk. The server deletes what's acknowledged, so a failed save acknowledges nothing and the events come
+    /// again next time. Their ids come from their time and kind, so getting them twice (an acknowledgement that
+    /// never arrived) adds nothing twice.
+    static func keep(_ events: [DeskInput], in store: Store) -> Double? {
+        guard let last = events.map(\.at).max(), store.canChange else { return nil }
+        for e in events {
+            store.save(DeskEvent(id: "\(Int(e.at))-\(e.kind)", date: Day.key(Date(timeIntervalSince1970: e.at / 1000)), kind: e.kind, answer: e.answer, at: e.at, minutes: e.minutes ?? 0))
+        }
+        return store.commit() ? last : nil
     }
 }
 

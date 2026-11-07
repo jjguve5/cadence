@@ -72,8 +72,11 @@ final class PipNudge {
 
     func handle(_ action: PipAction, promiseId: String) async {
         let store = Store.shared
-        if action == .done, let p = store.promises[promiseId] { store.log(p, .done) }
-        else { snoozed[promiseId] = Date().addingTimeInterval(30 * 60) }
+        guard store.canChange else { return } // nothing is answered while the data isn't safe
+        if action == .done, let p = store.promises[promiseId] {
+            store.log(p, .done)
+            guard store.commit() else { return } // the nudge stays as it was if the answer couldn't be saved
+        } else { snoozed[promiseId] = Date().addingTimeInterval(30 * 60) }
         await refresh()
     }
 }
