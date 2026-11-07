@@ -1,7 +1,8 @@
 name: Rollback test (simulator)
 # Phase 1 install and rollback on a simulator, with synthetic data only: the 2 Nov build (dc04c07, the one on the
 # phone), then the new build over it, then the old build over that, then the new one again. Every install is over
-# the top: nothing is deleted or installed from scratch. Checks the data container, every record and the copies.
+# the top: nothing is deleted or installed from scratch. Checks the container's content, every record, the sync
+# queue and the copies; then a control run of the old build on a file it wrote itself.
 on:
   push:
     branches: [fase1-protecao-local]
@@ -69,7 +70,11 @@ jobs:
             xcrun simctl install "$SIM" "DD-$1/Build/Products/Debug-iphonesimulator/Cadence.app"
             C=$(xcrun simctl get_app_container "$SIM" "$BUNDLE" data)
             echo "$C" >> r/containers.txt
-            if [ "$2" = "seed" ]; then mkdir -p "$C/Documents"; python3 ios/ci/rollback_fixture.py > "$C/Documents/cadence.json"; cp "$C/Documents/cadence.json" r/0-fixture.json; fi
+            if [ "$2" = "seed" ]; then
+              mkdir -p "$C/Documents"; python3 ios/ci/rollback_fixture.py > "$C/Documents/cadence.json"; cp "$C/Documents/cadence.json" r/0-fixture.json
+              echo "put here once, before the first launch" > "$C/Documents/rollback-marker.txt"
+            fi
+            if [ "$2" = "control" ]; then cp r/1-old.json "$C/Documents/cadence.json"; fi # a file the old build wrote itself
             xcrun simctl launch "$SIM" "$BUNDLE"
             sleep 20
             xcrun simctl terminate "$SIM" "$BUNDLE" || true
@@ -82,6 +87,7 @@ jobs:
           run new - 2-new new
           run old - 3-old-again old-again
           run new - 4-new-again new-again
+          run old control 5-old-control old-control
           xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'process == "Cadence"' > r/simulator.log 2>&1 || true
 
       - name: Check every record, the container and the copies

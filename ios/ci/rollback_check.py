@@ -1,50 +1,71 @@
-"""Checks the rollback run: the app container never changed, the user's records came through every install (old,
-new, old again, new again) identical, the new build made validated copies, and the old build read the new file
-(if it hadn't, it would have started fresh and written its starter habits over everything)."""
+"""Checks the rollback run (synthetic data only).
+
+- The container's content survives every install over the top. Its path does not have to: the simulator, like iOS,
+  may move an app's container on reinstall, so a marker file is checked instead of the path.
+- The user's records come through every install (old, new, old again, new again) identical, field for field.
+- The new build never loses the sync queue, deletions or revision it loaded, and makes validated copies.
+- The old build (2 Nov) has a known defect: on a launch where nothing else changes, it saves before loading the
+  sync queue, so the file loses the queue, the deletions and the revision. A control run of the old build on a
+  file it wrote itself tells this apart from any incompatibility with files written by the new build.
+Fails on anything the new build does wrong or any record lost; reports the old build's defect as a warning."""
 import json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rollback_fixture import fixture
 
 r = sys.argv[1]
 load = lambda name: json.load(open(os.path.join(r, name), encoding="utf-8"))
-steps = ["1-old.json", "2-new.json", "3-old-again.json", "4-new-again.json"]
-snaps = {s: load(s) for s in steps}
-problems = []
+steps = ["1-old", "2-new", "3-old-again", "4-new-again", "5-old-control"]
+snaps = {s: load(s + ".json") for s in steps}
+problems, warnings = [], []
 
 def check(cond, what):
-    print(("OK   " if cond else "FAIL ") + what)
+    print(("OK    " if cond else "FAIL  ") + what)
     if not cond: problems.append(what)
 
-# The container is the same folder at every install
-containers = open(os.path.join(r, "containers.txt"), encoding="utf-8").read().split()
-check(len(containers) == 4 and len(set(containers)) == 1, f"same data container across the 4 installs ({len(set(containers))} distinct)")
+def warn(cond, what):
+    print(("OK    " if cond else "AVISO ") + what)
+    if not cond: warnings.append(what)
 
-# What the first (old) run made of the file is the reference: it may fill in profile defaults and starter content
-ref = snaps["1-old.json"]
+queue = lambda s: (s.get("dirty") or {}, sorted(s.get("tombstones") or []), s.get("rev"))
+
+# The container's content survives every install (the marker was put in once, at the start)
+for s in steps:
+    files = open(os.path.join(r, s + "-files.txt"), encoding="utf-8").read()
+    check("rollback-marker.txt" in files and "cadence.json" in files, f"{s}: container content still there after installing over the top")
+
+# The first (old) run is the reference: it may fill profile defaults and starter content
+ref = snaps["1-old"]
 for cat in ["logs", "days", "feedback", "health"]:
-    check(ref.get(cat) == fixture[cat], f"old build kept {cat} exactly as given")
+    check(ref.get(cat) == fixture[cat], f"1-old: kept {cat} exactly as given")
 for t, recs in fixture["extra"].items():
     for i, v in recs.items():
-        check(ref.get("extra", {}).get(t, {}).get(i) == v, f"old build kept extra/{t}/{i}")
-check(ref["promises"].get("P1") is not None, "old build kept the habit")
+        check(ref.get("extra", {}).get(t, {}).get(i) == v, f"1-old: kept extra/{t}/{i}")
+check("P1" in ref["promises"], "1-old: kept the habit")
 
-# Every later step keeps every record of the reference, field for field, plus the queue and the revision
+# Every record of the reference comes through every later step, field for field, with no starter habits over it
+starter = {"Protein shake", "Read 30 min", "Brush teeth, night"}
 for s in steps[1:]:
     snap = snaps[s]
     for cat in ["promises", "logs", "days", "feedback", "profile", "health", "connection"]:
-        check(snap.get(cat) == ref.get(cat), f"{s}: {cat} identical to the old build's file")
+        check(snap.get(cat) == ref.get(cat), f"{s}: {cat} identical")
     for t, recs in ref.get("extra", {}).items():
+        if t == "prediction": continue  # worked out again at each launch from the same data
         for i, v in recs.items():
-            if t in ("prediction",): continue  # worked out again at each launch from the same data
             check(snap.get("extra", {}).get(t, {}).get(i) == v, f"{s}: extra/{t}/{i} identical")
-    for k, v in fixture["dirty"].items():
-        check(snap.get("dirty", {}).get(k) is not None, f"{s}: still queued for the server: {k}")
-    check(set(fixture["tombstones"]) <= set(snap.get("tombstones", [])), f"{s}: deletions still queued")
-    check(snap.get("rev") == fixture["rev"], f"{s}: sync revision unchanged")
-    starter = {"Protein shake", "Read 30 min", "Brush teeth, night"}
     check(not starter & {p.get("title") for p in snap["promises"].values()}, f"{s}: no starter habits written over the data")
 
-# The new build loaded the file cleanly: it made a daily copy and a before-update copy, both readable and identical
+# The new build keeps exactly the queue, deletions and revision it loaded
+check(queue(snaps["2-new"]) == queue(snaps["1-old"]), "2-new: sync queue, deletions and revision as loaded")
+check(queue(snaps["4-new-again"]) == queue(snaps["3-old-again"]), "4-new-again: sync queue, deletions and revision as loaded")
+
+# The old build's own defect, measured on its own file (control) and after the new build's file
+warn(queue(snaps["3-old-again"]) == queue(snaps["2-new"]), "3-old-again: the 2 Nov build kept the sync queue it loaded")
+control_lost = queue(snaps["5-old-control"]) != queue(snaps["1-old"])
+warn(not control_lost, "5-old-control: the 2 Nov build kept the sync queue of a file it wrote itself")
+if control_lost:
+    print("      -> the queue is lost by the 2 Nov build on its own file too: its defect, not an incompatibility with the new format")
+
+# The new build loaded the file cleanly: a daily copy and a before-update copy, both holding the records
 copies = os.path.join(r, "copies-after-new")
 names = sorted(os.listdir(copies)) if os.path.isdir(copies) else []
 check(any(n.startswith("diaria-") for n in names), f"new build made a daily copy ({names})")
@@ -52,8 +73,9 @@ check(any(n.startswith("antes-da-atualizacao-") for n in names), "new build made
 for n in names:
     if n.endswith(".json"):
         c = json.load(open(os.path.join(copies, n), encoding="utf-8"))
-        check(c.get("logs") == ref["logs"] and c.get("extra", {}).get("water") == ref["extra"]["water"], f"copy {n} holds the records")
+        check(c.get("logs") == ref["logs"] and c.get("extra", {}).get("water") == ref["extra"]["water"] and queue(c) == queue(ref),
+              f"copy {n} holds the records and the queue")
 check(os.path.isdir(os.path.join(r, "copies-after-old-again")), "the old build left the copies folder alone")
 
-print(f"\n{len(problems)} problem(s)")
+print(f"\n{len(problems)} problem(s), {len(warnings)} warning(s) about the 2 Nov build")
 sys.exit(1 if problems else 0)
