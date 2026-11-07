@@ -303,6 +303,13 @@ extension KeyedDecodingContainer {
         return try decode(T.self, forKey: key)
     }
 
+    /// A list that older servers may have sent back as an empty object ({} for an empty []); a non-empty object is an error
+    func list<E: Decodable>(_ key: Key) throws -> [E] {
+        guard contains(key) else { return [] }
+        if let empty = try? decode([String: JSONValue].self, forKey: key), empty.isEmpty { return [] }
+        return try decode([E].self, forKey: key)
+    }
+
     /// A dictionary that older servers may have sent back as an empty list ([] is how PHP writes an empty object)
     func dictionary<V: Decodable>(_ key: Key, or fallback: [String: V] = [:]) throws -> [String: V] {
         guard contains(key) else { return fallback }

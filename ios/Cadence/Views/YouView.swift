@@ -144,6 +144,9 @@ struct SettingsView: View {
                 LabeledContent("Registos", value: "\(store.personalRecordCount)")
                 LabeledContent("Cópias locais", value: store.localCopies.first.map { "\(store.localCopies.count) · última \($0.date.formatted(date: .abbreviated, time: .omitted))" } ?? "nenhuma ainda")
                 LabeledContent("Por enviar ao servidor", value: "\(store.pendingSyncCount)")
+                if let hold = store.syncHold {
+                    Text(hold).font(.footnote).foregroundStyle(Color.warn)
+                }
                 if !store.syncRefused.isEmpty {
                     LabeledContent("Recusados pelo servidor", value: "\(store.syncRefused.count)")
                 }

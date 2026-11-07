@@ -121,14 +121,18 @@ final class Store: ObservableObject {
     private let file: URL
     private let copiesDir: URL
     private let rotates: Bool
+    private let defaults: UserDefaults
     var disk = Storage.Disk.real // tests make writing fail or the disk look full
     var dataFileURL: URL { file }
+    /// Set when the copy made before a new build's first sync failed: nothing syncs until a copy exists
+    @Published private(set) var syncHold: String?
 
-    /// `file` is for unit tests only: a store on its own file, with no copies rotated
-    init(file custom: URL? = nil) {
+    /// `file`, `rotate` and `defaults` are for unit tests: a store on its own file, with copies only when asked
+    init(file custom: URL? = nil, rotate: Bool = false, defaults: UserDefaults = .standard) {
         file = custom ?? (TestMode.active ? TestMode.storeFile : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json"))
         copiesDir = file.deletingLastPathComponent().appendingPathComponent("cadence-copies", isDirectory: true)
-        rotates = custom == nil && !TestMode.active
+        rotates = (custom == nil && !TestMode.active) || rotate
+        self.defaults = defaults
         objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
         Agenda.shared.objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
         if custom == nil, TestMode.active {
@@ -153,9 +157,11 @@ final class Store: ObservableObject {
             seed()
         case .ok(let saved, let data):
             storage = .ok
+            // The copies come first, from the bytes exactly as read (sync queue, deletions and revision included),
+            // before anything is written or synced
+            rotateCopies(data)
             adopt(saved)
             if !saved.seeded { seed() }
-            rotateCopies(data)
         case .cannotOpen(let why):
             storage = .protected(StorageProblem(kind: .cannotOpen, detail: why, categories: []))
         case .corrupt(let why):
@@ -183,20 +189,27 @@ final class Store: ObservableObject {
         connection = saved.connection // last: its didSet saves, and the queue above must already be loaded by then
     }
 
-    /// One validated copy a day and one before each new build, off the main thread
+    /// One validated copy a day and one before each new build, made right here, before anything can be written or
+    /// synced. If a new build's first copy can't be made, syncing stays off until it can (retried at each refresh).
     private func rotateCopies(_ data: Data) {
         guard rotates else { return }
-        let dir = copiesDir, build = Storage.buildStamp(), last = UserDefaults.standard.string(forKey: "storageBuild"), today = Day.today, d = disk
-        saveQueue.async { [weak self] in
-            let r = Storage.rotate(validated: data, copies: dir, today: today, build: build, lastBuild: last, disk: d)
-            let list = Storage.listCopies(in: dir)
-            Task { @MainActor in
-                if r.beforeUpdateDone { UserDefaults.standard.set(build, forKey: "storageBuild") }
-                self?.localCopies = list
-                if r.lowSpace { self?.storageNote = "Pouco espaço livre no iPhone: hoje não foi feita a cópia local." }
-                else if let e = r.error { self?.storageNote = "A cópia local de hoje falhou: \(e)" }
-            }
+        let build = Storage.buildStamp(), last = defaults.string(forKey: "storageBuild")
+        let r = Storage.rotate(validated: data, copies: copiesDir, today: Day.today, build: build, lastBuild: last, disk: disk)
+        if r.beforeUpdateDone { defaults.set(build, forKey: "storageBuild") }
+        localCopies = Storage.listCopies(in: copiesDir)
+        if last != build, !r.beforeUpdateDone {
+            syncHold = "Não foi possível fazer a cópia de segurança antes da primeira sincronização desta versão" + (r.lowSpace ? " (pouco espaço livre)" : r.error.map { " (\($0))" } ?? "") + ". A sincronização fica parada até a cópia ser feita."
+        } else {
+            syncHold = nil
+            if r.lowSpace { storageNote = "Pouco espaço livre no iPhone: hoje não foi feita a cópia local." }
+            else if let e = r.error { storageNote = "A cópia local de hoje falhou: \(e)" }
         }
+    }
+
+    /// While syncing is held, each refresh tries the copy again from the file as it is now
+    private func retryHeldCopy() {
+        guard syncHold != nil, storage == .ok, case .ok(_, let data) = Storage.load(from: file) else { return }
+        rotateCopies(data)
     }
 
     /// Every change is in memory at once and on disk moments later, away from the main thread, so tapping never waits
@@ -532,13 +545,14 @@ final class Store: ObservableObject {
     }
 
     func sync() async {
-        guard storage == .ok, connection.configured, !syncing, Date() >= syncPausedUntil else { return }
+        guard storage == .ok, syncHold == nil, connection.configured, !syncing, Date() >= syncPausedUntil else { return }
         syncing = true
         defer { syncing = false }
         let sent = dirty
+        let since = rev ?? 0
         let changes = sent.keys.compactMap(encodeRecord)
         struct Body: Encodable { var since: Int; var changes: [SyncChange] }
-        guard let body = try? JSONEncoder().encode(Body(since: rev ?? 0, changes: changes)), let req = request("sync.php", body: body) else { return }
+        guard let body = try? JSONEncoder().encode(Body(since: since, changes: changes)), let req = request("sync.php", body: body) else { return }
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -548,7 +562,25 @@ final class Store: ObservableObject {
             dirty = settled.dirty
             syncRefused = settled.refused
             tombstones.removeAll { sent[$0] != nil && dirty[$0] == nil }
-            for c in reply.changes where dirty["\(c.type):\(c.id)"] == nil { apply(c) }
+            // A full download (no revision yet, or a server that went back) can hold older copies of what is here:
+            // the phone's version stays and goes up again; only what the phone doesn't have is added
+            let full = since == 0 || reply.rev < since
+            var keptLocal = 0
+            for c in reply.changes where dirty["\(c.type):\(c.id)"] == nil {
+                let key = "\(c.type):\(c.id)"
+                switch Self.resolve(c, local: encodeRecord(key)?.data, fullDownload: full) {
+                case .apply: apply(c)
+                case .skip: break
+                case .keepLocal:
+                    version += 1
+                    dirty[key] = version
+                    keptLocal += 1
+                }
+            }
+            if keptLocal > 0 {
+                storageNote = "Na sincronização completa, \(keptLocal) registo(s) do iPhone eram diferentes dos do servidor: ficou a versão do iPhone, que volta a ser enviada."
+                scheduleSync()
+            }
             if reply.changes.contains(where: { $0.type == WeightEntry.kind }) { followLatestWeight() }
             rev = reply.rev
             syncError = nil
@@ -558,6 +590,19 @@ final class Store: ObservableObject {
         } catch {
             syncFailed("Offline: changes wait on the phone")
         }
+    }
+
+    enum Resolution: Equatable { case apply, skip, keepLocal }
+
+    /// What to do with a record the server sent. Normally the server's copy is newer and is applied. In a full
+    /// download, though, the phone is the source of truth: a record it doesn't have is added, an identical one is left,
+    /// and a different one, or a deletion of something the phone still has, keeps the phone's version.
+    nonisolated static func resolve(_ change: SyncChange, local: JSONValue?, fullDownload: Bool) -> Resolution {
+        guard fullDownload else { return .apply }
+        let gone = change.deleted == true || change.data == nil
+        guard let local else { return gone ? .skip : .apply }
+        if !gone, change.data == local { return .skip }
+        return .keepLocal
     }
 
     /// What a sync reply proves. A 200 isn't enough: the server skips some records without an error (ids with "|",
@@ -684,6 +729,7 @@ final class Store: ObservableObject {
     /// Coming back to the app shouldn't mean a round of requests every time; pull to refresh forces it
     func refreshAll(force: Bool = false) async {
         guard storage == .ok, force || Date().timeIntervalSince(lastRefreshAll) > 5 * 60 else { return }
+        retryHeldCopy() // no copy before this build's first sync, no sync
         lastRefreshAll = Date()
         if force { syncPausedUntil = .distantPast }
         await sync()

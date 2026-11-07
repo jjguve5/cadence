@@ -148,8 +148,8 @@ struct WorkoutSession: Record, Equatable {
         name = try c.value(.name, or: "Workout")
         start = try c.value(.start, or: nowMs())
         end = try c.optional(.end)
-        order = try c.value(.order, or: [])
-        sets = try c.value(.sets, or: [])
+        order = try c.list(.order)
+        sets = try c.list(.sets)
         notes = try c.dictionary(.notes)
         feel = try c.optional(.feel)
     }

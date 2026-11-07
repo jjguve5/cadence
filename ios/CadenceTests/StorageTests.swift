@@ -471,6 +471,86 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(back.extra["session"]?["S9"], unreadable)
     }
 
+    func testEmptyListsAndObjectsFromOlderServersReadButNothingElseDoes() throws {
+        let decode = { (json: String) in try JSONDecoder().decode(WorkoutSession.self, from: Data(json.utf8)) }
+        let s = try decode(#"{"id":"S6","name":"Pernas","sets":{},"order":{},"notes":[]}"#)
+        XCTAssertTrue(s.sets.isEmpty)
+        XCTAssertTrue(s.order.isEmpty)
+        XCTAssertEqual(s.notes, [:])
+        XCTAssertThrowsError(try decode(#"{"id":"S7","sets":{"a":1}}"#))   // a list that isn't empty can't be an object
+        XCTAssertThrowsError(try decode(#"{"id":"S8","notes":["a"]}"#))   // a dictionary that isn't empty can't be a list
+        XCTAssertThrowsError(try decode(#"{"id":"S9","order":"x"}"#))
+        XCTAssertThrowsError(try decode(#"{"id":"S10","notes":"x"}"#))
+    }
+
+    // MARK: The first launch of a new build
+
+    private func freshDefaults() throws -> UserDefaults { try XCTUnwrap(UserDefaults(suiteName: "storage-\(UUID().uuidString)")) }
+
+    /// Regression for the first launch after an update, with changes not yet on the server: before anything is written
+    /// or synced, the file as read is copied, byte for byte, sync queue, deletions and revision included
+    @MainActor
+    func testTheFirstLaunchOfANewBuildCopiesTheUnsyncedStateBeforeAnythingElse() throws {
+        try Storage.write(Self.sample(), to: file)
+        let original = try XCTUnwrap(bytes())
+        let defaults = try freshDefaults()
+        let store = Store(file: file, rotate: true, defaults: defaults)
+        XCTAssertNil(store.syncHold)
+        let names = try FileManager.default.contentsOfDirectory(atPath: copies.path)
+        let beforeUpdate = try XCTUnwrap(names.first { $0.hasPrefix(Storage.beforeUpdatePrefix) })
+        let daily = try XCTUnwrap(names.first { $0.hasPrefix(Storage.dailyPrefix) })
+        for name in [beforeUpdate, daily] {
+            let url = copies.appendingPathComponent(name)
+            XCTAssertEqual(try Data(contentsOf: url), original, "\(name) is the file exactly as it was read")
+            guard case .ok(let copy, _) = Storage.load(from: url) else { return XCTFail("\(name) should read") }
+            XCTAssertEqual(copy.dirty, Self.sample().dirty)
+            XCTAssertEqual(copy.tombstones, Self.sample().tombstones)
+            XCTAssertEqual(copy.rev, Self.sample().rev)
+            XCTAssertEqual(copy, Self.sample())
+        }
+        // The same build launched again makes no second before-update copy and holds nothing
+        let again = Store(file: file, rotate: true, defaults: defaults)
+        XCTAssertNil(again.syncHold)
+        let after = try FileManager.default.contentsOfDirectory(atPath: copies.path)
+        XCTAssertEqual(after.filter { $0.hasPrefix(Storage.beforeUpdatePrefix) }.count, 1)
+    }
+
+    /// If that first copy can't be made, nothing syncs (a sync would say so in syncError) until a copy is made
+    @MainActor
+    func testANewBuildWhoseFirstCopyFailsDoesNotSyncUntilTheCopyIsMade() async throws {
+        try Storage.write(Self.sample(), to: file)
+        let blocker = dir.appendingPathComponent("cadence-copies")
+        try Data("not a folder".utf8).write(to: blocker) // the copies folder can't be created
+        let defaults = try freshDefaults()
+        let store = Store(file: file, rotate: true, defaults: defaults)
+        XCTAssertNotNil(store.syncHold)
+        await store.sync()
+        XCTAssertNil(store.syncError, "the sync must not even have been tried")
+        await store.refreshAll(force: true)
+        XCTAssertNotNil(store.syncHold)
+        XCTAssertNil(store.syncError)
+        XCTAssertNil(defaults.string(forKey: "storageBuild"))
+        try FileManager.default.removeItem(at: blocker)
+        await store.refreshAll(force: true) // the copy is made first, then the hold lifts
+        XCTAssertNil(store.syncHold)
+        XCTAssertNotNil(defaults.string(forKey: "storageBuild"))
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: copies.path).contains { $0.hasPrefix(Storage.beforeUpdatePrefix) })
+    }
+
+    /// With no revision (lost by the 2 Nov build) or a server that went back, the server sends everything it has:
+    /// older copies never replace the phone's, deletions never remove what the phone still has
+    func testAFullDownloadNeverReplacesThePhonesVersion() {
+        let mine: JSONValue = .object(["id": .string("W1"), "ml": .number(250)])
+        let older: JSONValue = .object(["id": .string("W1"), "ml": .number(200)])
+        func change(_ data: JSONValue?, deleted: Bool? = nil) -> SyncChange { SyncChange(type: "water", id: "W1", deleted: deleted, data: data, updated: 1) }
+        XCTAssertEqual(Store.resolve(change(older), local: mine, fullDownload: true), .keepLocal)
+        XCTAssertEqual(Store.resolve(change(mine), local: mine, fullDownload: true), .skip)
+        XCTAssertEqual(Store.resolve(change(older), local: nil, fullDownload: true), .apply)
+        XCTAssertEqual(Store.resolve(change(nil, deleted: true), local: mine, fullDownload: true), .keepLocal)
+        XCTAssertEqual(Store.resolve(change(nil, deleted: true), local: nil, fullDownload: true), .skip)
+        XCTAssertEqual(Store.resolve(change(older), local: mine, fullDownload: false), .apply) // a normal sync: the server's is newer
+    }
+
     // MARK: Going back to the previous build
 
     func testAFileWrittenNowReadsInThePreviousVersion() throws {
