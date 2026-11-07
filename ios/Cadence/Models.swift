@@ -184,22 +184,25 @@ struct Profile: Codable, Equatable {
 
     func on(_ area: String) -> Bool { !areasOff.contains(area) }
 
-    // Every field optional on the way in, so adding a field never loses saved data
+    // A field an older file doesn't have yet takes its default; a field that is there must read, or the whole profile
+    // fails to read and the app protects the file, instead of quietly putting a default in place of what was saved
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = Profile()
-        func v<T: Decodable>(_ k: CodingKeys, _ def: T) -> T { (try? c.decodeIfPresent(T.self, forKey: k)) ?? def }
-        name = v(.name, d.name); wakeMinute = v(.wakeMinute, d.wakeMinute); sleepNeed = v(.sleepNeed, d.sleepNeed)
-        windDownLead = v(.windDownLead, d.windDownLead); stepGoal = v(.stepGoal, d.stepGoal); readinessOffset = v(.readinessOffset, d.readinessOffset)
-        quietStart = v(.quietStart, d.quietStart); quietEnd = v(.quietEnd, d.quietEnd); notificationBudget = v(.notificationBudget, d.notificationBudget)
-        goal = v(.goal, d.goal); weightKg = v(.weightKg, d.weightKg); heightCm = v(.heightCm, d.heightCm); age = v(.age, d.age); male = v(.male, d.male)
-        kcalTarget = (try? c.decodeIfPresent(Double.self, forKey: .kcalTarget)) ?? nil
-        proteinPerKg = v(.proteinPerKg, d.proteinPerKg); waterGoalMl = v(.waterGoalMl, d.waterGoalMl)
-        barKg = v(.barKg, d.barKg); plates = v(.plates, d.plates); areasOff = v(.areasOff, d.areasOff)
-        fatTarget = (try? c.decodeIfPresent(Double.self, forKey: .fatTarget)) ?? nil
-        carbTarget = (try? c.decodeIfPresent(Double.self, forKey: .carbTarget)) ?? nil
-        setupDone = v(.setupDone, d.setupDone); healthSource = v(.healthSource, d.healthSource)
-        setup = (try? c.decodeIfPresent(SetupInputs.self, forKey: .setup)) ?? nil
+        name = try c.value(.name, or: d.name); wakeMinute = try c.value(.wakeMinute, or: d.wakeMinute); sleepNeed = try c.value(.sleepNeed, or: d.sleepNeed)
+        windDownLead = try c.value(.windDownLead, or: d.windDownLead); stepGoal = try c.value(.stepGoal, or: d.stepGoal)
+        readinessOffset = try c.value(.readinessOffset, or: d.readinessOffset)
+        quietStart = try c.value(.quietStart, or: d.quietStart); quietEnd = try c.value(.quietEnd, or: d.quietEnd)
+        notificationBudget = try c.value(.notificationBudget, or: d.notificationBudget)
+        goal = try c.value(.goal, or: d.goal); weightKg = try c.value(.weightKg, or: d.weightKg); heightCm = try c.value(.heightCm, or: d.heightCm)
+        age = try c.value(.age, or: d.age); male = try c.value(.male, or: d.male)
+        kcalTarget = try c.optional(.kcalTarget)
+        proteinPerKg = try c.value(.proteinPerKg, or: d.proteinPerKg); waterGoalMl = try c.value(.waterGoalMl, or: d.waterGoalMl)
+        barKg = try c.value(.barKg, or: d.barKg); plates = try c.value(.plates, or: d.plates); areasOff = try c.value(.areasOff, or: d.areasOff)
+        fatTarget = try c.optional(.fatTarget)
+        carbTarget = try c.optional(.carbTarget)
+        setupDone = try c.value(.setupDone, or: d.setupDone); healthSource = try c.value(.healthSource, or: d.healthSource)
+        setup = try c.optional(.setup)
     }
 
     /// Mifflin-St Jeor, times a light activity factor; the weekly check-in replaces it with what your weight shows
@@ -285,6 +288,28 @@ struct HealthReply: Codable {
 }
 
 // MARK: - Any JSON, for sync records
+
+extension KeyedDecodingContainer {
+    /// A field missing from an older file takes its default. A field that is there must read: a wrong value or a wrong
+    /// type throws instead of being quietly replaced, so the caller can protect what was saved.
+    func value<T: Decodable>(_ key: Key, or fallback: @autoclosure () -> T) throws -> T {
+        guard contains(key) else { return fallback() }
+        return try decode(T.self, forKey: key)
+    }
+
+    /// An optional field: missing or null is nil; anything else must read
+    func optional<T: Decodable>(_ key: Key) throws -> T? {
+        guard contains(key), try !decodeNil(forKey: key) else { return nil }
+        return try decode(T.self, forKey: key)
+    }
+
+    /// A dictionary that older servers may have sent back as an empty list ([] is how PHP writes an empty object)
+    func dictionary<V: Decodable>(_ key: Key, or fallback: [String: V] = [:]) throws -> [String: V] {
+        guard contains(key) else { return fallback }
+        if let empty = try? decode([JSONValue].self, forKey: key), empty.isEmpty { return [:] }
+        return try decode([String: V].self, forKey: key)
+    }
+}
 
 enum JSONValue: Codable, Equatable {
     case null, bool(Bool), number(Double), string(String), array([JSONValue]), object([String: JSONValue])

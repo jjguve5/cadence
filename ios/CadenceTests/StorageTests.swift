@@ -388,6 +388,89 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(back, Self.sample()) // the sync queue, deletions and revision too
     }
 
+    // MARK: Fields that are there but can't be read are never replaced by defaults
+
+    private func profile(_ json: String) throws -> Profile { try JSONDecoder().decode(Profile.self, from: Data(json.utf8)) }
+
+    func testProfileFieldMissingInAnOlderFileTakesItsDefault() throws {
+        let p = try profile(#"{"weightKg":78}"#)
+        XCTAssertEqual(p.weightKg, 78)
+        XCTAssertEqual(p.stepGoal, Profile().stepGoal)
+        XCTAssertEqual(p.areasOff, [])
+        XCTAssertNil(p.kcalTarget)
+        XCTAssertNil(p.setup)
+        let empty = try profile("{}")
+        XCTAssertEqual(empty, Profile())
+        XCTAssertNil(try profile(#"{"kcalTarget":null}"#).kcalTarget) // an optional left empty
+    }
+
+    func testProfileFieldPresentAndValidIsRead() throws {
+        var p = Profile()
+        p.name = "Teste"; p.weightKg = 80.5; p.stepGoal = 10000; p.male = false; p.kcalTarget = 3160; p.fatTarget = 70
+        p.plates = [20, 10]; p.areasOff = ["money", "people"]; p.healthSource = "apple"; p.setupDone = true
+        p.setup = SetupInputs()
+        let back = try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(p))
+        XCTAssertEqual(back, p)
+    }
+
+    func testProfileFieldPresentButInvalidIsNotReplaced() {
+        for json in [#"{"weightKg":null}"#, #"{"setup":{"age":25}}"#, #"{"plates":[20,"x"]}"#, #"{"stepGoal":8000.5}"#] {
+            XCTAssertThrowsError(try profile(json), json)
+        }
+    }
+
+    func testProfileFieldWithAnIncompatibleTypeIsNotReplaced() {
+        for json in [#"{"weightKg":"78"}"#, #"{"areasOff":"money"}"#, #"{"male":1}"#, #"{"kcalTarget":"3160"}"#, #"{"setup":[]}"#] {
+            XCTAssertThrowsError(try profile(json), json)
+        }
+    }
+
+    /// The whole chain: a profile field that can't be read protects the file, which is left exactly as it was
+    @MainActor
+    func testAnUnreadableProfileFieldProtectsTheFile() throws {
+        var o = try object(Self.sample())
+        var p = try XCTUnwrap(o["profile"] as? [String: Any])
+        p["weightKg"] = "78"
+        o["profile"] = p
+        let content = try JSONSerialization.data(withJSONObject: o)
+        try content.write(to: file)
+        guard case .incompatible(let saved, let categories, _) = Storage.load(from: file) else { return XCTFail("should be incompatible") }
+        XCTAssertEqual(categories, ["profile"])
+        XCTAssertEqual(saved.logs, Self.sample().logs)
+        let store = Store(file: file)
+        guard case .protected(let problem) = store.storage else { return XCTFail("should be protected") }
+        XCTAssertEqual(problem.categories, ["profile"])
+        store.persistNow()
+        XCTAssertEqual(bytes(), content)
+    }
+
+    func testSessionsReadOlderAndEmptyListFieldsButNeverShowUnreadableSetsAsNone() throws {
+        let decode = { (json: String) in try JSONDecoder().decode(WorkoutSession.self, from: Data(json.utf8)) }
+        let older = try decode(#"{"id":"S1","order":[]}"#)
+        XCTAssertEqual(older.name, "Workout")
+        XCTAssertTrue(older.sets.isEmpty)
+        XCTAssertEqual(try decode(#"{"id":"S2","name":"Pernas","order":[],"sets":[],"notes":[]}"#).notes, [:]) // PHP's empty object
+        XCTAssertThrowsError(try decode(#"{"id":"S3","order":[],"sets":"x"}"#))
+        XCTAssertThrowsError(try decode(#"{"id":"S4","order":[],"notes":{"a":5}}"#))
+        XCTAssertThrowsError(try decode(#"{"id":"S5","order":[],"start":"ontem"}"#))
+    }
+
+    /// A stored session that can't be read is left out, not shown empty, and its record survives every save untouched
+    @MainActor
+    func testAnUnreadableSessionRecordIsKeptAsItIsThroughSaves() throws {
+        var s = Self.sample()
+        let unreadable: JSONValue = .object(["id": .string("S9"), "order": .array([]), "sets": .string("x")])
+        s.extra["session"] = ["S9": unreadable]
+        try Storage.write(s, to: file)
+        let store = Store(file: file)
+        XCTAssertEqual(store.storage, .ok)
+        XCTAssertTrue(store.all(WorkoutSession.self).isEmpty)
+        store.addWater(250)
+        store.persistNow()
+        guard case .ok(let back, _) = Storage.load(from: file) else { return XCTFail("should read") }
+        XCTAssertEqual(back.extra["session"]?["S9"], unreadable)
+    }
+
     // MARK: Going back to the previous build
 
     func testAFileWrittenNowReadsInThePreviousVersion() throws {

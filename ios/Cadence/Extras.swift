@@ -59,8 +59,8 @@ struct Measurement: Record, Equatable {
     init(date: String = Day.today, values: [String: Double] = [:]) { self.date = date; self.values = values }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        date = (try? c.decode(String.self, forKey: .date)) ?? Day.today
-        values = (try? c.decode([String: Double].self, forKey: .values)) ?? [:]
+        date = try c.value(.date, or: Day.today)
+        values = try c.dictionary(.values)
     }
 }
 
@@ -89,7 +89,7 @@ struct Payday: Record, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         month = try c.decode(String.self, forKey: .month)
-        jobs = (try? c.decode([String: Double].self, forKey: .jobs)) ?? [:]
+        jobs = try c.dictionary(.jobs)
     }
 }
 

@@ -137,19 +137,21 @@ struct WorkoutSession: Record, Equatable {
         self.id = id; self.date = date; self.templateId = templateId; self.name = name; self.start = start; self.end = end; self.order = order; self.sets = sets; self.notes = notes
     }
 
-    // An empty notes object may have come back from the server as [], so every field is optional on the way in
+    // A field an older record doesn't have takes its default, and an empty notes object the server sent back as [] is
+    // empty; anything else that is there must read. A session with sets that can't be read is not shown with no sets
+    // (which a save would make permanent): it isn't read at all, and its stored record stays as it is.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        date = (try? c.decode(String.self, forKey: .date)) ?? Day.today
-        templateId = try? c.decodeIfPresent(String.self, forKey: .templateId)
-        name = (try? c.decode(String.self, forKey: .name)) ?? "Workout"
-        start = (try? c.decode(Double.self, forKey: .start)) ?? nowMs()
-        end = try? c.decodeIfPresent(Double.self, forKey: .end)
-        order = (try? c.decode([TemplateExercise].self, forKey: .order)) ?? []
-        sets = (try? c.decode([SetLog].self, forKey: .sets)) ?? []
-        notes = (try? c.decode([String: String].self, forKey: .notes)) ?? [:]
-        feel = try? c.decodeIfPresent(Int.self, forKey: .feel)
+        date = try c.value(.date, or: Day.today)
+        templateId = try c.optional(.templateId)
+        name = try c.value(.name, or: "Workout")
+        start = try c.value(.start, or: nowMs())
+        end = try c.optional(.end)
+        order = try c.value(.order, or: [])
+        sets = try c.value(.sets, or: [])
+        notes = try c.dictionary(.notes)
+        feel = try c.optional(.feel)
     }
 }
 
