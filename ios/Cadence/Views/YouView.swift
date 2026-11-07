@@ -139,6 +139,17 @@ struct SettingsView: View {
             Section {
                 Button(store.homeCoordinate == nil ? "I'm home: remember this place" : "I'm home: update this place") { Task { await store.setHomeHere() } }.accessibilityIdentifier("home.set")
             } header: { Text("Home") } footer: { Text("Used on this phone only, to remind you to unpack the gym bag when you arrive after a workout. Without it, the reminder comes 45 minutes after you finish.") }
+            Section {
+                LabeledContent("Estado", value: store.lastSaved.map { "verificado às " + $0.formatted(date: .omitted, time: .shortened) } ?? "sem gravações nesta sessão")
+                LabeledContent("Registos", value: "\(store.personalRecordCount)")
+                LabeledContent("Cópias locais", value: store.localCopies.first.map { "\(store.localCopies.count) · última \($0.date.formatted(date: .abbreviated, time: .omitted))" } ?? "nenhuma ainda")
+                LabeledContent("Por enviar ao servidor", value: "\(store.pendingSyncCount)")
+                if store.lastRecoveryArchive != nil {
+                    Button("Desfazer a última recuperação", role: .destructive) { try? store.undoRecovery() }
+                }
+            } header: { Text("Armazenamento local") } footer: {
+                Text(store.storageNote ?? "Os teus dados ficam guardados neste iPhone. Cada gravação é verificada antes de substituir a anterior, e há uma cópia local por dia.")
+            }
             Section("Your data") {
                 ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Export everything (JSON)", systemImage: "square.and.arrow.up") }
             }

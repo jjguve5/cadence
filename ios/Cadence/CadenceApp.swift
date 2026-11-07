@@ -35,6 +35,8 @@ struct CadenceApp: App {
         }
         .onChange(of: phase) { _, now in
             if now == .active {
+                // The file couldn't be opened (e.g. the phone was still locked after a restart): try again now
+                if case .protected(let p) = store.storage, p.kind == .cannotOpen { store.retryLoad() }
                 if !TestMode.active {
                     Reminders.shared.collectIgnored()
                     store.migrateAnchors()
@@ -59,7 +61,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if store.connection.configured {
+            if store.storage != .ok {
+                RecoveryView() // the data couldn't be read or saved: nothing else until it's safe
+            } else if store.connection.configured {
                 TabView(selection: $tab) {
                     TodayView().tabItem { Label("Today", systemImage: "house") }.tag(0)
                     PlanView().tabItem { Label("Plan", systemImage: "calendar") }.tag(1)

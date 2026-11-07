@@ -19,7 +19,7 @@ private struct SyncReply: Decodable {
 
 /// What's on disk. dirty: "type:id" changed here and not yet on the server, with a version so a change made during
 /// a sync isn't taken as sent. Deleted ids wait in `tombstones` until the server has them.
-private struct Saved: Codable {
+struct Saved: Codable, Equatable {
     var promises: [String: PromiseItem] = [:]
     var logs: [String: PromiseLog] = [:]
     var days: [String: DayEntry] = [:]
@@ -35,19 +35,37 @@ private struct Saved: Codable {
     var tombstones: [String] = []
     var rev: Int?
     var seeded = false
+    // Not saved. What reading found: categories that were in the file but couldn't be read by this version, and
+    // whether the file looked like a Cadence file at all. Storage.load turns these into "protected", never into empty data.
+    var unreadable: [String] = []
+    var recognised = true
+
+    enum CodingKeys: String, CodingKey {
+        case promises, logs, days, profile, feedback, extra, health, device, healthErrors, lastHealth, connection, dirty, tombstones, rev, seeded
+    }
 
     init() {}
 
-    // Every field optional on the way in, so a new field in an update never loses what's saved
+    // A category that's missing is simply empty (an older file); one that's there but can't be read is noted in
+    // `unreadable` instead of being silently replaced by an empty one
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        func v<T: Decodable>(_ k: CodingKeys, _ def: T) -> T { (try? c.decodeIfPresent(T.self, forKey: k)) ?? def }
+        var failed: [String] = []
+        func v<T: Decodable>(_ k: CodingKeys, _ def: T) -> T {
+            guard c.contains(k), (try? c.decodeNil(forKey: k)) != true else { return def }
+            do { return try c.decode(T.self, forKey: k) } catch { failed.append(k.stringValue); return def }
+        }
         promises = v(.promises, [:]); logs = v(.logs, [:]); days = v(.days, [:]); profile = v(.profile, Profile())
-        feedback = v(.feedback, [:]); extra = v(.extra, [:]); health = v(.health, [:]); device = (try? c.decodeIfPresent(Device.self, forKey: .device)) ?? nil
-        healthErrors = v(.healthErrors, [:]); lastHealth = (try? c.decodeIfPresent(Double.self, forKey: .lastHealth)) ?? nil
+        feedback = v(.feedback, [:]); extra = v(.extra, [:]); health = v(.health, [:]); device = v(.device, nil as Device?)
+        healthErrors = v(.healthErrors, [:]); lastHealth = v(.lastHealth, nil as Double?)
         connection = v(.connection, Connection()); dirty = v(.dirty, [:]); tombstones = v(.tombstones, [])
-        rev = (try? c.decodeIfPresent(Int.self, forKey: .rev)) ?? nil; seeded = v(.seeded, false)
+        rev = v(.rev, nil as Int?); seeded = v(.seeded, false)
+        unreadable = failed
+        recognised = !c.allKeys.isEmpty
     }
+
+    /// Personal records: everything except Fitbit data and sync bookkeeping
+    var personalRecords: Int { promises.count + logs.count + days.count + feedback.count + extra.values.reduce(0) { $0 + $1.count } }
 }
 
 @MainActor
@@ -74,6 +92,14 @@ final class Store: ObservableObject {
     @Published var brushingOpen = false
     @Published var readingOpen = false
     @Published var captureOpen = false
+    // Local data protection (Storage.swift): anything but .ok blocks every change until the data is safe
+    @Published private(set) var storage: StorageState = .ok
+    @Published private(set) var lastSaved: Date?
+    @Published private(set) var storageNote: String?
+    @Published private(set) var localCopies: [LocalCopy] = []
+    @Published private(set) var lastRecoveryArchive: URL?
+    private(set) var unsaved: [String: Int] = [:] // "type:id" changed since the last verified write, with its version
+    var canChange: Bool { storage == .ok }
 
     var recordCache: [String: Any] = [:] // decoded typed records, per type (see Records.swift)
     // Worked out once per change: one redraw asks for these hundreds of times. Emptied whenever anything is about to change.
@@ -91,12 +117,20 @@ final class Store: ObservableObject {
     private var rev: Int?
     private var version = 0
     // UI tests use their own file in a temporary folder; the real file is never touched in that mode
-    private let file = TestMode.active ? TestMode.storeFile : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json")
+    private let file: URL
+    private let copiesDir: URL
+    private let rotates: Bool
+    var disk = Storage.Disk.real // tests make writing fail or the disk look full
+    var dataFileURL: URL { file }
 
-    private init() {
+    /// `file` is for unit tests only: a store on its own file, with no copies rotated
+    init(file custom: URL? = nil) {
+        file = custom ?? (TestMode.active ? TestMode.storeFile : FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("cadence.json"))
+        copiesDir = file.deletingLastPathComponent().appendingPathComponent("cadence-copies", isDirectory: true)
+        rotates = custom == nil && !TestMode.active
         objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
         Agenda.shared.objectWillChange.sink { [weak self] _ in self?.emptyCaches() }.store(in: &cacheWatch)
-        if TestMode.active {
+        if custom == nil, TestMode.active {
             if TestMode.reset { try? FileManager.default.removeItem(at: file) }
             let fresh = !FileManager.default.fileExists(atPath: file.path)
             loadSaved()
@@ -109,15 +143,58 @@ final class Store: ObservableObject {
         loadSaved()
     }
 
+    /// Reads the data file. Only a missing file starts fresh: one that's there but can't be read, or has a category
+    /// this version can't read, puts the app in protected mode and is left exactly as it is.
     private func loadSaved() {
-        if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
-            promises = saved.promises; logs = saved.logs; days = saved.days; profile = saved.profile
-            feedback = saved.feedback; extra = saved.extra; health = saved.health; device = saved.device
-            healthErrors = saved.healthErrors; lastHealth = saved.lastHealth.map { Date(timeIntervalSince1970: $0) }
-            connection = saved.connection; dirty = saved.dirty; tombstones = saved.tombstones; rev = saved.rev
-            if !saved.seeded { seed() }
-        } else {
+        switch Storage.load(from: file) {
+        case .fresh:
+            storage = .ok
             seed()
+        case .ok(let saved, let data):
+            storage = .ok
+            adopt(saved)
+            if !saved.seeded { seed() }
+            rotateCopies(data)
+        case .cannotOpen(let why):
+            storage = .protected(StorageProblem(kind: .cannotOpen, detail: why, categories: []))
+        case .corrupt(let why):
+            storage = .protected(StorageProblem(kind: .corrupt, detail: why, categories: []))
+        case .incompatible(let saved, let categories, let data):
+            // Fitbit data can come again from the server, but only once the original is archived and the server is set up
+            let onlyFitbit = Set(categories).isSubset(of: Storage.recoverable) && saved.connection.configured && saved.profile.usesBand
+            if onlyFitbit, let kept = try? Storage.archive(data, in: copiesDir, reason: "dados-fitbit-incompativeis", disk: disk) {
+                storage = .ok
+                adopt(saved)
+                storageNote = "Os dados da Fitbit guardados no iPhone eram de um formato que esta versão não lê. O ficheiro original ficou arquivado (\(kept.lastPathComponent)) e os dados voltam a ser pedidos ao servidor."
+                if !saved.seeded { seed() }
+            } else {
+                storage = .protected(StorageProblem(kind: .incompatible, detail: "", categories: categories))
+            }
+        }
+        if storage != .ok { localCopies = Storage.listCopies(in: copiesDir) }
+    }
+
+    private func adopt(_ saved: Saved) {
+        promises = saved.promises; logs = saved.logs; days = saved.days; profile = saved.profile
+        feedback = saved.feedback; extra = saved.extra; health = saved.health; device = saved.device
+        healthErrors = saved.healthErrors; lastHealth = saved.lastHealth.map { Date(timeIntervalSince1970: $0) }
+        dirty = saved.dirty; tombstones = saved.tombstones; rev = saved.rev
+        connection = saved.connection // last: its didSet saves, and the queue above must already be loaded by then
+    }
+
+    /// One validated copy a day and one before each new build, off the main thread
+    private func rotateCopies(_ data: Data) {
+        guard rotates else { return }
+        let dir = copiesDir, build = Storage.buildStamp(), last = UserDefaults.standard.string(forKey: "storageBuild"), today = Day.today, d = disk
+        saveQueue.async { [weak self] in
+            let r = Storage.rotate(validated: data, copies: dir, today: today, build: build, lastBuild: last, disk: d)
+            let list = Storage.listCopies(in: dir)
+            Task { @MainActor in
+                if r.beforeUpdateDone { UserDefaults.standard.set(build, forKey: "storageBuild") }
+                self?.localCopies = list
+                if r.lowSpace { self?.storageNote = "Pouco espaço livre no iPhone: hoje não foi feita a cópia local." }
+                else if let e = r.error { self?.storageNote = "A cópia local de hoje falhou: \(e)" }
+            }
         }
     }
 
@@ -126,24 +203,77 @@ final class Store: ObservableObject {
     private let saveQueue = DispatchQueue(label: "cadence.save", qos: .utility)
 
     private func persist() {
+        guard storage == .ok else { return } // protected: never written over; unsaved: only an explicit retry writes
         saveWork?.cancel()
-        let s = savedState(), target = file
-        if TestMode.active { Self.write(s, to: target); return } // UI tests kill the app straight after a change
-        let work = DispatchWorkItem { Self.write(s, to: target) }
+        let s = savedState(), target = file, d = disk, upTo = version
+        if TestMode.active { finishWrite(Result { try Storage.write(s, to: target, disk: d) }, upTo: upTo); return } // UI tests kill the app straight after a change
+        let work = DispatchWorkItem { [weak self] in
+            let result = Result { try Storage.write(s, to: target, disk: d) }
+            Task { @MainActor in self?.finishWrite(result, upTo: upTo) }
+        }
         saveWork = work
         saveQueue.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
-    private nonisolated static func write(_ s: Saved, to file: URL) {
-        if let data = try? JSONEncoder().encode(s) { try? data.write(to: file, options: .atomic) }
+    private func finishWrite(_ result: Result<Data, Error>, upTo: Int) {
+        switch result {
+        case .success:
+            lastSaved = Date()
+            unsaved = unsaved.filter { $0.value > upTo }
+            if case .unsaved = storage { storage = .ok }
+        case .failure(let error):
+            if case .protected = storage { return }
+            storage = .unsaved(Storage.classify(error).message)
+        }
     }
 
-    /// Going to the background: nothing is left waiting in memory
+    /// Going to the background, or "Tentar guardar outra vez": writes now. Never in protected mode.
     func persistNow() {
+        if case .protected = storage { return }
         saveWork?.cancel()
-        let s = savedState(), target = file
-        saveQueue.sync { Self.write(s, to: target) }
+        let s = savedState(), target = file, d = disk, upTo = version
+        let result = saveQueue.sync { Result { try Storage.write(s, to: target, disk: d) } }
+        finishWrite(result, upTo: upTo)
     }
+
+    func retrySave() { persistNow() }
+
+    /// "Tentar outra vez" on the recovery screen, and on coming back to the app when the file couldn't be opened
+    func retryLoad() {
+        guard case .protected = storage else { return }
+        loadSaved()
+    }
+
+    /// Puts a validated local copy in place; the file it replaces is archived first and can be put back
+    @discardableResult
+    func recover(from copy: LocalCopy) throws -> URL? {
+        let kept = try Storage.recover(file: file, from: copy.url, copies: copiesDir, disk: disk)
+        lastRecoveryArchive = kept
+        storage = .protected(StorageProblem(kind: .corrupt, detail: "", categories: [])) // so loadSaved reads it fresh
+        loadSaved()
+        if let kept { storageNote = "Recuperado a partir da cópia de \(copy.date.formatted(date: .abbreviated, time: .shortened)). O ficheiro anterior ficou guardado (\(kept.lastPathComponent))." }
+        return kept
+    }
+
+    /// Undoes the last recovery: the file from before it goes back exactly as it was
+    func undoRecovery() throws {
+        guard let kept = lastRecoveryArchive else { return }
+        saveWork?.cancel()
+        let target = file, dir = copiesDir, d = disk
+        try saveQueue.sync { try Storage.putBack(kept, file: target, copies: dir, disk: d) }
+        lastRecoveryArchive = nil
+        storage = .protected(StorageProblem(kind: .corrupt, detail: "", categories: []))
+        loadSaved()
+    }
+
+    /// "água 2, comida 1" for the changes not yet on disk
+    var unsavedSummary: String {
+        let byType = Dictionary(grouping: unsaved.keys) { String($0.split(separator: ":", maxSplits: 1).first ?? "") }
+        return byType.map { "\(Storage.name(ofType: $0.key)) \($0.value.count)" }.sorted().joined(separator: ", ")
+    }
+
+    var personalRecordCount: Int { promises.count + logs.count + days.count + feedback.count + extra.values.reduce(0) { $0 + $1.count } }
+    var pendingSyncCount: Int { dirty.count }
 
     private func savedState() -> Saved {
         var s = Saved()
@@ -156,6 +286,8 @@ final class Store: ObservableObject {
     private func mark(_ key: String) {
         version += 1
         dirty[key] = version
+        unsaved[key] = version
+        guard storage == .ok else { return } // nothing written or sent until the data is safe
         persist()
         scheduleSnapshot()
         Reminders.shared.reschedule()
@@ -195,18 +327,24 @@ final class Store: ObservableObject {
 
     // MARK: - Promises
 
+    // Every change goes through one of these; while the data isn't safe (protected or a failed save) they do nothing,
+    // so memory never drifts from what's on disk
+
     func save(_ promise: PromiseItem) {
+        guard canChange else { return }
         promises[promise.id] = promise
         mark("promise:\(promise.id)")
     }
 
     func delete(_ promise: PromiseItem) {
+        guard canChange else { return }
         promises[promise.id] = nil
         tombstones.append("promise:\(promise.id)")
         mark("promise:\(promise.id)")
     }
 
     func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus) {
+        guard canChange else { return }
         let entry = PromiseLog(promiseId: promise.id, date: day, status: status)
         logs[entry.id] = entry
         mark("log:\(entry.id)")
@@ -218,6 +356,7 @@ final class Store: ObservableObject {
     }
 
     func undo(_ promise: PromiseItem, on day: String = Day.today) {
+        guard canChange else { return }
         let id = "\(promise.id)|\(day)"
         logs[id] = nil
         if let food = record(FoodEntry.self, "promise-\(promise.id)-\(day)") { remove(food) }
@@ -256,11 +395,13 @@ final class Store: ObservableObject {
     func day(_ key: String = Day.today) -> DayEntry { days[key] ?? DayEntry(date: key) }
 
     func save(_ entry: DayEntry) {
+        guard canChange else { return }
         days[entry.date] = entry
         mark("day:\(entry.date)")
     }
 
     func update(_ change: (inout Profile) -> Void) {
+        guard canChange else { return }
         var p = profile
         change(&p)
         guard p != profile else { return }
@@ -269,6 +410,7 @@ final class Store: ObservableObject {
     }
 
     func addFeedback(_ f: ReadinessFeedback) {
+        guard canChange else { return }
         feedback[f.date] = f
         // Each "feels wrong" moves the score 2 points the way you felt, up to ±10
         let recent = feedback.values.sorted { $0.date > $1.date }.prefix(10)
@@ -281,6 +423,7 @@ final class Store: ObservableObject {
     func records(_ type: String) -> [String: JSONValue] { extra[type] ?? [:] }
 
     func put(_ type: String, _ id: String, _ value: JSONValue?) {
+        guard canChange else { return }
         var all = extra[type] ?? [:]
         all[id] = value
         extra[type] = all
@@ -325,7 +468,7 @@ final class Store: ObservableObject {
     func wentToBackground() {
         persistNow()
         Reminders.shared.flush()
-        guard !dirty.isEmpty, Date() >= syncPausedUntil else { return }
+        guard storage == .ok, !dirty.isEmpty, Date() >= syncPausedUntil else { return }
         syncTask?.cancel()
         let app = UIApplication.shared
         var id = UIBackgroundTaskIdentifier.invalid
@@ -379,7 +522,7 @@ final class Store: ObservableObject {
     }
 
     func sync() async {
-        guard connection.configured, !syncing, Date() >= syncPausedUntil else { return }
+        guard storage == .ok, connection.configured, !syncing, Date() >= syncPausedUntil else { return }
         syncing = true
         defer { syncing = false }
         let sent = dirty
@@ -414,6 +557,7 @@ final class Store: ObservableObject {
     // MARK: - Health
 
     func refreshHealth(force: Bool = false) async {
+        guard storage == .ok else { return }
         if !force, let last = lastHealth, Date().timeIntervalSince(last) < 15 * 60 { return }
         if !profile.usesBand { await refreshAppleHealth(everything: true); return }
         await refreshAppleHealth(everything: false)
@@ -440,7 +584,7 @@ final class Store: ObservableObject {
 
     /// Apple Health: everything when it's the source, otherwise just weight and water next to the Fitbit data
     func refreshAppleHealth(everything: Bool) async {
-        guard !TestMode.active else { return }
+        guard !TestMode.active, storage == .ok else { return }
         guard let r = await AppleHealth.shared.read(days: everything && health.count < 30 ? 90 : 30, everything: everything) else {
             appleHealthProblem = AppleHealth.shared.problem
             return
@@ -476,7 +620,7 @@ final class Store: ObservableObject {
 
     /// cadence://setup?server=...&token=... from the setup QR code
     func handle(_ url: URL) {
-        guard url.scheme == "cadence" else { return }
+        guard url.scheme == "cadence", storage == .ok else { return } // links that change data wait until the data is safe
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         let value = { (name: String) in items.first { $0.name == name }?.value }
         if url.host == "setup", let server = value("server"), let token = value("token") {
@@ -513,7 +657,7 @@ final class Store: ObservableObject {
 
     /// Coming back to the app shouldn't mean a round of requests every time; pull to refresh forces it
     func refreshAll(force: Bool = false) async {
-        guard force || Date().timeIntervalSince(lastRefreshAll) > 5 * 60 else { return }
+        guard storage == .ok, force || Date().timeIntervalSince(lastRefreshAll) > 5 * 60 else { return }
         lastRefreshAll = Date()
         if force { syncPausedUntil = .distantPast }
         await sync()

@@ -217,6 +217,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         let parts = response.notification.request.identifier.split(separator: "|").map(String.init)
         NotificationLearning.record(parts.first ?? "", engaged: response.actionIdentifier != UNNotificationDismissActionIdentifier)
         if response.actionIdentifier == UNNotificationDismissActionIdentifier { return }
+        // While the data isn't safe (protected or a failed save), actions from the lock screen change nothing
+        guard await MainActor.run(body: { Store.shared.canChange }) else { return }
         if parts.count == 4, parts[0] == "m", let minute = Int(parts[3]) {
             await MainActor.run {
                 let store = Store.shared
