@@ -381,15 +381,17 @@ enum PlanRules {
     /// An event by its name and start time, the same on every day it repeats
     static func repeatKey(_ e: CalendarEvent) -> String { fold(e.title) + "|" + String(e.startMinute) }
 
-    /// Events that repeat every day (a daily stand-up): the same name at the same time on every day the calendar was
-    /// read for, except at most one (a Monday/Wednesday/Friday class is not one). `window` is the days of the read
+    /// Events that repeat every day (work, a daily stand-up): the same name at the same time on every working day the
+    /// calendar was read for, except at most one (a Monday/Wednesday/Friday class is not one). The board N_PlanoMes:
+    /// «Trabalho e outros eventos que se repetem todos os dias não marcam a grelha». `window` is the days of the read
     /// (Agenda.known). They don't mark the month grid; they still show in the day and count in its load.
     static func repeating(_ events: [CalendarEvent], window: ClosedRange<String>?) -> Set<String> {
         guard let window else { return [] }
         let covered = Day.between(window.lowerBound, window.upperBound) + 1
+        let workdays = Set((0..<covered).map { Day.add($0, to: window.lowerBound) }.filter { ![1, 7].contains(Day.weekday($0)) }) // 1 = Sunday, 7 = Saturday
         var days: [String: Set<String>] = [:]
-        for e in events where !e.allDay && window.contains(e.day) { days[repeatKey(e), default: []].insert(e.day) }
-        return Set(days.filter { $0.value.count >= max(2, covered - 1) }.keys)
+        for e in events where !e.allDay && workdays.contains(e.day) { days[repeatKey(e), default: []].insert(e.day) }
+        return Set(days.filter { $0.value.count >= max(2, workdays.count - 1) }.keys)
     }
 
     /// The word in the day's load line: partial when the calendar wasn't read for that day
@@ -595,6 +597,7 @@ struct EventDraft: Equatable {
             guard prefixed || written else { continue }
             let hourText = ns.substring(with: m.range(at: 2))
             if prefix == "a", !written, hourText != "1" { continue }
+            if prefix == "a", !written, ns.substring(from: NSMaxRange(m.range)).range(of: #"^\s+de\s+(?!manha|tarde|noite|madrugada)"#, options: .regularExpression) != nil { continue } // «a 1 de dezembro» is a date
             guard let h = Int(hourText), h < 24 else { continue }
             var mins = 0
             if m.range(at: 4).location != NSNotFound {
@@ -624,7 +627,8 @@ struct EventDraft: Equatable {
             let before = i > 0 ? folded[i - 1] : ""
             let isDay = dayWords.contains(w) || w.hasSuffix("-feira") || w == "feira"
             let looksLikeTime = w.range(of: #"^\d{1,2}([:h]\d{0,2})?$"#, options: .regularExpression) != nil
-            let hourOne = before == "a" && String(w.prefix(while: { $0.isNumber })) == "1" // «à 1», the singular hour
+            let next = i + 1 < folded.count ? folded[i + 1] : "", afterNext = i + 2 < folded.count ? folded[i + 2] : ""
+            let hourOne = before == "a" && String(w.prefix(while: { $0.isNumber })) == "1" && !(next == "de" && !periods.contains(afterNext)) // «à 1», the singular hour; «a 1 de dezembro» is a date
             let isTime = looksLikeTime && (["as", "at", "pelas"].contains(before) || w.contains(":") || w.contains("h") || hourOne)
             let isPeriod = periods.contains(w) && ["da", "de", "a"].contains(before)
             let isHours = (w == "horas" || w == "h") && i > 0 && !keep[i - 1]

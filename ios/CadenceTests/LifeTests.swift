@@ -177,8 +177,8 @@ final class LifeTests: RegressionCase {
         XCTAssertEqual(store.record(Garment.self, "T1")?.stage, .washing)
     }
 
-    /// B4-N5. A piece suggested for washing isn't «disponível»: not in that filter (the same rule as the panel's count)
-    /// and the Lavandaria's summary says so instead of «Nada por lavar»
+    /// B4-N5, as decided in D35. A piece suggested for washing stays under «Disponível» until «Para lavar», and the
+    /// Lavandaria's summary names it instead of «Nada por lavar»
     func testSuggestedPiecesStayAvailableUntilParaLavarAndTheSummaryMentionsThem() {
         let free = Garment(name: "Livre")
         let worn = Garment(name: "Usada", wearsBeforeWash: 3, wears: 1, state: "worn")

@@ -443,8 +443,9 @@ final class NightTests: RegressionCase {
         XCTAssertTrue(teeth(night, 14 * 60))
         XCTAssertTrue(teeth(night, 23 * 60 + 59))
         XCTAssertTrue(teeth(next, 30), "0:30 belongs to the night")
-        XCTAssertTrue(teeth(next, wake - 1))
-        XCTAssertFalse(teeth(next, wake), "from the wake time on it's the morning")
+        XCTAssertTrue(teeth(next, wake - 121))
+        XCTAssertFalse(teeth(next, wake - 120), "from two hours before you wake it's the morning (you can wake early)")
+        XCTAssertFalse(teeth(next, wake))
         XCTAssertFalse(teeth(Day.add(-1, to: night), 23 * 60), "the evening before isn't this night")
         XCTAssertFalse(teeth(Day.add(2, to: night), 30))
         XCTAssertFalse(NightRules.inNight(date: night, minute: 18 * 60 - 1, night: night, from: NightRules.readFrom, wake: wake), "reading from 18:00")
@@ -514,7 +515,7 @@ final class NightTests: RegressionCase {
             s.promises[brush.id] = brush
             s.promises[morning.id] = morning
         }
-        var target = try XCTUnwrap(store.brushingHabit(minute: 6 * 60, today: next))
+        var target = try XCTUnwrap(store.brushingHabit(minute: 5 * 60, today: next))
         XCTAssertEqual(target.promise.id, "BR", "before you wake, the night's habit first, though the morning's is within 3 h")
         XCTAssertEqual(target.day, night)
         store.saveBrushing(BrushLog(id: "B1", date: next, minute: 30, seconds: 120))
@@ -531,7 +532,22 @@ final class NightTests: RegressionCase {
         XCTAssertEqual(evening.promise.id, "BR", "in the evening, today's habit")
         XCTAssertEqual(evening.day, next)
         let later = try makeStore { $0.promises[brush.id] = brush }
-        XCTAssertNil(later.brushingHabit(minute: later.profile.wakeMinute, today: next), "from the wake time on the evening's habit is left as it is")
+        XCTAssertNil(later.brushingHabit(minute: later.profile.wakeMinute - 120, today: next), "from two hours before you wake the evening's habit is left as it is")
+    }
+
+    /// A reading finished after midnight answers the evening's open habit and never the new day's (B5-E3); at night with
+    /// the evening's answered it answers nothing; in the daytime it is today's, as before.
+    @MainActor
+    func testAReadingAfterMidnightAnswersTheEveningsHabit() throws {
+        let night = Fixed.saturday, next = Fixed.sunday
+        let read = PromiseItem(id: "RD", title: "Read 20 minutes", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60))
+        let store = try makeStore { $0.promises[read.id] = read }
+        var target = try XCTUnwrap(store.readingHabit(date: next, minute: 10))
+        XCTAssertEqual(target.day, night, "at 00:10 it's the evening before's")
+        store.log(read, on: night, .done)
+        XCTAssertNil(store.readingHabit(date: next, minute: 10), "answered: tonight's isn't answered in advance")
+        target = try XCTUnwrap(store.readingHabit(date: next, minute: 21 * 60))
+        XCTAssertEqual(target.day, next, "in the evening, today's")
     }
 
     // MARK: Desfazer's restores (validation C-L2)

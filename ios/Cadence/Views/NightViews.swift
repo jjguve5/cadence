@@ -134,7 +134,7 @@ struct TodayNightCard: View {
 
     private func readingCard(_ plan: SleepPlan) -> some View {
         let suggestion = store.readingSuggestion(minute: minute)
-        let detail: String = suggestion.map { "\($0.minutes) min sugeridos · até às \(clock($0.until))" } ?? "luzes às \(clock(plan.perform))"
+        let detail: String = suggestion.map { "\($0.minutes) min sugeridos · até \(PlanFormat.at($0.until))" } ?? "luzes \(PlanFormat.at(plan.perform))"
         return Card(tint: .read) {
             eyebrow("Agora · ler", color: .read)
             Text(store.currentBook?.title ?? "Ler").font(.geist(17, .semibold))
@@ -162,7 +162,7 @@ struct TodayNightCard: View {
         Card(tint: .sleep) {
             eyebrow(late ? "Agora · só o essencial" : "Agora · dormir", color: .sleep)
             Text("Antes de dormir").font(.geist(17, .semibold))
-            Text(late ? "Ficou tarde: a versão curta, sem pressão." : "Luzes às \(clock(plan.perform)) · acordas às \(clock(store.profile.wakeMinute))")
+            Text(late ? "Ficou tarde: a versão curta, sem pressão." : "Luzes \(PlanFormat.at(plan.perform)) · acordas \(PlanFormat.at(store.profile.wakeMinute))")
                 .font(.geist(12)).foregroundStyle(Color.soft)
             PrimaryButton(title: "Antes de dormir", area: .sleep) { open(.bedtime) }.accessibilityIdentifier("next.action")
         }
@@ -178,7 +178,7 @@ struct TodayNightCard: View {
                     Image(systemName: "moon.zzz.fill").foregroundStyle(Color.sleep).frame(width: 22).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Boa noite").font(.geist(14.5, .semibold))
-                        Text("Intenção de dormir às \(clock(i.minute)). O sono chega \(store.profile.usesBand ? "da pulseira" : "do Apple Health") de manhã.")
+                        Text("Intenção de dormir \(PlanFormat.at(i.minute)). O sono chega \(store.profile.usesBand ? "da pulseira" : "do Apple Health") de manhã.")
                             .font(.geist(12)).foregroundStyle(Color.soft).fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
@@ -536,11 +536,11 @@ struct BedtimeView: View {
         let read = store.nightRead(on: day)
         let readAnswer = store.nightReadAnswer(on: day)
         let hasRows = !teeth.isEmpty || prepare != nil || routine != nil || read != nil
-        let planText: String = read == false && suggestion != nil ? "Ler até às \(clock(suggestion?.until ?? 0)) · luzes às \(clock(plan.perform))" : "Luzes às \(clock(plan.perform))"
+        let planText: String = read == false && suggestion != nil ? "Ler até \(PlanFormat.at(suggestion?.until ?? 0)) · luzes \(PlanFormat.at(plan.perform))" : "Luzes \(PlanFormat.at(plan.perform))"
         return Screen(glow: .sleep) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Antes de dormir").font(.geist(26, .bold)).accessibilityIdentifier("night.bedtime.screen")
-                Text("Acordas às \(clock(store.profile.wakeMinute))").font(.geist(13)).foregroundStyle(Color.soft)
+                Text("Acordas \(PlanFormat.at(store.profile.wakeMinute))").font(.geist(13)).foregroundStyle(Color.soft)
             }
             .padding(.top, 8)
             Card(state: .suggested) {
@@ -723,7 +723,7 @@ struct GoodNightView: View {
             VStack(spacing: 14) {
                 Spacer(minLength: 40)
                 Text("Boa noite.").font(.geist(34, .semibold)).foregroundStyle(Color(hex: 0xD9DCF2)).accessibilityIdentifier("night.goodnight")
-                Text("Acordas às \(clock(store.profile.wakeMinute))").font(.geist(15, .medium)).foregroundStyle(Color.soft)
+                Text("Acordas \(PlanFormat.at(store.profile.wakeMinute))").font(.geist(15, .medium)).foregroundStyle(Color.soft)
                 Text(NightRules.tomorrowText(store.dayParts(Day.add(1, to: day)))).font(.geist(13)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
                 Spacer(minLength: 40)
                 Button { close() } label: {
@@ -731,7 +731,7 @@ struct GoodNightView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("night.goodnight.close")
-                Text("Registei a intenção às \(clock(intent.minute)). O sono real chega \(source) de manhã.")
+                Text("Registei a intenção \(PlanFormat.at(intent.minute)). O sono real chega \(source) de manhã.")
                     .font(.geist(11)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
             }
             .padding(.horizontal, 24).padding(.bottom, 24)
@@ -857,7 +857,7 @@ struct SleepMorningView: View {
             }
             if s.stages != nil { Text("Fases do sono: as do \(store.sleepSourceName). A app não as calcula.").font(.geist(12)).foregroundStyle(Color.soft) }
             if let i = store.sleepIntent(evening) {
-                Text("«Vou dormir» às \(clock(i.minute)) foi a tua intenção; não entra nestas contas.").font(.geist(12)).foregroundStyle(Color.soft)
+                Text("«Vou dormir» \(PlanFormat.at(i.minute)) foi a tua intenção; não entra nestas contas.").font(.geist(12)).foregroundStyle(Color.soft)
             }
         }
         .accessibilityElement(children: .contain)

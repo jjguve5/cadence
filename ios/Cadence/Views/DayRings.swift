@@ -60,7 +60,7 @@ extension Store {
     func trainingSlot(on day: String = Day.today) -> (start: Int, end: Int, title: String, done: Bool)? {
         func minute(_ ms: Double) -> Int { Day.minuteOfDay(Date(timeIntervalSince1970: ms / 1000)) }
         // Finished, or left open past its day: then it's partial up to its last activity, as in Treino (decision D23; nothing is written)
-        if let s = sessions(on: day).first(where: { $0.end != nil || TrainingRules.isExpired($0, today: Day.today) }) { return (minute(s.start), minute(s.end ?? TrainingRules.lastActivity(s)), s.name, true) }
+        if let s = sessions(on: day).first(where: { $0.end != nil || TrainingRules.leftPartial($0, today: Day.today) }) { return (minute(s.start), minute(s.end ?? TrainingRules.lastActivity(s)), s.name, true) }
         let planned = templates.first { $0.weekdays.contains(Day.weekday(day)) }
         if let s = sessions(on: day).first(where: { $0.end == nil && nowMs() - $0.start < 3 * 3600 * 1000 }) {
             let m = minute(s.start)

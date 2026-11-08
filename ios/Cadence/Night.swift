@@ -297,11 +297,11 @@ enum NightRules {
     static let morningWithoutWake = 5 * 60
 
     /// After midnight the night still belongs to the evening before (Store.nightDay). Something you do counts for a
-    /// night on the night's own day from `from`, or on the next calendar day before the morning: your wake time, or
-    /// 05:00 without one.
+    /// night on the night's own day from `from`, or on the next calendar day before the morning: two hours before your
+    /// wake time (you can wake before the alarm, and that brushing is the morning's), or 05:00 without one.
     static func inNight(date: String, minute: Int, night: String, from: Int, wake: Int?) -> Bool {
         if date == night { return minute >= from }
-        return date == Day.add(1, to: night) && minute < (wake ?? morningWithoutWake)
+        return date == Day.add(1, to: night) && minute < (wake.map { max(0, $0 - 120) } ?? morningWithoutWake)
     }
 
     /// How a night step ended, from what you did and how its habits were answered. Done when you did it, or when every
@@ -384,7 +384,7 @@ enum NightRules {
         let temps = lo == hi ? "\(lo) °C" : "\(lo)–\(hi) °C"
         guard let first = wet.first, let last = wet.last else { return (false, layers, "sem chuva prevista · " + temps) }
         let from = first.minute - base, to = last.minute - base + 60
-        let rain = from <= wake + 60 ? "chuva até às \(clock(to))" : "chuva das \(clock(from)) às \(clock(to))"
+        let rain = from <= wake + 60 ? "chuva até \(PlanFormat.at(to))" : "chuva \(PlanFormat.from(from)) \(PlanFormat.at(to))"
         return (true, layers, rain + " · " + temps)
     }
 
@@ -628,8 +628,8 @@ extension Store {
         var parts: [String] = []
         let event = Agenda.shared.events(on: day).first.map { (title: $0.title, minute: $0.startMinute) }
         let trip = commutes(on: day).min { $0.arrive < $1.arrive }.map { (title: $0.title, minute: $0.arrive) }
-        if let first = [event, trip].compactMap({ $0 }).min(by: { $0.minute < $1.minute }) { parts.append("\(first.title) às \(clock(first.minute))") }
-        if profile.on("training"), gymBag(on: day).needed, let t = trainingSlot(on: day) { parts.append("treino às \(clock(t.start))") }
+        if let first = [event, trip].compactMap({ $0 }).min(by: { $0.minute < $1.minute }) { parts.append("\(first.title) \(PlanFormat.at(first.minute))") }
+        if profile.on("training"), gymBag(on: day).needed, let t = trainingSlot(on: day) { parts.append("treino \(PlanFormat.at(t.start))") }
         if gymBagPack(for: day)?.done == true { parts.append("saco pronto") }
         if let o = record(OutfitLog.self, day), !o.worn { parts.append("roupa escolhida") }
         return parts
@@ -720,6 +720,19 @@ extension Store {
         return (p, today)
     }
 
+    /// The habit a reading answers when you finish it: before the morning, the night's open reading habit (the evening
+    /// before) and never the new day's, or a reading at 00:10 would answer tonight's in advance; otherwise today's. With
+    /// the day to answer it on.
+    func readingHabit(date today: String, minute: Int) -> (promise: PromiseItem, day: String)? {
+        let night = Day.add(-1, to: today)
+        if NightRules.inNight(date: today, minute: minute, night: night, from: NightRules.readFrom, wake: profile.wakeMinute) {
+            guard let p = readHabits(on: night).first(where: { status($0, on: night) == nil }) else { return nil }
+            return (p, night)
+        }
+        guard let p = due(on: today).first(where: { $0.title.lowercased().hasPrefix("read") && status($0, on: today) == nil }) else { return nil }
+        return (p, today)
+    }
+
     /// The brushing timer's «Guardar»: saves the brushing and answers the habit it belongs to, as yours
     func saveBrushing(_ brush: BrushLog) {
         save(brush)
@@ -784,7 +797,7 @@ extension Store {
         guard canChange else { return }
         let before = sleepIntent(day)
         save(SleepIntent(id: day, date: day, minute: minute))
-        UndoCenter.shared.show("Intenção registada às \(clock(minute))") { [weak self] in
+        UndoCenter.shared.show("Intenção registada \(PlanFormat.at(minute))") { [weak self] in
             guard let self else { return }
             if let before { self.save(before) } else { self.put(SleepIntent.kind, day, nil) }
         }

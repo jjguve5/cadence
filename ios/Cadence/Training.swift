@@ -404,11 +404,15 @@ enum TrainingRules {
     /// Left open past 23:59 of its day
     static func isExpired(_ s: WorkoutSession, today: String) -> Bool { s.end == nil && s.date < today }
 
-    static func isPartial(_ s: WorkoutSession, today: String) -> Bool { s.partial == true || isExpired(s, today: today) }
+    /// Left open past 23:59 with at least one set registered: what counts as a partial session when it's read. One
+    /// started and left empty recorded nothing, so it counts as nothing («ausência ≠ zero»)
+    static func leftPartial(_ s: WorkoutSession, today: String) -> Bool { isExpired(s, today: today) && s.sets.contains(where: \.done) }
+
+    static func isPartial(_ s: WorkoutSession, today: String) -> Bool { s.partial == true || leftPartial(s, today: today) }
 
     /// Over, for everything that reads past sessions (progression, goals, history): finished, or left open past 23:59,
     /// which counts as partial. Worked out when it is read; nothing is written to the session (D23)
-    static func isEnded(_ s: WorkoutSession, today: String) -> Bool { s.end != nil || isExpired(s, today: today) }
+    static func isEnded(_ s: WorkoutSession, today: String) -> Bool { s.end != nil || leftPartial(s, today: today) }
 
     /// The last thing done in a session: its last registered set, or when it was paused, or its start
     static func lastActivity(_ s: WorkoutSession) -> Double {

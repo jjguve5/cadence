@@ -144,9 +144,10 @@ final class PlanTests: RegressionCase {
 
     // MARK: Month
 
-    /// An event repeats every day only when it's on every day the calendar was read for, except at most one (B3-R2: this
-    /// test used to pin «3 or more days», which hid a class three times a week). A Monday/Wednesday/Friday class and work
-    /// from Monday to Friday stay visible; days outside the read don't count.
+    /// An event repeats every day only when it's on every working day the calendar was read for, except at most one
+    /// (B3-R2: this test used to pin «3 or more days», which hid a class three times a week). Work from Monday to Friday
+    /// repeats every day, as the board N_PlanoMes says (B5-E1); a Monday/Wednesday/Friday class stays visible; days
+    /// outside the read don't count.
     func testOnlyAnEventOnEveryCoveredDayRepeatsEveryDay() {
         let window = Agenda.window(from: "2026-11-08") // Saturday 7 to Sunday 15: nine days
         let nine = (0..<9).map { Day.add($0, to: "2026-11-07") }
@@ -155,10 +156,9 @@ final class PlanTests: RegressionCase {
         events += ["2026-11-09", "2026-11-11", "2026-11-13"].map { self.event("a\($0)", "Aula", 1080, 1170, on: $0) } // Monday, Wednesday, Friday
         events += (0..<5).map { self.event("w\($0)", "Trabalho", 540, 1050, on: Day.add($0, to: "2026-11-09")) } // Monday to Friday
         events += [event("f1", "Futebol", 1200, 1290, on: "2026-11-09"), event("f2", "Futebol", 1200, 1290, on: "2026-11-16")]
-        // seven days inside the read and two outside it: nine in all, but only the seven count
-        events += (0..<7).map { self.event("o\($0)", "Almoço", 780, 840, on: Day.add($0, to: "2026-11-07")) }
-        events += ["2026-11-16", "2026-11-17"].map { self.event("o\($0)", "Almoço", 780, 840, on: $0) }
-        XCTAssertEqual(PlanRules.repeating(events, window: window), ["stand-up|540", "comprimidos|480"])
+        // three working days inside the read and four outside it: seven in all, but only the three count
+        events += ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19"].map { self.event("o\($0)", "Almoço", 780, 840, on: $0) }
+        XCTAssertEqual(PlanRules.repeating(events, window: window), ["stand-up|540", "comprimidos|480", "trabalho|540"])
         XCTAssertEqual(PlanRules.repeating(events, window: nil), [], "a calendar never read has nothing daily")
     }
 
@@ -285,6 +285,12 @@ final class PlanTests: RegressionCase {
         let today = "2026-11-08"
         XCTAssertEqual(EventDraft.parse("dentista quinta à 1", today: today), EventDraft(title: "Dentista", day: "2026-11-12", minute: nil, options: [780, 60]))
         XCTAssertEqual(EventDraft.parse("almoço à 1:30", today: today), EventDraft(title: "Almoço", day: nil, minute: nil, options: [810, 90]))
+        // «a 1 de dezembro» is a date (B5-E4), «à 1 de manhã» a time
+        let dated = EventDraft.parse("dentista a 1 de dezembro às 15", today: today)
+        XCTAssertEqual(dated.minute, 15 * 60)
+        XCTAssertTrue(dated.title.contains("1 de dezembro"), dated.title)
+        let early = EventDraft.parse("voo à 1 de manhã", today: today)
+        XCTAssertTrue(early.minute == 60 || early.options.contains(60), "\(early)")
         XCTAssertEqual(EventDraft.parse("reunião a 1 da tarde", today: today), EventDraft(title: "Reunião", day: nil, minute: 780, options: []))
         let friends = EventDraft.parse("ligar a 2 amigos", today: today)
         XCTAssertNil(friends.minute, "«a» only goes with the hour 1")
@@ -473,12 +479,30 @@ final class PlanTests: RegressionCase {
 
     // MARK: A session left open past its day (B3-E2, B4-N3, B4-N4, decision D23)
 
+    /// Started and left with nothing registered: no session to count, so no «Parcial · 0 min», no «registado» in the month
+    /// and no «feito» in the day (B5-E2: absence is never a result). It isn't «Em curso» either
+    @MainActor
+    func testAnOpenSessionWithNothingRegisteredIsNotCounted() throws {
+        let start = Day.at(18 * 60, on: Fixed.wednesday).timeIntervalSince1970 * 1000
+        let empty = WorkoutSession(id: "S2", date: Fixed.wednesday, name: "Pernas", start: start, end: nil, order: [],
+                                   sets: [SetLog(exerciseId: "squat", weight: 40, reps: 8, done: false)])
+        let store = try makeStore { $0.add(empty) }
+        XCTAssertNil(DayReview.sessionLine(store.sessions(on: Fixed.wednesday), today: "2026-11-05"))
+        XCTAssertFalse(store.trainingLogged(on: Fixed.wednesday, today: "2026-11-05"))
+        XCTAssertFalse(TrainingRules.isEnded(empty, today: "2026-11-05"))
+        XCTAssertFalse(TrainingRules.isPartial(empty, today: "2026-11-05"))
+        XCTAssertNotEqual(store.trainingSlot(on: Fixed.wednesday)?.done, true)
+        XCTAssertNil(store.activeSession, "and it isn't in progress: the day is over")
+        XCTAssertEqual(store.record(WorkoutSession.self, "S2"), empty, "nothing written")
+    }
+
     /// Open on a past day: partial when it's read, up to its last activity, in the review, the month, the weekly review
     /// and the time audit; nothing is written. Open today it is still in progress.
     @MainActor
     func testAnOpenSessionFromAPastDayIsPartialWhenRead() throws {
         let start = Day.at(18 * 60, on: Fixed.wednesday).timeIntervalSince1970 * 1000
-        var open = WorkoutSession(id: "S1", date: Fixed.wednesday, name: "Pernas", start: start, end: nil, order: [])
+        var open = WorkoutSession(id: "S1", date: Fixed.wednesday, name: "Pernas", start: start, end: nil, order: [],
+                                  sets: [SetLog(exerciseId: "squat", weight: 40, reps: 8, done: true)])
         open.pausedAt = start + 40 * 60000 // the last thing done, 40 min in
         let left = open
         let store = try makeStore { $0.add(left) }

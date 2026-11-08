@@ -203,7 +203,7 @@ struct LeaveView: View {
             Eyebrow(text: "Lembrete")
             Toggle(isOn: $remind) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(first.map { "Lembrar às \(clock($0.leave))" } ?? "Lembrar à hora de sair").font(.geist(14))
+                    Text(first.map { "Lembrar \(PlanFormat.at($0.leave))" } ?? "Lembrar à hora de sair").font(.geist(14))
                     Text(first.map { "à hora de saída · \($0.title)" } ?? "quando houver uma saída no dia").font(.geist(12)).foregroundStyle(Color.soft)
                 }
             }

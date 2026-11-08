@@ -277,7 +277,7 @@ extension Store {
         }
         if !sessions(on: today).filter({ $0.end != nil }).isEmpty { return .trainingDone }
         let trainingWords = ["train", "gym", "workout"]
-        if due().contains(where: { p in status(p) == .skipped && trainingWords.contains { p.title.lowercased().contains($0) } }) { return .trainingSkipped }
+        if due().contains(where: { p in status(p) == .skipped && !isNotApplicable(p) && trainingWords.contains { p.title.lowercased().contains($0) } }) { return .trainingSkipped }
         if profile.on("fuel") {
             let f = fuel()
             if f.water + 600 < waterPace() { return .waterBehind }

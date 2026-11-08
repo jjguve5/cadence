@@ -47,7 +47,7 @@ struct BodyView: View {
     }
 
     private var trainingCard: some View {
-        let last = store.sessions().first { $0.end != nil }
+        let last = store.sessions().first { TrainingRules.isEnded($0, today: Day.today) }
         return Card(tint: .train) {
             HStack { Eyebrow(text: "Treino", icon: "dumbbell.fill", color: .train); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
             if let a = store.activeSession { Text("Em curso: \(a.name)").font(.geist(15, .semibold)) }

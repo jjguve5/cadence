@@ -191,7 +191,7 @@ extension Store {
         let plannedDeep = all(PlanBlock.self).filter { days.contains($0.date) && $0.type == "deep" }.map(\.minutes).reduce(0, +)
         let desk = all(DeskEvent.self).filter { days.contains($0.date) && $0.kind == "active" }.map(\.minutes).reduce(0, +)
         // A session left open past its day counts as partial up to its last activity, as in Treino (decision D23); nothing is written
-        let training = sessions().filter { days.contains($0.date) && ($0.end != nil || TrainingRules.isExpired($0, today: Day.today)) }.map { Int((($0.end ?? TrainingRules.lastActivity($0)) - $0.start) / 60000) }.reduce(0, +)
+        let training = sessions().filter { days.contains($0.date) && ($0.end != nil || TrainingRules.leftPartial($0, today: Day.today)) }.map { Int((($0.end ?? TrainingRules.lastActivity($0)) - $0.start) / 60000) }.reduce(0, +)
         let reading = days.map { readingMinutes(on: $0) }.reduce(0, +)
         let travel = days.flatMap { commutes(on: $0) }.map { $0.travel * 2 }.reduce(0, +)
         var out: [(String, Int, Int?)] = [("Focus sessions", focus.map(\.minutes).reduce(0, +), plannedDeep > 0 ? plannedDeep : nil), ("Calendar events", meetings, nil), ("VS Code, active", desk, nil), ("Training", training, nil), ("Reading", reading, days.count * 30), ("Travelling", travel, nil)]

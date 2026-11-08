@@ -262,7 +262,7 @@ struct ReadingMode: View {
                             s.quote = quote.isEmpty ? nil : quote
                             store.save(s)
                             if var b = book { b.page = page; if page >= b.pages { b.finished = Day.today }; store.save(b) }
-                            if store.readingMinutes() >= 20, let p = store.due().first(where: { $0.title.lowercased().hasPrefix("read") && store.status($0) == nil }) { store.log(p, .done) }
+                            if store.readingMinutes() >= 20, let habit = store.readingHabit(date: s.date, minute: Day.minuteOfDay(Date(timeIntervalSince1970: s.start / 1000))) { store.log(habit.promise, on: habit.day, .done) }
                             finishing = false
                             dismiss()
                         }

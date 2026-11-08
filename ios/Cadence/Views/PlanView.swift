@@ -172,7 +172,7 @@ extension Store {
 
     /// Logged: finished, or left open past its day, which is partial when it's read (decision D23); nothing is written
     func trainingLogged(on day: String, today: String = Day.today) -> Bool {
-        sessions(on: day).contains { $0.end != nil || TrainingRules.isExpired($0, today: today) }
+        sessions(on: day).contains { $0.end != nil || TrainingRules.leftPartial($0, today: today) }
     }
 
     /// What marks the month grid as a commitment: calendar events that don't repeat every day, and your blocks and events
@@ -647,8 +647,10 @@ struct PlanView: View {
             monthGrid(month, today: today, pick: pick, repeating: repeating)
             monthLegend
             // an empty day outside what was read isn't a free day
-            if PlanRules.monthCells(month).contains(where: { $0.map { !agenda.covers($0) } ?? false }) {
-                Text("O calendário só foi lido para alguns destes dias. Nos outros, os eventos não aparecem aqui.")
+            let monthDays = PlanRules.monthCells(month).compactMap { $0 }
+            let readDays = monthDays.filter { agenda.covers($0) }.count
+            if readDays < monthDays.count {
+                Text(readDays == 0 ? "O calendário não foi lido para este mês. Os eventos não aparecem aqui." : "O calendário só foi lido para alguns destes dias. Nos outros, os eventos não aparecem aqui.")
                     .font(.geist(11)).foregroundStyle(Color.soft).padding(.horizontal, 4)
                     .accessibilityIdentifier("plan.month.partial")
             }
@@ -1142,6 +1144,7 @@ struct NewEventSheet: View {
     @State private var dayHeard = false
     @State private var titleEdited = false // you corrected the title by hand: the line no longer writes over it
     @State private var timeEdited = false // you set the time by hand or chose a reading: the same for it
+    @State private var dayEdited = false // you chose the day by hand: the same for it
 
     init(day: String) {
         _day = State(initialValue: day)
@@ -1211,7 +1214,7 @@ struct NewEventSheet: View {
     }
 
     private var dayBinding: Binding<Date> {
-        Binding(get: { Day.date(day) }, set: { day = Day.key($0) })
+        Binding(get: { Day.date(day) }, set: { day = Day.key($0); dayEdited = true })
     }
 
     @ViewBuilder private var timeField: some View {
@@ -1287,7 +1290,7 @@ struct NewEventSheet: View {
         let d = EventDraft.parse(new, today: Day.today)
         heard = !new.trimmingCharacters(in: .whitespaces).isEmpty
         if !titleEdited { title = d.title }
-        if let parsed = d.day { day = parsed }
+        if !dayEdited, let parsed = d.day { day = parsed }
         dayHeard = d.day != nil
         if !timeEdited {
             minute = d.minute

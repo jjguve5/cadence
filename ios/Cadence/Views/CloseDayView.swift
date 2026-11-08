@@ -167,12 +167,12 @@ enum DayReview {
     /// The day's session as Treino has it: ended (Feito or Parcial), left open past its day (Parcial up to its last
     /// activity, on read, as in Treino: decision D23; nothing is written), or open today (Em curso)
     static func sessionLine(_ sessions: [WorkoutSession], today: String) -> (title: String, sub: String, state: DataState, text: String)? {
-        if let s = sessions.first(where: { $0.end != nil || TrainingRules.isExpired($0, today: today) }) {
+        if let s = sessions.first(where: { $0.end != nil || TrainingRules.leftPartial($0, today: today) }) {
             let minutes = Int(((s.end ?? TrainingRules.lastActivity(s)) - s.start) / 60000)
             let partial = TrainingRules.isPartial(s, today: today)
             return (s.name, "registado no treino · \(minutes) min", partial ? DataState.partial : DataState.confirmed, partial ? "Parcial" : "Feito")
         }
-        if let s = sessions.first(where: { $0.end == nil }) { return (s.name, "no treino", DataState.pending, "Em curso") }
+        if let s = sessions.first(where: { $0.end == nil && !TrainingRules.isExpired($0, today: today) }) { return (s.name, "no treino", DataState.pending, "Em curso") }
         return nil
     }
 }

@@ -7,7 +7,7 @@ enum LifeSeeds {
     static func apply(_ store: Store, scenario: String) {
         switch scenario {
         case "life.wardrobe":
-            // A piece never worn since its wash, and one at its limit (suggested for washing, so not «Disponível»)
+            // A piece never worn since its wash, and one at its limit (suggested for washing, still under «Disponível»)
             store.save(Garment(id: "T1", name: "T-shirt cinzenta", type: "top", colors: ["9AA3B2"], wearsBeforeWash: 3, totalWears: 12))
             store.save(Garment(id: "B1", name: "Ganga azul", type: "bottom", colors: ["3E5C8A"], wearsBeforeWash: 4, wears: 4, state: "worn", totalWears: 30))
         case "life.laundry":
