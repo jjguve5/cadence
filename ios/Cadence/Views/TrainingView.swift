@@ -17,15 +17,15 @@ struct TrainingView: View {
             if let s = store.activeSession {
                 Button { open = s.id } label: {
                     Card(tint: .train) {
-                        Eyebrow(text: "In progress", icon: "flame.fill", color: .train)
+                        Eyebrow(text: "Em curso", icon: "flame.fill", color: .train)
                         Text(s.name).font(.geist(18, .bold))
-                        Text("\(s.sets.filter(\.done).count) sets · \(Int(s.volume).formatted()) kg").font(.geist(13)).foregroundStyle(Color.soft)
+                        Text("\(s.sets.filter(\.done).count) \(s.sets.filter(\.done).count == 1 ? "série" : "séries") · \(Int(s.volume).formatted()) kg").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .buttonStyle(.plain)
             }
             Card {
-                Eyebrow(text: "Start a session", icon: "play.fill")
+                Eyebrow(text: "Começar uma sessão", icon: "play.fill")
                 ForEach(store.templates) { t in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -38,17 +38,17 @@ struct TrainingView: View {
                             Image(systemName: "play.fill").font(.geist(13, .bold)).foregroundStyle(Color(hex: 0x2A0610)).frame(width: 36, height: 36).background(Circle().fill(Area.train.gradient))
                                 .frame(width: 44, height: 44).contentShape(Rectangle())
                         }
-                        .accessibilityLabel("Start \(t.name)").accessibilityIdentifier("training.start.\(t.name)")
+                        .accessibilityLabel("Começar \(t.name)").accessibilityIdentifier("training.start.\(t.name)")
                     }
                 }
-                Button { editing = WorkoutTemplate(name: "New template", exercises: []) } label: { Label("New template", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.train)
+                Button { editing = WorkoutTemplate(name: "Novo modelo", exercises: []) } label: { Label("Novo modelo", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.train)
             }
             Card {
-                HStack { Eyebrow(text: "Body map session", icon: "figure.strengthtraining.traditional"); Spacer() }
-                Text("Tap the muscles you want to train: Cadence builds a session from exercises that hit them.").font(.geist(12.5)).foregroundStyle(Color.soft)
+                HStack { Eyebrow(text: "Sessão pelo mapa corporal", icon: "figure.strengthtraining.traditional"); Spacer() }
+                Text("Toca nos músculos que queres treinar: o Cadence monta uma sessão com exercícios que os trabalham.").font(.geist(12.5)).foregroundStyle(Color.soft)
                 MuscleTapper(selected: $selected)
                 if !selected.isEmpty {
-                    Button { open = startFromMuscles() } label: { Text("Start: \(selected.compactMap { groupNames[$0] }.sorted().joined(separator: ", "))").font(.geist(14, .semibold)).foregroundStyle(Color.train) }
+                    Button { open = startFromMuscles() } label: { Text("Começar: \(selected.compactMap { groupNames[$0] }.sorted().joined(separator: ", "))").font(.geist(14, .semibold)).foregroundStyle(Color.train) }
                 }
             }
             NavigationLink { GrowthView() } label: { GrowthCard() }.buttonStyle(.plain)
@@ -56,25 +56,25 @@ struct TrainingView: View {
             AirWorkoutsCard()
             NavigationLink { BodyProgressView() } label: {
                 Card {
-                    HStack { Eyebrow(text: "Body progress", icon: "figure.arms.open"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-                    Text("Photos, ten measurements, strength per kilo, the activity heatmap").font(.geist(13)).foregroundStyle(Color.soft)
+                    HStack { Eyebrow(text: "Evolução do corpo", icon: "figure.arms.open"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                    Text("Fotografias, dez medidas, força por quilo, mapa de atividade").font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
             .buttonStyle(.plain)
             NavigationLink { ProgressListView() } label: {
                 Card {
-                    HStack { Eyebrow(text: "Progress and projections", icon: "chart.line.uptrend.xyaxis"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                    HStack { Eyebrow(text: "Progresso e projeções", icon: "chart.line.uptrend.xyaxis"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
                     let last = store.sessions().filter { $0.end != nil }.prefix(3)
                     ForEach(Array(last)) { s in
                         HStack { Text(s.name).font(.geist(13.5)); Spacer(); Text("\(Day.date(s.date).formatted(.dateTime.day().month())) · \(Int(s.volume).formatted()) kg").font(.mono(12)).foregroundStyle(Color.soft) }
                     }
-                    if last.isEmpty { Text("Finish a session to see estimated 1RM curves.").font(.geist(13)).foregroundStyle(Color.soft) }
+                    if last.isEmpty { Text("Termina uma sessão para veres as curvas de 1RM estimado.").font(.geist(13)).foregroundStyle(Color.soft) }
                 }
             }
             .buttonStyle(.plain)
             Text("Exercise data by RepDB (repdb.co) · Body map based on GymMane by InlitX").font(.geist(10.5)).foregroundStyle(Color.faint)
         }
-        .navigationTitle("Training")
+        .navigationTitle("Treino")
         .navigationBarTitleDisplayMode(.inline)
         .task { store.seedTemplates(); await catalog.load() }
         .sheet(item: $editing) { TemplateEditor(template: $0) }
@@ -100,7 +100,7 @@ struct TrainingView: View {
             return known.map { TemplateExercise(exerciseId: $0.id, name: $0.name) }
         }
         selected = []
-        return start(WorkoutTemplate(name: "Body map session", exercises: picks))
+        return start(WorkoutTemplate(name: "Sessão pelo mapa corporal", exercises: picks))
     }
 }
 
@@ -158,23 +158,23 @@ struct WorkoutView: View {
                 }
                 if let end = live.restEnd, end > now { restCard(end) }
                 ForEach(session.order) { ex in exerciseCard(ex, session) }
-                SoftButton(title: "Add exercise", icon: "plus") { picking = true }
+                SoftButton(title: "Adicionar exercício", icon: "plus") { picking = true }
                 if session.end == nil {
                     Card {
-                        Eyebrow(text: "How did it feel?", icon: "bolt.heart")
+                        Eyebrow(text: "Como correu?", icon: "bolt.heart")
                         HStack(spacing: 6) {
                             ForEach(1...5, id: \.self) { n in
                                 Button { feel = n } label: {
-                                    Text(["Awful", "Heavy", "OK", "Good", "Great"][n - 1]).font(.geist(12, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                                    Text(["Péssimo", "Pesado", "OK", "Bom", "Ótimo"][n - 1]).font(.geist(12, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
                                         .background(RoundedRectangle(cornerRadius: 10).fill(feel == n ? Color.train.opacity(0.5) : .white.opacity(0.07)))
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityAddTraits(feel == n ? .isSelected : []).accessibilityIdentifier("workout.feel.\(n)")
                             }
                         }
-                        Text("Used to check whether readiness predicts your sessions.").font(.geist(11)).foregroundStyle(Color.faint)
+                        Text("Serve para ver se a prontidão prevê as tuas sessões.").font(.geist(11)).foregroundStyle(Color.faint)
                     }
-                    PrimaryButton(title: "Finish session", area: .train) {
+                    PrimaryButton(title: "Terminar sessão", area: .train) {
                         var s = session
                         s.feel = feel
                         s.end = nowMs()
@@ -208,7 +208,7 @@ struct WorkoutView: View {
                 Task { await LiveWorkout.shared.update(session: session) }
             }
         } else {
-            Text("Session not found").foregroundStyle(Color.soft)
+            Text("Sessão não encontrada").foregroundStyle(Color.soft)
         }
     }
 
@@ -228,11 +228,11 @@ struct WorkoutView: View {
                 }
                 .frame(width: 70, height: 70)
                 VStack(alignment: .leading, spacing: 6) {
-                    Eyebrow(text: "Rest")
+                    Eyebrow(text: "Descanso")
                     HStack {
                         SoftButton(title: "−15") { setRest(end.addingTimeInterval(-15)) }
                         SoftButton(title: "+15") { setRest(end.addingTimeInterval(15)) }
-                        SoftButton(title: "Skip") { setRest(nil) }
+                        SoftButton(title: "Saltar") { setRest(nil) }
                     }
                 }
             }
@@ -252,7 +252,7 @@ struct WorkoutView: View {
                 if let info { ExercisePicture(exercise: info).frame(width: 64, height: 64) }
                 VStack(alignment: .leading, spacing: 3) {
                     NavigationLink { ExerciseDetail(exerciseId: ex.exerciseId, name: ex.name) } label: { Text(ex.name).font(.geist(16, .bold)).foregroundStyle(Color.ink).multilineTextAlignment(.leading) }
-                    Text("\(ex.repLow)–\(ex.repHigh) reps · rest \(ex.rest / 60):\(String(format: "%02d", ex.rest % 60))").font(.geist(12)).foregroundStyle(Color.soft)
+                    Text("\(ex.repLow)–\(ex.repHigh) reps · descanso \(ex.rest / 60):\(String(format: "%02d", ex.rest % 60))").font(.geist(12)).foregroundStyle(Color.soft)
                     Text(sug.reason).font(.geist(11.5)).foregroundStyle(Color.good)
                 }
             }
@@ -260,9 +260,9 @@ struct WorkoutView: View {
                 setRow(set, number: sets.filter { $0.element.kind != .warmup && $0.offset <= index }.count, ex: ex, canGuide: session.end == nil)
             }
             HStack {
-                Button { var s = session; let last = sets.last?.element; s.sets.append(SetLog(exerciseId: ex.exerciseId, weight: last?.weight ?? 0, reps: last?.reps ?? ex.repHigh)); store.save(s) } label: { Label("Set", systemImage: "plus").font(.geist(12.5, .semibold)) }
+                Button { var s = session; let last = sets.last?.element; s.sets.append(SetLog(exerciseId: ex.exerciseId, weight: last?.weight ?? 0, reps: last?.reps ?? ex.repHigh)); store.save(s) } label: { Label("Série", systemImage: "plus").font(.geist(12.5, .semibold)) }
                 Spacer()
-                if let w = sets.last?.element.weight, w > store.profile.barKg { Text("Plates per side: " + store.plates(for: w).map(kg).joined(separator: " + ")).font(.geist(11)).foregroundStyle(Color.faint) }
+                if let w = sets.last?.element.weight, w > store.profile.barKg { Text("Discos por lado: " + store.plates(for: w).map(kg).joined(separator: " + ")).font(.geist(11)).foregroundStyle(Color.faint) }
             }
             .tint(.train)
         }
@@ -320,7 +320,7 @@ struct SetRow: View {
             controls
             if let guide {
                 Button(action: guide) {
-                    Label("Guide", systemImage: "metronome.fill").font(.geist(13, .semibold)).foregroundStyle(Color.train)
+                    Label("Ritmo guiado", systemImage: "metronome.fill").font(.geist(13, .semibold)).foregroundStyle(Color.train)
                         .frame(maxWidth: .infinity, minHeight: 34)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.train.opacity(0.12)))
                 }
@@ -334,7 +334,7 @@ struct SetRow: View {
     private var controls: some View {
         HStack(spacing: 8) {
             Menu {
-                ForEach(SetKind.allCases, id: \.self) { k in Button(k.rawValue.capitalized) { var s = set; s.kind = k; change(s) } }
+                ForEach(SetKind.allCases, id: \.self) { k in Button(k.label) { var s = set; s.kind = k; change(s) } }
             } label: {
                 Text(set.kind == .working ? "\(number)" : set.kind.short).font(.geist(12, .bold)).frame(width: 26).foregroundStyle(set.kind == .warmup ? Color.faint : Color.soft)
             }
@@ -358,7 +358,7 @@ struct SetRow: View {
                 Text(text).font(.mono(14, .semibold)).lineLimit(1).minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, minHeight: 32).contentShape(Rectangle())
             }
-            .accessibilityHint("Tap to type a value")
+            .accessibilityHint("Toca para escrever um valor")
             .accessibilityIdentifier("workout.\(field.rawValue)")
             Button(action: plus) { Image(systemName: "plus").frame(width: 28, height: 32) }
         }
@@ -384,8 +384,8 @@ struct SetValueEntry: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Eyebrow(text: isWeight ? "Weight in kg" : "Reps")
-            TextField("Value", text: $draft, prompt: Text(isWeight ? kg(set.weight) : "\(set.reps)"))
+            Eyebrow(text: isWeight ? "Peso em kg" : "Repetições")
+            TextField("Valor", text: $draft, prompt: Text(isWeight ? kg(set.weight) : "\(set.reps)"))
                 .keyboardType(isWeight ? .decimalPad : .numberPad)
                 .font(.mono(38, .semibold))
                 .multilineTextAlignment(.center)
@@ -393,8 +393,8 @@ struct SetValueEntry: View {
                 .onSubmit { finish() }
                 .accessibilityIdentifier("workout.entry")
             HStack(spacing: 10) {
-                SoftButton(title: "Cancel") { closed = true; dismiss() }
-                PrimaryButton(title: "Set", area: .train) { finish() }
+                SoftButton(title: "Cancelar") { closed = true; dismiss() }
+                PrimaryButton(title: "Definir", area: .train) { finish() }
                     .disabled(!valid)
                     .opacity(valid ? 1 : 0.4)
                     .accessibilityIdentifier("workout.entry.set")
@@ -459,14 +459,14 @@ struct ExerciseDetail: View {
             if let ex { ExercisePicture(exercise: ex).frame(height: 240) }
             if let ex {
                 Card {
-                    Eyebrow(text: "Muscles")
+                    Eyebrow(text: "Músculos")
                     BodyMapView(colors: Dictionary(uniqueKeysWithValues: ex.groups.map { ($0, Color.train) } + ex.secondaryGroups.map { ($0, Color.train.opacity(0.45)) }), idle: .white.opacity(0.15)).frame(height: 150)
                     Text(ex.groups.compactMap { groupNames[$0] }.sorted().joined(separator: ", ")).font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
             if history.count >= 2 {
                 Card {
-                    HStack { Eyebrow(text: "Estimated 1RM"); Spacer(); Text("\(kg(history.last!.value)) kg").font(.mono(15, .bold)) }
+                    HStack { Eyebrow(text: "1RM estimado"); Spacer(); Text("\(kg(history.last!.value)) kg").font(.mono(15, .bold)) }
                     Chart {
                         ForEach(history, id: \.date) { p in
                             LineMark(x: .value("day", Day.date(p.date), unit: .day), y: .value("1RM", p.value)).foregroundStyle(Area.train.gradient)
@@ -476,16 +476,16 @@ struct ExerciseDetail: View {
                     .chartYScale(domain: .automatic(includesZero: false))
                     .frame(height: 150)
                     HStack {
-                        TextField("Goal kg", text: $goal).keyboardType(.decimalPad).frame(width: 90)
+                        TextField("Objetivo kg", text: $goal).keyboardType(.decimalPad).frame(width: 90)
                         if let g = Double(goal), let p = store.projection(exerciseId, goal: g) {
-                            Text("~\(Day.date(p.date).formatted(.dateTime.day().month())) at \(String(format: "%+.1f", p.perWeek)) kg/week").font(.geist(13)).foregroundStyle(Color.good)
+                            Text("~\(Day.date(p.date).formatted(.dateTime.day().month())) a \(String(format: "%+.1f", p.perWeek)) kg/semana").font(.geist(13)).foregroundStyle(Color.good)
                         }
                     }
                 }
             }
             if let ex, !ex.instructions.isEmpty {
                 Card {
-                    Eyebrow(text: "How to")
+                    Eyebrow(text: "Como fazer")
                     ForEach(Array(ex.instructions.enumerated()), id: \.offset) { i, s in Text("\(i + 1). \(s)").font(.geist(13.5)) }
                     ForEach(ex.tips, id: \.self) { t in Text("• \(t)").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 }
@@ -516,7 +516,7 @@ struct ExercisePicker: View {
                         }
                     }
                 }
-                if catalog.exercises.isEmpty { Text(catalog.loading ? "Downloading exercises…" : "No connection: the exercise list downloads once.").foregroundStyle(Color.soft) }
+                if catalog.exercises.isEmpty { Text(catalog.loading ? "A descarregar os exercícios…" : "Sem ligação: a lista de exercícios descarrega-se uma vez.").foregroundStyle(Color.soft) }
                 ForEach(catalog.exercises.filter { (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search)) && (group == nil || $0.groups.contains(group!)) }.prefix(80)) { ex in
                     Button { pick(ex); dismiss() } label: {
                         HStack(spacing: 10) {
@@ -530,10 +530,10 @@ struct ExercisePicker: View {
                 }
             }
             .cadenceList()
-            .searchable(text: $search, prompt: "Search 700 exercises")
-            .navigationTitle("Add exercise")
+            .searchable(text: $search, prompt: "Procurar em 700 exercícios")
+            .navigationTitle("Adicionar exercício")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
             .task { await catalog.load() }
         }
     }
@@ -548,29 +548,29 @@ struct TemplateEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $template.name)
-                Stepper("About \(template.minutes) min", value: $template.minutes, in: 15...150, step: 5)
+                TextField("Nome", text: $template.name)
+                Stepper("Cerca de \(template.minutes) min", value: $template.minutes, in: 15...150, step: 5)
                 ForEach($template.exercises) { $ex in
                     Section(ex.name) {
-                        Stepper("\(ex.sets) sets", value: $ex.sets, in: 1...10)
-                        Stepper("Reps from \(ex.repLow)", value: $ex.repLow, in: 1...30)
-                        Stepper("Reps to \(ex.repHigh)", value: $ex.repHigh, in: ex.repLow...40)
-                        Stepper("Rest \(ex.rest) s", value: $ex.rest, in: 30...360, step: 15)
-                        Stepper("Add \(kg(ex.increment)) kg when earned", value: $ex.increment, in: 0.5...10, step: 0.5)
-                        Button("Remove", role: .destructive) { template.exercises.removeAll { $0.id == ex.id } }
+                        Stepper("\(ex.sets) \(ex.sets == 1 ? "série" : "séries")", value: $ex.sets, in: 1...10)
+                        Stepper("De \(ex.repLow) repetições", value: $ex.repLow, in: 1...30)
+                        Stepper("Até \(ex.repHigh) repetições", value: $ex.repHigh, in: ex.repLow...40)
+                        Stepper("Descanso \(ex.rest) s", value: $ex.rest, in: 30...360, step: 15)
+                        Stepper("Subir \(kg(ex.increment)) kg quando conseguires", value: $ex.increment, in: 0.5...10, step: 0.5)
+                        Button("Remover", role: .destructive) { template.exercises.removeAll { $0.id == ex.id } }
                     }
                 }
-                Button("Add exercise") { picking = true }
+                Button("Adicionar exercício") { picking = true }
                 if store.record(WorkoutTemplate.self, template.id) != nil {
-                    Button("Delete template", role: .destructive) { store.remove(template); dismiss() }
+                    Button("Apagar modelo", role: .destructive) { store.remove(template); dismiss() }
                 }
             }
             .cadenceList()
             .navigationTitle(template.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { store.save(template); dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Guardar") { store.save(template); dismiss() } }
             }
             .sheet(isPresented: $picking) { ExercisePicker { template.exercises.append(TemplateExercise(exerciseId: $0.id, name: $0.name)) } }
         }
@@ -595,15 +595,15 @@ struct ProgressListView: View {
                     }
                 }
             }
-            Section("Sessions") {
+            Section("Sessões") {
                 ForEach(store.sessions().filter { $0.end != nil }.prefix(30)) { s in
                     HStack { Text(s.name); Spacer(); Text("\(Day.date(s.date).formatted(.dateTime.day().month())) · \(Int(s.volume).formatted()) kg").font(.caption.monospaced()).foregroundStyle(Color.soft) }
-                        .swipeActions { Button("Delete", role: .destructive) { store.remove(s) } }
+                        .swipeActions { Button("Apagar", role: .destructive) { store.remove(s) } }
                 }
             }
         }
         .cadenceList()
-        .navigationTitle("Progress")
+        .navigationTitle("Progresso")
     }
 }
 
@@ -613,12 +613,12 @@ struct GrowthCard: View {
         let check = store.growthCheck()
         let short = check.map { c in c.status.values.contains { $0 != .growing } } ?? false
         Card(tint: short ? .fuel : nil) {
-            HStack { Eyebrow(text: "Are they growing?", icon: "leaf.fill", color: short ? .fuel : .soft); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+            HStack { Eyebrow(text: "Estão a crescer?", icon: "leaf.fill", color: short ? .fuel : .soft); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
             if let c = check {
                 let names = c.status.filter { $0.value != .growing }.keys.compactMap { groupNames[$0] }.sorted()
-                Text(names.isEmpty ? "Everything you trained in \(c.session.name) is fed and rested." : "\(names.joined(separator: ", ")): protein or sleep below what supports recovery.").font(.geist(14))
+                Text(names.isEmpty ? "Tudo o que treinaste em \(c.session.name) está alimentado e descansado." : "\(names.joined(separator: ", ")): proteína ou sono abaixo do que a recuperação precisa.").font(.geist(14))
             } else {
-                Text("For 48 hours after a session it checks protein and sleep for the muscles you trained.").font(.geist(13)).foregroundStyle(Color.soft)
+                Text("Nas 48 horas a seguir a uma sessão, vê se os músculos que treinaste têm proteína e sono suficientes.").font(.geist(13)).foregroundStyle(Color.soft)
             }
         }
     }
@@ -632,42 +632,42 @@ struct GrowthView: View {
                 Card(tint: .fuel) {
                     Eyebrow(text: "\(c.session.name) · \(Day.date(c.session.date).formatted(.dateTime.weekday(.wide)))")
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack { Text("Protein since training").font(.geist(13.5)); Spacer(); Text("\(Int(c.protein.got)) / \(Int(c.protein.need)) g").font(.mono(13.5)) }
+                        HStack { Text("Proteína desde o treino").font(.geist(13.5)); Spacer(); Text("\(Int(c.protein.got)) / \(Int(c.protein.need)) g").font(.mono(13.5)) }
                         Bar(progress: c.protein.got / max(1, c.protein.need), area: .fuel)
                     }
                     VStack(alignment: .leading, spacing: 4) {
-                        HStack { Text("Sleep since training").font(.geist(13.5)); Spacer(); Text("\(duration(c.sleep.got)) / \(duration(c.sleep.need))").font(.mono(13.5)) }
+                        HStack { Text("Sono desde o treino").font(.geist(13.5)); Spacer(); Text("\(duration(c.sleep.got)) / \(duration(c.sleep.need))").font(.mono(13.5)) }
                         Bar(progress: Double(c.sleep.got) / Double(max(1, c.sleep.need)), area: .sleep)
                     }
                 }
                 Card {
-                    Eyebrow(text: "Trained · front and back")
+                    Eyebrow(text: "Treinados · frente e costas")
                     BodyMapView(colors: c.status.mapValues { $0 == .growing ? Color.good : $0 == .underRested ? Color.warn : Color.bad }).frame(height: 200)
                     HStack(spacing: 12) {
-                        legend(.bad, "under-fuelled"); legend(.warn, "under-rested"); legend(.good, "growing well")
+                        legend(.bad, "falta comida"); legend(.warn, "falta descanso"); legend(.good, "a crescer bem")
                     }
                     .frame(maxWidth: .infinity)
                 }
                 Card(tint: .mint) {
-                    Eyebrow(text: "Fix it tonight", icon: "moon.fill", color: .mint)
+                    Eyebrow(text: "Corrige hoje à noite", icon: "moon.fill", color: .mint)
                     let gap = c.protein.need - c.protein.got
                     if gap > 10 {
                         let meal = store.all(SavedMeal.self).filter { $0.protein >= 15 }.min { abs($0.protein - gap) < abs($1.protein - gap) }
-                        Text(meal.map { "\($0.name): +\(Int($0.protein)) g protein" } ?? "\(Int(gap)) g more protein before bed").font(.geist(14))
+                        Text(meal.map { "\($0.name): +\(Int($0.protein)) g de proteína" } ?? "Mais \(Int(gap)) g de proteína antes de dormir").font(.geist(14))
                     }
-                    Text("Lights out by \(clock(store.sleepPlan().perform))").font(.geist(14))
+                    Text("Apagar as luzes até às \(clock(store.sleepPlan().perform))").font(.geist(14))
                 }
             } else {
-                Text("Nothing trained in the last 48 hours.").foregroundStyle(Color.soft).padding(.top, 20)
+                Text("Nada treinado nas últimas 48 horas.").foregroundStyle(Color.soft).padding(.top, 20)
             }
             Card {
-                Eyebrow(text: "Freshness · days since trained")
+                Eyebrow(text: "Frescura · dias desde o treino")
                 let f = store.freshness()
                 BodyMapView(colors: f.mapValues { d in d <= 1 ? Color.train : d <= 3 ? Color.fuel : Color.good.opacity(0.7) }).frame(height: 170)
-                Text("Red: trained in the last day · amber: 2–3 days · green: fresh").font(.geist(11.5)).foregroundStyle(Color.soft)
+                Text("Vermelho: treinado no último dia · âmbar: 2–3 dias · verde: fresco").font(.geist(11.5)).foregroundStyle(Color.soft)
             }
         }
-        .navigationTitle("Are they growing?")
+        .navigationTitle("Estão a crescer?")
         .navigationBarTitleDisplayMode(.inline)
     }
 

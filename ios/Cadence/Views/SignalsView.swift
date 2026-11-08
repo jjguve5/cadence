@@ -41,10 +41,10 @@ extension Store {
     func illnessSigns() -> [String] {
         guard let t = health[Day.today] else { return [] }
         var signs: [String] = []
-        if let v = t.rhr, let b = baseline({ $0.rhr }), v > b.mean + max(3, 1.5 * b.sd) { signs.append("Resting HR \(Int(v)), up \(Int(v - b.mean))") }
-        if let v = t.hrv, let b = baseline({ $0.hrv }), v < b.mean - 1.5 * b.sd { signs.append("HRV \(Int(v)) ms, well below usual") }
-        if let v = t.breathing, let b = baseline({ $0.breathing }), v > b.mean + 1 { signs.append(String(format: "Breathing %.1f/min, up", v)) }
-        if let v = t.temp, v >= 0.7 { signs.append(String(format: "Skin temperature %+.1f°", v)) }
+        if let v = t.rhr, let b = baseline({ $0.rhr }), v > b.mean + max(3, 1.5 * b.sd) { signs.append("FC em repouso \(Int(v)), \(Int(v - b.mean)) acima do habitual") }
+        if let v = t.hrv, let b = baseline({ $0.hrv }), v < b.mean - 1.5 * b.sd { signs.append("VFC \(Int(v)) ms, bem abaixo do habitual") }
+        if let v = t.breathing, let b = baseline({ $0.breathing }), v > b.mean + 1 { signs.append(String(format: "Respiração %.1f/min, acima do habitual", v)) }
+        if let v = t.temp, v >= 0.7 { signs.append(String(format: "Temperatura da pele %+.1f°", v)) }
         return signs
     }
 }
@@ -59,52 +59,52 @@ struct SignalsView: View {
         let illness = store.illnessSigns()
         Screen(glow: .train) {
             Card(tint: illness.count >= 2 ? .warn : nil) {
-                HStack { Eyebrow(text: "Every day · from your Air"); Spacer(); Chip(text: illness.count >= 2 ? "watch" : "all calm", color: illness.count >= 2 ? .warn : .good) }
-                row("Overnight SpO₂", latest.first { $0.spo2 != nil }?.spo2.map { "\(Int($0))%" })
-                row("Breathing rate", latest.first { $0.breathing != nil }?.breathing.map { String(format: "%.1f /min", $0) })
-                row("Cardio fitness · VO₂ max", latest.first { $0.vo2 != nil }?.vo2.map { String(format: "%.0f", $0) })
-                row("Skin temperature", latest.first { $0.temp != nil }?.temp.map { String(format: "%+.1f° vs baseline", $0) })
+                HStack { Eyebrow(text: "Todos os dias · do teu Air"); Spacer(); Chip(text: illness.count >= 2 ? "atenção" : "tudo calmo", color: illness.count >= 2 ? .warn : .good) }
+                row("SpO₂ durante a noite", latest.first { $0.spo2 != nil }?.spo2.map { "\(Int($0))%" })
+                row("Frequência respiratória", latest.first { $0.breathing != nil }?.breathing.map { String(format: "%.1f /min", $0) })
+                row("Aptidão cardiovascular · VO₂ máx.", latest.first { $0.vo2 != nil }?.vo2.map { String(format: "%.0f", $0) })
+                row("Temperatura da pele", latest.first { $0.temp != nil }?.temp.map { String(format: "%+.1f° face ao habitual", $0) })
                 if illness.count >= 2 {
-                    Text("Several signals are off together (\(illness.joined(separator: ", "))). This pattern can come 1–2 days before a cold, but alcohol, stress, heat or a late night do it too. A non-specific signal, not a diagnosis.")
+                    Text("Vários sinais estão fora do habitual ao mesmo tempo (\(illness.joined(separator: ", "))). Este padrão pode surgir 1–2 dias antes de uma constipação, mas álcool, stress, calor ou uma noite tardia também o provocam. É um sinal inespecífico, não um diagnóstico.")
                         .font(.geist(12.5)).foregroundStyle(Color.warn)
                 }
             }
             IntradayCard()
             MoreSignalsCard()
             Card(tint: .sleep) {
-                Eyebrow(text: "Sleep regularity", icon: "clock.arrow.circlepath", color: .sleep)
+                Eyebrow(text: "Regularidade do sono", icon: "clock.arrow.circlepath", color: .sleep)
                 if let sri = store.sleepRegularity() {
                     HStack(alignment: .firstTextBaseline) {
                         Text("\(sri)").font(.geist(30, .bold))
-                        Text("/ 100 · last 14 nights").font(.geist(12)).foregroundStyle(Color.soft)
+                        Text("/ 100 · últimas 14 noites").font(.geist(12)).foregroundStyle(Color.soft)
                     }
                     Bar(progress: Double(sri) / 100, area: .sleep)
-                    Text(sri >= 80 ? "Very regular. In 60,977 UK Biobank adults, regular sleepers lived longer than irregular ones, more than sleep length predicted." : "Going to bed and waking at the same times matters more than total hours. Aim for the same lights-out within 30 minutes.")
+                    Text(sri >= 80 ? "Muito regular. Em 60 977 adultos do UK Biobank, quem dormia com horários regulares viveu mais do que quem não dormia, mais do que a duração do sono fazia prever." : "Deitar e acordar às mesmas horas conta mais do que o total de horas. Tenta apagar as luzes sempre à mesma hora, com 30 minutos de margem.")
                         .font(.geist(12.5)).foregroundStyle(Color.soft)
                 } else {
-                    Text("Needs a few nights of sleep data.").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text("Precisa de algumas noites de dados de sono.").font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
             Card {
-                HStack { Eyebrow(text: "Monthly · Google Health trends"); Spacer(); Text(Day.date(Day.today).formatted(.dateTime.month(.wide))).font(.geist(12)).foregroundStyle(Color.soft) }
-                trendPicker("Insulin resistance trend", ["low", "may be elevated", "elevated"], trend.insulin) { var t = trend; t.insulin = $0; store.put("trend", month, JSONValue.from(t)) }
-                trendPicker("Blood pressure trend", ["not elevated", "may be elevated", "elevated"], trend.bloodPressure) { var t = trend; t.bloodPressure = $0; store.put("trend", month, JSONValue.from(t)) }
-                Text("Google's own models, not in the API: log the result when the monthly report arrives. If one says elevated, a week of cuff readings tells you more.")
+                HStack { Eyebrow(text: "Mensal · tendências do Google Health"); Spacer(); Text(Day.date(Day.today).formatted(.dateTime.month(.wide))).font(.geist(12)).foregroundStyle(Color.soft) }
+                trendPicker("Tendência de resistência à insulina", ["low", "may be elevated", "elevated"], trend.insulin) { var t = trend; t.insulin = $0; store.put("trend", month, JSONValue.from(t)) }
+                trendPicker("Tendência da tensão arterial", ["not elevated", "may be elevated", "elevated"], trend.bloodPressure) { var t = trend; t.bloodPressure = $0; store.put("trend", month, JSONValue.from(t)) }
+                Text("Modelos próprios da Google, fora da API: regista o resultado quando chegar o relatório mensal. Se algum disser elevada, uma semana de medições com braçadeira diz-te mais.")
                     .font(.geist(12)).foregroundStyle(Color.faint)
             }
             HealthRecordsCard()
             Card(tint: .fuel) {
-                Eyebrow(text: "Habits behind them", color: .fuel)
+                Eyebrow(text: "Os hábitos por trás", color: .fuel)
                 let week = (0..<7).compactMap { store.health[Day.add(-$0, to: Day.today)] }
                 let steps = week.compactMap(\.steps)
-                row("Steps, 7-day average", steps.isEmpty ? nil : "\(Int(steps.reduce(0, +) / Double(steps.count)).formatted())")
+                row("Passos, média de 7 dias", steps.isEmpty ? nil : "\(Int(steps.reduce(0, +) / Double(steps.count)).formatted())")
                 let late = week.compactMap(\.sleep).filter { Day.minuteOfDay($0.startDate) < 12 * 60 && Day.minuteOfDay($0.startDate) > 60 }.count
-                row("Asleep after 1:00", "\(late) of \(week.compactMap(\.sleep).count) nights")
-                if let rhr = store.baseline({ $0.rhr }) { row("Resting HR, 14-day", "\(Int(rhr.mean)) bpm") }
-                Text("Resting heart rate, steps and sleep were the top wearable predictors in Google's WEAR-ME insulin study.").font(.geist(12)).foregroundStyle(Color.faint)
+                row("Adormeceste depois da 1:00", "\(late) de \(week.compactMap(\.sleep).count) noites")
+                if let rhr = store.baseline({ $0.rhr }) { row("FC em repouso, 14 dias", "\(Int(rhr.mean)) bpm") }
+                Text("Frequência cardíaca em repouso, passos e sono foram os melhores preditores de wearables no estudo WEAR-ME da Google sobre a insulina.").font(.geist(12)).foregroundStyle(Color.faint)
             }
         }
-        .navigationTitle("Health signals")
+        .navigationTitle("Sinais de saúde")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -112,15 +112,20 @@ struct SignalsView: View {
         HStack { Text(name).font(.geist(14)); Spacer(); Text(value ?? "–").font(.geist(14, .semibold)).foregroundStyle(Color.ink) }
     }
 
+    /// What a monthly trend shows; the English value is what's saved, and the chip colour reads it
+    private func trendLabel(_ value: String) -> String {
+        ["low": "baixa", "may be elevated": "pode estar elevada", "elevated": "elevada", "not elevated": "não elevada"][value] ?? value
+    }
+
     private func trendPicker(_ name: String, _ options: [String], _ value: String?, set: @escaping (String?) -> Void) -> some View {
         HStack {
             Text(name).font(.geist(14))
             Spacer()
             Menu {
-                ForEach(options, id: \.self) { o in Button(o) { set(o) } }
-                Button("Not logged") { set(nil) }
+                ForEach(options, id: \.self) { o in Button(trendLabel(o)) { set(o) } }
+                Button("Sem registo") { set(nil) }
             } label: {
-                Chip(text: value ?? "log", color: value == nil ? .soft : value!.contains("elevated") && !value!.hasPrefix("not") ? .warn : .good)
+                Chip(text: value.map { trendLabel($0) } ?? "registar", color: value == nil ? .soft : value!.contains("elevated") && !value!.hasPrefix("not") ? .warn : .good)
             }
         }
     }

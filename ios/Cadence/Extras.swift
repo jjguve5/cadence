@@ -15,8 +15,23 @@ struct AirExercise: Codable, Identifiable, Equatable {
     var distance: Double?
     var id: String { start }
     var startDate: Date { ISO8601DateFormatter.lenient(start) }
-    var name: String { type.replacingOccurrences(of: "_", with: " ").capitalized }
+    /// The type in words; the type itself stays as the server sends it
+    var name: String {
+        let words = type.replacingOccurrences(of: "_", with: " ").lowercased()
+        return airExerciseNames[words] ?? words.capitalized
+    }
 }
+
+/// Common Air exercise types in Portuguese; any other type shows as the server spells it
+fileprivate let airExerciseNames: [String: String] = [
+    "workout": "Treino", "walk": "Caminhada", "walking": "Caminhada", "run": "Corrida", "running": "Corrida",
+    "bike": "Bicicleta", "biking": "Bicicleta", "cycling": "Ciclismo", "outdoor bike": "Bicicleta", "spinning": "Spinning",
+    "weights": "Musculação", "weightlifting": "Musculação", "weight lifting": "Musculação", "strength training": "Treino de força",
+    "hike": "Caminhada na natureza", "hiking": "Caminhada na natureza", "swim": "Natação", "swimming": "Natação",
+    "yoga": "Ioga", "pilates": "Pilates", "elliptical": "Elíptica", "treadmill": "Passadeira", "rowing": "Remo",
+    "hiit": "HIIT", "interval workout": "Treino intervalado", "dancing": "Dança", "tennis": "Ténis",
+    "football": "Futebol", "soccer": "Futebol", "sport": "Desporto", "other": "Outro",
+]
 
 extension ISO8601DateFormatter {
     static func lenient(_ s: String) -> Date {
@@ -66,6 +81,12 @@ struct Measurement: Record, Equatable {
 
 let measurementNames = ["Waist", "Chest", "Hips", "Arm", "Thigh", "Calf", "Neck", "Shoulders", "Forearm", "Body fat %"]
 
+/// What each measurement shows; the English names above are the keys saved in Measurement.values
+func measurementLabel(_ name: String) -> String {
+    ["Waist": "Cintura", "Chest": "Peito", "Hips": "Ancas", "Arm": "Braço", "Thigh": "Coxa", "Calf": "Barriga da perna",
+     "Neck": "Pescoço", "Shoulders": "Ombros", "Forearm": "Antebraço", "Body fat %": "Gordura corporal %"][name] ?? name
+}
+
 enum ProgressPhotos {
     static let dir: URL = {
         let d = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("progress", isDirectory: true)
@@ -104,15 +125,21 @@ struct PipAccessory: Identifiable {
 
 /// Pip's wardrobe, unlocked by level: one piece per slot
 let pipAccessories: [PipAccessory] = [
-    PipAccessory(id: "scarf", name: "Red scarf", slot: "neck", level: 2, layer: "Acc Scarf", icon: "wind"),
-    PipAccessory(id: "sweatband", name: "Sweatband", slot: "head", level: 3, layer: "Acc Sweatband", icon: "figure.run"),
-    PipAccessory(id: "glasses", name: "Reading glasses", slot: "face", level: 5, layer: "Acc Glasses", icon: "eyeglasses"),
-    PipAccessory(id: "bow-tie", name: "Bow tie", slot: "neck", level: 7, layer: "Acc Bow tie", icon: "sparkles"),
-    PipAccessory(id: "sunglasses", name: "Sunglasses", slot: "face", level: 9, layer: "Acc Sunglasses", icon: "sunglasses.fill"),
-    PipAccessory(id: "leaf-crown", name: "Leaf crown", slot: "head", level: 12, layer: "Acc Leaf crown", icon: "laurel.leading"),
-    PipAccessory(id: "headphones", name: "Headphones", slot: "head", level: 15, layer: "Acc Headphones", icon: "headphones"),
-    PipAccessory(id: "medal", name: "Gold medal", slot: "neck", level: 20, layer: "Acc Medal", icon: "medal.fill"),
+    PipAccessory(id: "scarf", name: "Cachecol", slot: "neck", level: 2, layer: "Acc Scarf", icon: "wind"),
+    PipAccessory(id: "sweatband", name: "Fita de testa", slot: "head", level: 3, layer: "Acc Sweatband", icon: "figure.run"),
+    PipAccessory(id: "glasses", name: "Óculos de ler", slot: "face", level: 5, layer: "Acc Glasses", icon: "eyeglasses"),
+    PipAccessory(id: "bow-tie", name: "Laço", slot: "neck", level: 7, layer: "Acc Bow tie", icon: "sparkles"),
+    PipAccessory(id: "sunglasses", name: "Óculos de sol", slot: "face", level: 9, layer: "Acc Sunglasses", icon: "sunglasses.fill"),
+    PipAccessory(id: "leaf-crown", name: "Coroa de louro", slot: "head", level: 12, layer: "Acc Leaf crown", icon: "laurel.leading"),
+    PipAccessory(id: "headphones", name: "Auscultadores", slot: "head", level: 15, layer: "Acc Headphones", icon: "headphones"),
+    PipAccessory(id: "medal", name: "Medalha", slot: "neck", level: 20, layer: "Acc Medal", icon: "medal.fill"),
 ]
+
+/// What each time-audit row shows; the English names stay, because timeAuditSuggestion(week:) finds rows by them
+func timeAuditLabel(_ name: String) -> String {
+    ["Focus sessions": "Sessões de foco", "Calendar events": "Eventos do calendário", "VS Code, active": "VS Code, ativo",
+     "Training": "Treino", "Reading": "Leitura", "Travelling": "Deslocações"][name] ?? name
+}
 
 @MainActor
 extension Store {
@@ -168,7 +195,7 @@ extension Store {
         let travel = days.flatMap { commutes(on: $0) }.map { $0.travel * 2 }.reduce(0, +)
         var out: [(String, Int, Int?)] = [("Focus sessions", focus.map(\.minutes).reduce(0, +), plannedDeep > 0 ? plannedDeep : nil), ("Calendar events", meetings, nil), ("VS Code, active", desk, nil), ("Training", training, nil), ("Reading", reading, days.count * 30), ("Travelling", travel, nil)]
         for (project, list) in Dictionary(grouping: focus.filter { $0.projectId != nil }, by: { $0.projectId! }) {
-            out.append(("· " + (record(Project.self, project)?.title ?? "Project"), list.map(\.minutes).reduce(0, +), nil))
+            out.append(("· " + (record(Project.self, project)?.title ?? "Projeto"), list.map(\.minutes).reduce(0, +), nil))
         }
         return out
     }
@@ -176,9 +203,9 @@ extension Store {
     func timeAuditSuggestion(week: String) -> String {
         let a = timeAudit(week: week)
         let focus = a.first { $0.0 == "Focus sessions" }
-        if let f = focus, let p = f.2, f.1 < p / 2 { return "Half of your planned deep work happened. Try placing it before your first meeting." }
-        if let m = a.first(where: { $0.0 == "Calendar events" }), let f = focus, m.1 > f.1 * 2 { return "Meetings took twice your focus time. Protect one morning block next week." }
-        return "A good balance. Keep the same deep-work slots next week."
+        if let f = focus, let p = f.2, f.1 < p / 2 { return "Só aconteceu metade do trabalho focado que planeaste. Experimenta pô-lo antes da primeira reunião." }
+        if let m = a.first(where: { $0.0 == "Calendar events" }), let f = focus, m.1 > f.1 * 2 { return "As reuniões ocuparam o dobro do teu tempo de foco. Protege um bloco de manhã na próxima semana." }
+        return "Bom equilíbrio. Mantém os mesmos horários de trabalho focado na próxima semana."
     }
 
     // MARK: Weather-aware plan
@@ -233,7 +260,7 @@ extension Store {
         let health = min(1000, total(["Health"]) * 0.15)
         let housing = min(502, total(["Rent / house"]) * 0.15)
         let iva = vat(["Eating out", "Gym"]) * 0.15
-        return [("General family expenses", general, "35% up to €250"), ("Health", health, "15% up to €1,000"), ("Housing (rent)", housing, "15% up to €502"), ("VAT: restaurants, gym, hairdresser", iva, "15% of the VAT")]
+        return [("Despesas gerais familiares", general, "35% até 250 €"), ("Saúde", health, "15% até 1000 €"), ("Habitação (renda)", housing, "15% até 502 €"), ("IVA: restauração, ginásio, cabeleireiro", iva, "15% do IVA")]
     }
 
     /// Spending during a trip against its budget

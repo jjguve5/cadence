@@ -26,11 +26,11 @@ final class AppleHealth {
 
     /// Asks once (iOS shows its sheet the first time only), then reads the last `days` days
     func read(days: Int, everything: Bool) async -> Reading? {
-        guard available else { problem = "Apple Health isn't available on this device"; return nil }
+        guard available else { problem = "O Apple Health não está disponível neste dispositivo"; return nil }
         do {
             try await store.requestAuthorization(toShare: [], read: types(everything: everything))
         } catch {
-            problem = "Apple Health access isn't available in this install (\(error.localizedDescription))"
+            problem = "O acesso ao Apple Health não está disponível nesta instalação (\(error.localizedDescription))"
             return nil
         }
         problem = nil

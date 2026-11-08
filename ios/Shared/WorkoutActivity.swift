@@ -34,14 +34,14 @@ struct PipAttributes: ActivityAttributes {
 
 enum PipAction: String, AppEnum {
     case done, later
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Pip action"
-    static var caseDisplayRepresentations: [PipAction: DisplayRepresentation] = [.done: "Done", .later: "Later"]
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Ação do Pip"
+    static var caseDisplayRepresentations: [PipAction: DisplayRepresentation] = [.done: "Feito", .later: "Mais tarde"]
 }
 
 struct PipIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Answer Pip"
-    @Parameter(title: "Action") var action: PipAction
-    @Parameter(title: "Promise") var promiseId: String
+    static var title: LocalizedStringResource = "Responder ao Pip"
+    @Parameter(title: "Ação") var action: PipAction
+    @Parameter(title: "Hábito") var promiseId: String
 
     init() {}
     init(_ action: PipAction, promiseId: String) { self.action = action; self.promiseId = promiseId }
@@ -56,16 +56,16 @@ struct PipIntent: LiveActivityIntent {
 
 enum WorkoutAction: String, AppEnum {
     case done, weightUp, weightDown, repUp, repDown, restUp, restDown, restSkip
-    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Workout action"
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Ação do treino"
     static var caseDisplayRepresentations: [WorkoutAction: DisplayRepresentation] = [
-        .done: "Done", .weightUp: "+2.5 kg", .weightDown: "−2.5 kg", .repUp: "+1 rep", .repDown: "−1 rep",
-        .restUp: "+15 s", .restDown: "−15 s", .restSkip: "Skip rest",
+        .done: "Feito", .weightUp: "+2.5 kg", .weightDown: "−2.5 kg", .repUp: "+1 rep", .repDown: "−1 rep",
+        .restUp: "+15 s", .restDown: "−15 s", .restSkip: "Saltar descanso",
     ]
 }
 
 struct WorkoutIntent: LiveActivityIntent {
-    static var title: LocalizedStringResource = "Workout control"
-    @Parameter(title: "Action") var action: WorkoutAction
+    static var title: LocalizedStringResource = "Controlo do treino"
+    @Parameter(title: "Ação") var action: WorkoutAction
 
     init() {}
     init(_ action: WorkoutAction) { self.action = action }

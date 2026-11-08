@@ -34,8 +34,8 @@ let muscleGroup: [String: String] = [
 ]
 
 let groupNames: [String: String] = [
-    "glutes": "Glutes", "quads": "Quads", "chest": "Chest", "back": "Back", "shoulders": "Shoulders", "abdomen": "Abs", "obliques": "Obliques",
-    "hamstrings": "Hamstrings", "triceps": "Triceps", "lowerback": "Lower back", "biceps": "Biceps", "forearm": "Forearms", "trapezius": "Traps", "calves": "Calves",
+    "glutes": "Glúteos", "quads": "Quadríceps", "chest": "Peito", "back": "Costas", "shoulders": "Ombros", "abdomen": "Abdominais", "obliques": "Oblíquos",
+    "hamstrings": "Isquiotibiais", "triceps": "Tríceps", "lowerback": "Lombar", "biceps": "Bíceps", "forearm": "Antebraços", "trapezius": "Trapézio", "calves": "Gémeos",
 ]
 
 @MainActor
@@ -104,7 +104,9 @@ struct WorkoutTemplate: Record, Equatable {
 
 enum SetKind: String, Codable, CaseIterable {
     case warmup, working, drop, failure, restPause
-    var short: String { ["warmup": "W", "working": "", "drop": "D", "failure": "F", "restPause": "RP"][rawValue]! }
+    var short: String { ["warmup": "AQ", "working": "", "drop": "D", "failure": "F", "restPause": "RP"][rawValue]! }
+    /// What the set-type menu shows; the raw value is what's saved
+    var label: String { ["warmup": "Aquecimento", "working": "Normal", "drop": "Drop set", "failure": "Até à falha", "restPause": "Rest-pause"][rawValue]! }
 }
 
 struct SetLog: Codable, Equatable, Identifiable {
@@ -145,7 +147,7 @@ struct WorkoutSession: Record, Equatable {
         id = try c.decode(String.self, forKey: .id)
         date = try c.value(.date, or: Day.today)
         templateId = try c.optional(.templateId)
-        name = try c.value(.name, or: "Workout")
+        name = try c.value(.name, or: "Treino")
         start = try c.value(.start, or: nowMs())
         end = try c.optional(.end)
         order = try c.list(.order)
@@ -184,16 +186,16 @@ extension Store {
     /// one set less; three sessions without progress → a 10% deload.
     func suggestion(for t: TemplateExercise, session: String? = nil) -> (weight: Double, sets: Int, reason: String) {
         let last = lastSets(t.exerciseId, before: session)
-        guard let top = last.map(\.weight).max() else { return (0, t.sets, "First time: pick a weight you could do for \(t.repHigh + 2)") }
+        guard let top = last.map(\.weight).max() else { return (0, t.sets, "Primeira vez: escolhe um peso com que conseguirias fazer \(t.repHigh + 2) repetições") }
         let readiness = self.readiness()?.score ?? 70
-        let lowNote = readiness < 50 ? " · readiness \(readiness): let the warm-up decide" : ""
+        let lowNote = readiness < 50 ? " · prontidão \(readiness): deixa o aquecimento decidir" : ""
         let hitTop = last.count >= t.sets && last.allSatisfy { $0.reps >= t.repHigh }
-        if hitTop { return (top + t.increment, t.sets, "+\(kg(t.increment)) kg: you hit \(last.count) × \(t.repHigh) at \(kg(top)) last time" + lowNote) }
+        if hitTop { return (top + t.increment, t.sets, "+\(kg(t.increment)) kg: da última vez fizeste \(last.count) × \(t.repHigh) com \(kg(top))" + lowNote) }
         let history = sessions().filter { $0.end != nil }.compactMap { s in s.sets.filter { $0.exerciseId == t.exerciseId && $0.kind == .working && $0.done }.map { e1rm($0.weight, $0.reps) }.max() }.prefix(4)
         if history.count == 4, let newest = history.first, history.dropFirst().allSatisfy({ $0 >= newest - 0.5 }) {
-            return (((top * 0.9) / 2.5).rounded() * 2.5, t.sets, "Stalled for 3 sessions: a 10% deload, then build back")
+            return (((top * 0.9) / 2.5).rounded() * 2.5, t.sets, "Sem progresso há 3 sessões: desce 10% e volta a subir")
         }
-        return (top, t.sets, "Same weight: aim for \(t.repHigh) on every set" + lowNote)
+        return (top, t.sets, "Mesmo peso: tenta \(t.repHigh) em todas as séries" + lowNote)
     }
 
     /// Best estimated 1RM per session date for one exercise, oldest first

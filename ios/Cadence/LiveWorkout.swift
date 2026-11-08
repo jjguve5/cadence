@@ -14,21 +14,21 @@ final class LiveWorkout: ObservableObject {
     /// The next set to do: the first one not ticked
     private func current(_ s: WorkoutSession) -> (index: Int, ex: TemplateExercise)? {
         guard let i = s.sets.firstIndex(where: { !$0.done }) else { return nil }
-        let ex = s.order.first { $0.exerciseId == s.sets[i].exerciseId } ?? TemplateExercise(exerciseId: s.sets[i].exerciseId, name: "Exercise")
+        let ex = s.order.first { $0.exerciseId == s.sets[i].exerciseId } ?? TemplateExercise(exerciseId: s.sets[i].exerciseId, name: "Exercício")
         return (i, ex)
     }
 
     private func state(_ s: WorkoutSession) -> WorkoutAttributes.ContentState {
         guard let cur = current(s) else {
-            return .init(exercise: "All sets done", setLabel: "", weight: 0, reps: 0, restEnd: nil, next: "Finish in the app", volume: Int(s.volume))
+            return .init(exercise: "Todas as séries feitas", setLabel: "", weight: 0, reps: 0, restEnd: nil, next: "Termina na app", volume: Int(s.volume))
         }
         let (i, ex) = (cur.index, cur.ex)
         let sets = s.sets.filter { $0.exerciseId == ex.exerciseId && $0.kind != .warmup }
         let n = (sets.firstIndex { $0.id == s.sets[i].id } ?? 0) + 1
         let nextEx = s.order.drop { $0.exerciseId != ex.exerciseId }.dropFirst().first
         let nextSets = nextEx.map { e in s.sets.filter { $0.exerciseId == e.exerciseId && $0.kind != .warmup } }
-        let nextText = nextEx.map { e in "\(e.name) \(nextSets?.count ?? e.sets) × \(e.repHigh)" + ((nextSets?.first?.weight).map { " · \(kg($0)) kg" } ?? "") } ?? "last exercise"
-        let label = s.sets[i].kind == .warmup ? "warm-up" : "set \(n) of \(sets.count)"
+        let nextText = nextEx.map { e in "\(e.name) \(nextSets?.count ?? e.sets) × \(e.repHigh)" + ((nextSets?.first?.weight).map { " · \(kg($0)) kg" } ?? "") } ?? "último exercício"
+        let label = s.sets[i].kind == .warmup ? "aquecimento" : "série \(n) de \(sets.count)"
         return .init(exercise: ex.name, setLabel: label, weight: s.sets[i].weight, reps: s.sets[i].reps, restEnd: restEnd, next: nextText, volume: Int(s.volume))
     }
 
@@ -101,8 +101,8 @@ final class LiveWorkout: ObservableObject {
         center.removePendingNotificationRequests(withIdentifiers: ["rest"])
         guard let end, end > Date() else { return }
         let c = UNMutableNotificationContent()
-        c.title = "Rest done"
-        c.body = "Next set when you're ready."
+        c.title = "Descanso terminado"
+        c.body = "Próxima série quando quiseres."
         c.sound = .default
         center.add(UNNotificationRequest(identifier: "rest", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: end.timeIntervalSinceNow, repeats: false)))
     }

@@ -10,21 +10,21 @@ struct NapCard: View {
         let m = Day.minuteOfDay(store.tick)
         let dip = m >= 13 * 60 && m <= 16 * 60
         Card(tint: .sleep) {
-            Eyebrow(text: "Nap planner", icon: "powersleep", color: .sleep)
-            Text(plan.debt > 60 && dip ? "Sleep debt \(duration(plan.debt)) and you're in the afternoon dip: a 20-minute nap now pays back without hurting tonight." : dip ? "Afternoon dip: a 20-minute nap is fine; 90 minutes only if tonight is late." : "Best nap window: 13:00–16:00. Later naps push bedtime.")
+            Eyebrow(text: "Planear a sesta", icon: "powersleep", color: .sleep)
+            Text(plan.debt > 60 && dip ? "Dívida de sono de \(duration(plan.debt)) e estás na quebra da tarde: uma sesta de 20 minutos agora compensa sem prejudicar esta noite." : dip ? "Quebra da tarde: uma sesta de 20 minutos está bem; de 90 minutos, só se esta noite te deitares tarde." : "Melhor altura para a sesta: 13:00–16:00. Sestas mais tarde atrasam a hora de deitar.")
                 .font(.geist(13.5))
             HStack {
                 SoftButton(title: "20 min", icon: "alarm") { schedule(26) }
                 SoftButton(title: "90 min", icon: "alarm") { schedule(96) }
-                if let set { Text("Alarm at \(set.formatted(date: .omitted, time: .shortened))").font(.geist(12)).foregroundStyle(Color.soft) }
+                if let set { Text("Alarme às \(set.formatted(date: .omitted, time: .shortened))").font(.geist(12)).foregroundStyle(Color.soft) }
             }
-            Text("Includes 6 minutes to fall asleep. Naps reduce the debt once the Air logs them.").font(.geist(11)).foregroundStyle(Color.faint)
+            Text("Inclui 6 minutos para adormecer. As sestas reduzem a dívida quando o Air as registar.").font(.geist(11)).foregroundStyle(Color.faint)
         }
     }
     private func schedule(_ minutes: Int) {
         let c = UNMutableNotificationContent()
-        c.title = "Time to get up"
-        c.body = "Light, water, and a few steps."
+        c.title = "Hora de levantar"
+        c.body = "Luz, água e uns passos."
         c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "nap", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: Double(minutes * 60), repeats: false)))
         set = Date().addingTimeInterval(Double(minutes * 60))
@@ -44,6 +44,11 @@ struct BreathingView: View {
 
     private var phases: [(String, Double)] {
         mode == "box" ? [("In", 4), ("Hold", 4), ("Out", 4), ("Hold", 4)] : mode == "sigh" ? [("In", 2), ("In again", 1), ("Long out", 6)] : [("Rest", 60)]
+    }
+
+    /// What each phase shows; the English names above stay, because current(_:) reads them
+    private func label(_ name: String) -> String {
+        ["In": "Inspira", "Hold": "Sustém", "Out": "Expira", "In again": "Inspira mais um pouco", "Long out": "Expira devagar", "Rest": "Descansa"][name] ?? name
     }
 
     private func current(_ elapsed: Double) -> (name: String, scale: Double, index: Int) {
@@ -72,23 +77,23 @@ struct BreathingView: View {
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 24) {
-                HStack { Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
-                Picker("", selection: $mode) { Text("Box").tag("box"); Text("Sigh").tag("sigh"); Text("Deep rest").tag("nsdr") }.pickerStyle(.segmented).disabled(running)
+                HStack { Spacer(); Button("Fechar") { dismiss() }.foregroundStyle(Color.soft) }
+                Picker("", selection: $mode) { Text("Quadrada").tag("box"); Text("Suspiro").tag("sigh"); Text("Descanso").tag("nsdr") }.pickerStyle(.segmented).disabled(running)
                 Spacer()
                 ZStack {
                     Circle().fill(Area.sleep.gradient).opacity(0.35).scaleEffect(running ? scale : 0.7)
                     Circle().stroke(Color.sleep, lineWidth: 2).scaleEffect(running ? scale : 0.7)
-                    Text(running ? (mode == "nsdr" ? "Let your body go heavy" : phase.name) : "Ready").font(.geist(22, .semibold))
+                    Text(running ? (mode == "nsdr" ? "Deixa o corpo ficar pesado" : label(phase.name)) : "Quando quiseres").font(.geist(22, .semibold))
                 }
                 .frame(width: 260, height: 260)
                 .animation(.linear(duration: 0.1), value: scale)
-                if running { Text(String(format: "%d:%02d left", Int(max(0, total - elapsed)) / 60, Int(max(0, total - elapsed)) % 60)).font(.mono(15)).foregroundStyle(Color.soft) }
+                if running { Text(String(format: "faltam %d:%02d", Int(max(0, total - elapsed)) / 60, Int(max(0, total - elapsed)) % 60)).font(.mono(15)).foregroundStyle(Color.soft) }
                 Spacer()
                 if !running {
-                    Stepper("\(length) minutes", value: $length, in: 1...20).padding(.horizontal, 40)
-                    PrimaryButton(title: "Start", area: .sleep) { start = Date(); running = true; UIApplication.shared.isIdleTimerDisabled = true }
+                    Stepper("\(length) \(length == 1 ? "minuto" : "minutos")", value: $length, in: 1...20).padding(.horizontal, 40)
+                    PrimaryButton(title: "Começar", area: .sleep) { start = Date(); running = true; UIApplication.shared.isIdleTimerDisabled = true }
                 } else {
-                    SoftButton(title: "Stop") { running = false; UIApplication.shared.isIdleTimerDisabled = false }
+                    SoftButton(title: "Parar") { running = false; UIApplication.shared.isIdleTimerDisabled = false }
                 }
             }
             .padding(24)
@@ -134,26 +139,31 @@ extension Store {
     }
 
     func doctorSummary() -> String {
-        var lines = ["Cadence health summary · \(Day.date(Day.today).formatted(date: .long, time: .omitted))", "Wellness data from a Fitbit Air; not a medical device.", ""]
+        var lines = ["Resumo de saúde do Cadence · \(Day.date(Day.today).formatted(date: .long, time: .omitted))", "Dados de bem-estar de um Fitbit Air; não é um dispositivo médico.", ""]
         let months = (0..<180).compactMap { health[Day.add(-$0, to: Day.today)] }
         func avg(_ v: [Double]) -> String { v.isEmpty ? "–" : String(format: "%.1f", v.reduce(0, +) / Double(v.count)) }
-        lines.append("Resting heart rate, 6-month average: \(avg(months.compactMap(\.rhr))) bpm (last 14 days \(avg(months.prefix(14).compactMap(\.rhr))))")
-        lines.append("HRV (RMSSD), 6-month average: \(avg(months.compactMap(\.hrv))) ms")
-        lines.append("Overnight SpO₂ average: \(avg(months.compactMap(\.spo2)))%  · breathing rate \(avg(months.compactMap(\.breathing)))/min")
-        if let v = months.compactMap(\.vo2).first { lines.append("VO₂ max (latest): \(Int(v))") }
+        lines.append("Frequência cardíaca em repouso, média de 6 meses: \(avg(months.compactMap(\.rhr))) bpm (últimos 14 dias: \(avg(months.prefix(14).compactMap(\.rhr))))")
+        lines.append("VFC (RMSSD), média de 6 meses: \(avg(months.compactMap(\.hrv))) ms")
+        lines.append("SpO₂ média durante a noite: \(avg(months.compactMap(\.spo2)))%  · frequência respiratória \(avg(months.compactMap(\.breathing)))/min")
+        if let v = months.compactMap(\.vo2).first { lines.append("VO₂ máx. (último valor): \(Int(v))") }
         let nights = months.prefix(30).compactMap { $0.sleep?.asleep }
-        if !nights.isEmpty { lines.append("Sleep, last 30 nights: \(duration(nights.reduce(0, +) / nights.count)) a night; regularity index \(sleepRegularity(nights: 28).map(String.init) ?? "–")") }
+        if !nights.isEmpty { lines.append("Sono, últimas 30 noites: \(duration(nights.reduce(0, +) / nights.count)) por noite; índice de regularidade \(sleepRegularity(nights: 28).map(String.init) ?? "–")") }
         let irn = IntradayStore.shared.day(Day.today)?.irn ?? []
-        lines.append("Irregular rhythm alerts in the last year: \(irn.isEmpty ? "none" : irn.joined(separator: ", "))")
+        lines.append("Alertas de ritmo irregular no último ano: \(irn.isEmpty ? "nenhum" : irn.joined(separator: ", "))")
         let bp = all(BloodPressure.self).sorted { $0.date > $1.date }
-        if !bp.isEmpty { lines.append(""); lines.append("Blood pressure readings:"); lines += bp.prefix(14).map { "  \($0.date) \(clock($0.minute)): \($0.systolic)/\($0.diastolic)" + ($0.pulse.map { " · pulse \($0)" } ?? "") } }
+        if !bp.isEmpty { lines.append(""); lines.append("Medições da tensão arterial:"); lines += bp.prefix(14).map { "  \($0.date) \(clock($0.minute)): \($0.systolic)/\($0.diastolic)" + ($0.pulse.map { " · pulso \($0)" } ?? "") } }
         let labs = all(LabResult.self).sorted { $0.date > $1.date }
-        if !labs.isEmpty { lines.append(""); lines.append("Lab results:"); lines += labs.prefix(20).map { "  \($0.date) \($0.name): \(kg($0.value)) \($0.unit)" } }
+        if !labs.isEmpty { lines.append(""); lines.append("Análises:"); lines += labs.prefix(20).map { "  \($0.date) \(labLabel($0.name)): \(kg($0.value)) \($0.unit)" } }
         if let h = homaIR { lines.append(String(format: "HOMA-IR (%@): %.2f", h.date, h.value)) }
         let meds = all(Medicine.self).filter { $0.end.map { $0 >= Day.today } ?? true }
-        if !meds.isEmpty { lines.append(""); lines.append("Taking: " + meds.map { "\($0.name) \($0.dose)" }.joined(separator: "; ")) }
+        if !meds.isEmpty { lines.append(""); lines.append("A tomar: " + meds.map { "\($0.name) \($0.dose)" }.joined(separator: "; ")) }
         return lines.joined(separator: "\n")
     }
+}
+
+/// What a lab test shows; the English name is what's saved, and HOMA-IR looks for its words
+fileprivate func labLabel(_ name: String) -> String {
+    ["Fasting glucose": "Glicose em jejum", "Fasting insulin": "Insulina em jejum", "Triglycerides": "Triglicéridos", "Vitamin D": "Vitamina D", "Ferritin": "Ferritina"][name] ?? name
 }
 
 struct HealthRecordsCard: View {
@@ -165,34 +175,35 @@ struct HealthRecordsCard: View {
 
     var body: some View {
         Card {
-            Eyebrow(text: "Blood pressure and lab results", icon: "stethoscope")
+            Eyebrow(text: "Tensão arterial e análises", icon: "stethoscope")
             HStack {
-                TextField("Sys", text: $sys).keyboardType(.numberPad).frame(width: 50)
+                TextField("Máx", text: $sys).keyboardType(.numberPad).frame(width: 50)
                 Text("/")
-                TextField("Dia", text: $dia).keyboardType(.numberPad).frame(width: 50)
+                TextField("Mín", text: $dia).keyboardType(.numberPad).frame(width: 50)
                 Spacer()
-                SoftButton(title: "Log reading") { if let s = Int(sys), let d = Int(dia) { store.save(BloodPressure(systolic: s, diastolic: d)); sys = ""; dia = "" } }
+                SoftButton(title: "Registar medição") { if let s = Int(sys), let d = Int(dia) { store.save(BloodPressure(systolic: s, diastolic: d)); sys = ""; dia = "" } }
             }
             let bp = store.all(BloodPressure.self).sorted { $0.date > $1.date }
             if !bp.isEmpty {
                 let recent = bp.prefix(7)
                 let avgS = recent.map(\.systolic).reduce(0, +) / recent.count, avgD = recent.map(\.diastolic).reduce(0, +) / recent.count
-                Text("Last \(recent.count) readings average \(avgS)/\(avgD)" + (avgS >= 130 || avgD >= 80 ? ": above 130/80, worth showing a doctor." : ".")).font(.geist(12.5)).foregroundStyle(avgS >= 130 || avgD >= 80 ? Color.warn : Color.soft)
+                let average = recent.count == 1 ? "A última medição dá \(avgS)/\(avgD)" : "As últimas \(recent.count) medições dão em média \(avgS)/\(avgD)"
+                Text(average + (avgS >= 130 || avgD >= 80 ? ", acima de 130/80: vale a pena mostrar a um médico." : ".")).font(.geist(12.5)).foregroundStyle(avgS >= 130 || avgD >= 80 ? Color.warn : Color.soft)
             }
             HStack {
-                Picker("", selection: $labName) { ForEach(["Fasting glucose", "Fasting insulin", "HbA1c", "LDL", "HDL", "Triglycerides", "Vitamin D", "Ferritin"], id: \.self) { Text($0).tag($0) } }.labelsHidden()
-                TextField("Value", text: $labValue).keyboardType(.decimalPad).frame(width: 70)
-                SoftButton(title: "Add") {
+                Picker("", selection: $labName) { ForEach(["Fasting glucose", "Fasting insulin", "HbA1c", "LDL", "HDL", "Triglycerides", "Vitamin D", "Ferritin"], id: \.self) { Text(labLabel($0)).tag($0) } }.labelsHidden()
+                TextField("Valor", text: $labValue).keyboardType(.decimalPad).frame(width: 70)
+                SoftButton(title: "Adicionar") {
                     let units = ["Fasting glucose": "mg/dL", "Fasting insulin": "µU/mL", "HbA1c": "%", "Vitamin D": "ng/mL", "Ferritin": "ng/mL"]
                     if let v = Double(labValue.replacingOccurrences(of: ",", with: ".")) { store.save(LabResult(name: labName, value: v, unit: units[labName] ?? "mg/dL")); labValue = "" }
                 }
             }
             if let h = store.homaIR {
-                Text(String(format: "HOMA-IR %.2f from %@", h.value, Day.date(h.date).formatted(.dateTime.day().month().year())) + (h.value >= 2.9 ? ": above 2.9, the insulin-resistance line in Google's WEAR-ME study." : ": below 2.9.")).font(.geist(12.5)).foregroundStyle(h.value >= 2.9 ? Color.warn : Color.good)
+                Text(String(format: "HOMA-IR %.2f, de %@", h.value, Day.date(h.date).formatted(.dateTime.day().month().year())) + (h.value >= 2.9 ? ": acima de 2.9, o limiar de resistência à insulina no estudo WEAR-ME da Google." : ": abaixo de 2.9.")).font(.geist(12.5)).foregroundStyle(h.value >= 2.9 ? Color.warn : Color.good)
             } else {
-                Text("One fasting glucose and insulin test gives your own HOMA-IR (glucose × insulin ÷ 405), the anchor for the insulin estimate.").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("Uma análise de glicose e insulina em jejum dá o teu próprio HOMA-IR (glicose × insulina ÷ 405), a base da estimativa de insulina.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
-            ShareLink(item: store.doctorSummary(), preview: SharePreview("Cadence health summary")) { Label("Doctor summary", systemImage: "doc.text") }.font(.geist(13.5, .semibold)).tint(.mint)
+            ShareLink(item: store.doctorSummary(), preview: SharePreview("Resumo de saúde do Cadence")) { Label("Resumo para o médico", systemImage: "doc.text") }.font(.geist(13.5, .semibold)).tint(.mint)
         }
     }
 }

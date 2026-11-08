@@ -11,10 +11,10 @@ enum TempoBreath: Equatable {
 
     var word: String {
         switch self {
-        case .inhale: return "Breathe in"
-        case .exhale: return "Breathe out"
-        case .hold: return "Hold breath"
-        case .steady: return "Breathe steady"
+        case .inhale: return "Inspira"
+        case .exhale: return "Expira"
+        case .hold: return "Sustém o ar"
+        case .steady: return "Respira com calma"
         }
     }
 
@@ -38,14 +38,14 @@ struct TempoPhase: Equatable {
     var from: Double
     var to: Double
 
-    static func lower(_ seconds: Double, word: String = "Lower", from: Double = 1, to: Double = 0) -> TempoPhase {
+    static func lower(_ seconds: Double, word: String = "Desce", from: Double = 1, to: Double = 0) -> TempoPhase {
         TempoPhase(kind: .eccentric, word: word, seconds: seconds, breath: .inhale, from: from, to: to)
     }
-    static func lift(_ seconds: Double, word: String = "Lift", from: Double = 0, to: Double = 1) -> TempoPhase {
+    static func lift(_ seconds: Double, word: String = "Sobe", from: Double = 0, to: Double = 1) -> TempoPhase {
         TempoPhase(kind: .concentric, word: word, seconds: seconds, breath: .exhale, from: from, to: to)
     }
     static func hold(_ seconds: Double, at position: Double) -> TempoPhase {
-        TempoPhase(kind: .hold, word: "Hold", seconds: seconds, breath: .hold, from: position, to: position)
+        TempoPhase(kind: .hold, word: "Segura", seconds: seconds, breath: .hold, from: position, to: position)
     }
 }
 
@@ -124,7 +124,7 @@ struct TempoPlan: Equatable {
 
     /// Pulldowns and pushdowns: the effort moves the handle down, then it comes back up
     private static func downFirst(word: String, squeeze: Double) -> TempoPlan {
-        TempoPlan(phases: [.lift(2, word: word, from: 1, to: 0), .hold(squeeze, at: 0), .lower(3, word: "Return", from: 0, to: 1)])
+        TempoPlan(phases: [.lift(2, word: word, from: 1, to: 0), .hold(squeeze, at: 0), .lower(3, word: "Volta", from: 0, to: 1)])
     }
 
     /// Classifies by whole words of the id and name, so "narrow" isn't a row and "press down" isn't a press
@@ -143,11 +143,11 @@ struct TempoPlan: Equatable {
         }
         let paused = has("pause", "paused")
 
-        if isTimed() { return TempoPlan(phases: [TempoPhase(kind: .hold, word: "Hold", seconds: 1, breath: .steady, from: 0, to: 1)], timed: true) }
+        if isTimed() { return TempoPlan(phases: [TempoPhase(kind: .hold, word: "Segura", seconds: 1, breath: .steady, from: 0, to: 1)], timed: true) }
 
-        if has("pulldown", "pull down") { return downFirst(word: "Pull", squeeze: paused ? 2 : 1) }
+        if has("pulldown", "pull down") { return downFirst(word: "Puxa", squeeze: paused ? 2 : 1) }
         if has("pushdown", "push down", "pressdown", "press down") || (has("machine") && has("tricep extension", "triceps extension")) {
-            return downFirst(word: "Push", squeeze: paused ? 2 : 1)
+            return downFirst(word: "Empurra", squeeze: paused ? 2 : 1)
         }
 
         // These start from the top even though their names say curl, deadlift or extension
@@ -489,8 +489,8 @@ struct TempoGuideView: View {
                 if weight > 0 { Text("\(kg(weight)) kg").font(.mono(13)).foregroundStyle(Color.soft) }
             }
             Spacer()
-            toggle(on: $breathOn, icon: "lungs.fill", off: "lungs", label: "Speak breathing", id: "guide.breath")
-            toggle(on: $voiceOn, icon: "speaker.wave.2.fill", off: "speaker.slash.fill", label: "Voice", id: "guide.voice")
+            toggle(on: $breathOn, icon: "lungs.fill", off: "lungs", label: "Dizer a respiração", id: "guide.breath")
+            toggle(on: $voiceOn, icon: "speaker.wave.2.fill", off: "speaker.slash.fill", label: "Voz", id: "guide.voice")
         }
         .padding(.top, 8)
     }
@@ -521,7 +521,7 @@ struct TempoGuideView: View {
     private func countdown(_ left: Int) -> some View {
         VStack(spacing: 10) {
             Spacer()
-            Text("Get in position").font(.geist(30, .bold)).foregroundStyle(Color.ink)
+            Text("Põe-te em posição").font(.geist(30, .bold)).foregroundStyle(Color.ink)
             Text("\(left)").font(.mono(220, .semibold)).foregroundStyle(Color.train).lineLimit(1).minimumScaleFactor(0.5)
                 .accessibilityIdentifier("guide.countdown")
             Text(firstMoveHint).font(.geist(19, .semibold)).foregroundStyle(Color.soft).multilineTextAlignment(.center)
@@ -532,7 +532,7 @@ struct TempoGuideView: View {
 
     private var firstMoveHint: String {
         let first = runner.frame?.phase ?? plan.phases[0]
-        return plan.timed ? "\(target) s · \(first.breath.word.lowercased())" : "\(first.word) first · \(first.breath.word.lowercased())"
+        return plan.timed ? "\(target) s · \(first.breath.word.lowercased())" : "\(first.word) primeiro · \(first.breath.word.lowercased())"
     }
 
     private var active: some View {
@@ -554,7 +554,7 @@ struct TempoGuideView: View {
 
     private var counter: some View {
         let shown = plan.timed ? moment.completed : moment.rep
-        let label: String = plan.timed ? "\(shown) of \(moment.target) seconds" : "Rep \(shown) of \(moment.target)"
+        let label: String = plan.timed ? "\(shown) de \(moment.target) segundos" : "Repetição \(shown) de \(moment.target)"
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(shown)").font(.mono(116, .semibold)).foregroundStyle(Color.ink)
             Text("/ \(moment.target)\(plan.timed ? " s" : "")").font(.mono(38)).foregroundStyle(Color.soft)
@@ -569,8 +569,8 @@ struct TempoGuideView: View {
         let paused = runner.stage == .paused
         let breath = moment.phase.breath
         return VStack(spacing: 8) {
-            Text(paused ? "Paused" : moment.phase.word).font(.geist(58, .bold)).foregroundStyle(Color.ink).lineLimit(1).minimumScaleFactor(0.6)
-            Text(paused ? "Take your time" : breath.word).font(.geist(36, .bold)).foregroundStyle(paused ? Color.ink : Color.bg)
+            Text(paused ? "Em pausa" : moment.phase.word).font(.geist(58, .bold)).foregroundStyle(Color.ink).lineLimit(1).minimumScaleFactor(0.6)
+            Text(paused ? "Sem pressa" : breath.word).font(.geist(36, .bold)).foregroundStyle(paused ? Color.ink : Color.bg)
                 .lineLimit(1).minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity).padding(.vertical, 14)
                 .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(paused ? Color.white.opacity(0.1) : breath.color))
@@ -580,10 +580,10 @@ struct TempoGuideView: View {
     private var controls: some View {
         let paused = runner.stage == .paused
         return HStack(spacing: 10) {
-            bigButton(paused ? "Resume" : "Pause", icon: paused ? "play.fill" : "pause.fill", id: "guide.pause") {
+            bigButton(paused ? "Retomar" : "Pausa", icon: paused ? "play.fill" : "pause.fill", id: "guide.pause") {
                 if paused { runner.resume() } else { runner.pause() }
             }
-            bigButton("Stop", icon: "stop.fill", id: "guide.stop") { runner.stop() }
+            bigButton("Parar", icon: "stop.fill", id: "guide.stop") { runner.stop() }
         }
     }
 
@@ -603,26 +603,26 @@ struct TempoGuideView: View {
             Image(systemName: runner.completedAll ? "checkmark.circle.fill" : "stop.circle")
                 .font(.system(size: 90, weight: .bold))
                 .foregroundStyle(runner.completedAll ? Color.good : Color.soft)
-            Text(runner.completedAll ? "Set done" : "Stopped").font(.geist(46, .bold)).foregroundStyle(Color.ink)
+            Text(runner.completedAll ? "Série feita" : "Paraste").font(.geist(46, .bold)).foregroundStyle(Color.ink)
             reachedEditor
             Spacer()
-            PrimaryButton(title: "Mark set done · \(runner.reached) \(unit)", area: .train) {
+            PrimaryButton(title: "Registar série · \(runner.reached) \(unit)", area: .train) {
                 finish(runner.reached)
                 dismiss()
             }
             .disabled(runner.reached == 0)
             .opacity(runner.reached == 0 ? 0.4 : 1)
             .accessibilityIdentifier("guide.finish")
-            SoftButton(title: "Close without saving") { dismiss() }
+            SoftButton(title: "Fechar sem guardar") { dismiss() }
                 .accessibilityIdentifier("guide.close")
         }
     }
 
     private var reachedEditor: some View {
         HStack(spacing: 18) {
-            adjust("minus", label: "Fewer") { runner.reached = max(0, runner.reached - 1) }
+            adjust("minus", label: "Menos") { runner.reached = max(0, runner.reached - 1) }
             Text("\(runner.reached) \(unit)").font(.mono(30, .semibold)).foregroundStyle(Color.ink).frame(minWidth: 130)
-            adjust("plus", label: "More") { runner.reached = min(999, runner.reached + 1) }
+            adjust("plus", label: "Mais") { runner.reached = min(999, runner.reached + 1) }
         }
     }
 
