@@ -55,6 +55,22 @@ final class NightUITests: CadenceUITestCase {
         XCTAssertTrue(el("night.intent").waitForExistence(timeout: 5), "Today keeps the intention, nothing more to do")
     }
 
+    /// 22:00, the night's brushing answered «Não fiz»: the sequence moves on, and it's said as it was answered, in the
+    /// sequence and in Antes de dormir, never «feito»
+    func testATeethHabitAnsweredNotDoneIsSaidAsNotDone() {
+        launch("night.skipped", minute: 22 * 60)
+        XCTAssertTrue(el("night.now.prepare").waitForExistence(timeout: 5), "the sequence moves on with any answer")
+        let steps = el("night.steps")
+        XCTAssertTrue(steps.waitForExistence(timeout: 5))
+        XCTAssertTrue(steps.label.contains("Dentes, não fiz"), "label was: \(steps.label)")
+        reveal("night.later").tap()
+        XCTAssertTrue(el("night.bedtime.screen").waitForExistence(timeout: 5))
+        let row = reveal("night.step.teeth")
+        XCTAssertTrue(row.label.contains("não fiz"), "label was: \(row.label)")
+        XCTAssertFalse(row.label.contains("feito"), "label was: \(row.label)")
+        shot("night-teeth-notdone")
+    }
+
     /// 23:50, past lights out + 30: the short version straight away, with reading 10 min still possible
     func testLateShowsOnlyTheEssentials() {
         launch("night.late", minute: 23 * 60 + 50)

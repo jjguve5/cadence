@@ -548,8 +548,7 @@ struct BrushingView: View {
                     Toggle("Fio dentário", isOn: $floss).tint(.mint)
                     Toggle("Elixir", isOn: $mouthwash).tint(.mint)
                     PrimaryButton(title: "Guardar") {
-                        store.save(BrushLog(seconds: Int(total), floss: floss, mouthwash: mouthwash))
-                        if let p = store.due().first(where: { $0.title.lowercased().contains("brush") && store.status($0) == nil && abs(store.time(of: $0) - Day.minuteOfDay()) < 180 }) { store.log(p, .done) }
+                        store.saveBrushing(BrushLog(seconds: Int(total), floss: floss, mouthwash: mouthwash)) // answers the night's habit after midnight (Night.swift)
                         clear()
                         dismiss()
                     }

@@ -354,6 +354,252 @@ final class NightTests: RegressionCase {
         XCTAssertTrue(s.noFood)
     }
 
+    // MARK: Answered is not done (audit B3-E3 and M7)
+
+    /// How a step ended: done when you did it, or answered «feito»; with every habit answered and none done, «Não se
+    /// aplica» if all were, otherwise «Não fiz»; nil while one is open. A tag for what wasn't done, none for what was.
+    func testAStepsOutcomeFollowsWhatYouDidAndTheAnswers() {
+        XCTAssertEqual(NightRules.outcome(did: true, answers: [.notDone]), .done, "brushed after all: done, whatever the habit said")
+        XCTAssertEqual(NightRules.outcome(did: true, answers: []), .done, "brushed with no habit")
+        XCTAssertEqual(NightRules.outcome(did: false, answers: [.done, .notDone]), .done)
+        XCTAssertEqual(NightRules.outcome(did: false, answers: [.notDone]), .notDone)
+        XCTAssertEqual(NightRules.outcome(did: false, answers: [.notApplicable]), .notApplicable)
+        XCTAssertEqual(NightRules.outcome(did: false, answers: [.notApplicable, .notDone]), .notDone)
+        XCTAssertNil(NightRules.outcome(did: false, answers: [.done, .notConfirmed]), "one still open: not resolved")
+        XCTAssertNil(NightRules.outcome(did: false, answers: []))
+        XCTAssertEqual(NightRules.skipTag(.notDone)?.text, "Não fiz")
+        XCTAssertEqual(NightRules.skipTag(.notDone)?.state, .ignored)
+        XCTAssertEqual(NightRules.skipTag(.notApplicable)?.text, "Não se aplica")
+        XCTAssertEqual(NightRules.skipTag(.notApplicable)?.state, .unavailable)
+        XCTAssertNil(NightRules.skipTag(.done), "done shows as done")
+        XCTAssertNil(NightRules.skipTag(nil))
+    }
+
+    /// A teeth habit answered «Não fiz» or «Não se aplica»: the sequence moves on, but it's said as it was answered,
+    /// never «feito»
+    @MainActor
+    func testATeethHabitSkippedMovesTheNightOnButIsNeverDone() throws {
+        let brush = PromiseItem(id: "BR", title: "Brush teeth, night", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60))
+        let store = try makeStore { $0.promises[brush.id] = brush }
+        let minute = 22 * 60 + 30
+        XCTAssertEqual(store.nightStatus(minute: minute).current, .teeth)
+        store.log(brush, on: Day.today, .skipped)
+        var status = store.nightStatus(minute: minute)
+        XCTAssertNotEqual(status.current, .teeth, "the sequence moves on with any answer")
+        XCTAssertEqual(status.skipped[.teeth], .notDone)
+        XCTAssertEqual(status.spoken(.teeth), "Dentes, não fiz", "what VoiceOver says")
+        XCTAssertEqual(store.nightTeethAnswer(on: Day.today), .notDone)
+        store.log(brush, on: Day.today, .skipped, notApplicable: true)
+        status = store.nightStatus(minute: minute)
+        XCTAssertNotEqual(status.current, .teeth)
+        XCTAssertEqual(status.skipped[.teeth], .notApplicable)
+        XCTAssertEqual(status.spoken(.teeth), "Dentes, não se aplica")
+        store.log(brush, on: Day.today, .done)
+        status = store.nightStatus(minute: minute)
+        XCTAssertNil(status.skipped[.teeth])
+        XCTAssertEqual(status.spoken(.teeth), "Dentes, feito")
+    }
+
+    /// The same for a reading habit; and a reading done that night counts as done, even after a «Não fiz»
+    @MainActor
+    func testAReadingHabitSkippedIsNeverDoneUnlessYouRead() throws {
+        let read = PromiseItem(id: "RD", title: "Read 30 min", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60 + 15))
+        let store = try makeStore { $0.promises[read.id] = read }
+        let day = Fixed.saturday
+        XCTAssertEqual(store.nightRead(on: day), false, "still open")
+        XCTAssertNil(store.nightReadAnswer(on: day))
+        store.log(read, on: day, .skipped, notApplicable: true)
+        XCTAssertEqual(store.nightRead(on: day), true, "resolved: the sequence moves on")
+        XCTAssertEqual(store.nightReadAnswer(on: day), .notApplicable)
+        store.log(read, on: day, .skipped)
+        XCTAssertEqual(store.nightReadAnswer(on: day), .notDone)
+        store.save(ReadingSession(id: "RS", date: day, start: Day.at(22 * 60, on: day).timeIntervalSince1970 * 1000, minutes: 20))
+        XCTAssertEqual(store.nightReadAnswer(on: day), .done, "you read after all")
+    }
+
+    /// In the morning a bedtime habit answered «Não fiz» is said as that, never «Confirmado»; no source is still no label
+    func testABedtimeHabitAnsweredNotDoneIsNotConfirmed() {
+        XCTAssertEqual(NightRules.answerTag(.you, .done)?.state, .confirmed)
+        XCTAssertNil(NightRules.answerTag(.you, .done)?.text, "the state's own word")
+        XCTAssertEqual(NightRules.answerTag(.imported("fitbit"), .done)?.state, .imported)
+        XCTAssertEqual(NightRules.answerTag(.you, .notDone)?.state, .ignored)
+        XCTAssertEqual(NightRules.answerTag(.you, .notDone)?.text, "Não fiz")
+        XCTAssertEqual(NightRules.answerTag(.you, .notApplicable)?.state, .unavailable)
+        XCTAssertEqual(NightRules.answerTag(.you, .notApplicable)?.text, "Não se aplica")
+        XCTAssertNil(NightRules.answerTag(.unknown, .notDone), "no source: no label, as before")
+        XCTAssertNil(NightRules.answerTag(nil, .notConfirmed))
+    }
+
+    // MARK: After midnight the night still belongs to the evening before (audit B3-E4)
+
+    /// On the night's day from 14:00 (teeth) or 18:00 (reading), or on the next day before the morning: your wake time,
+    /// or 05:00 without one. Neither the evening before the night nor the next evening.
+    func testWhatYouDoCountsForTheNightInItsWindow() {
+        let night = Fixed.saturday, next = Fixed.sunday, wake = 7 * 60 + 15
+        let teeth = { (date: String, minute: Int) -> Bool in NightRules.inNight(date: date, minute: minute, night: night, from: NightRules.teethFrom, wake: wake) }
+        XCTAssertEqual(NightRules.teethFrom, 14 * 60)
+        XCTAssertEqual(NightRules.readFrom, 18 * 60)
+        XCTAssertFalse(teeth(night, 14 * 60 - 1))
+        XCTAssertTrue(teeth(night, 14 * 60))
+        XCTAssertTrue(teeth(night, 23 * 60 + 59))
+        XCTAssertTrue(teeth(next, 30), "0:30 belongs to the night")
+        XCTAssertTrue(teeth(next, wake - 1))
+        XCTAssertFalse(teeth(next, wake), "from the wake time on it's the morning")
+        XCTAssertFalse(teeth(Day.add(-1, to: night), 23 * 60), "the evening before isn't this night")
+        XCTAssertFalse(teeth(Day.add(2, to: night), 30))
+        XCTAssertFalse(NightRules.inNight(date: night, minute: 18 * 60 - 1, night: night, from: NightRules.readFrom, wake: wake), "reading from 18:00")
+        XCTAssertTrue(NightRules.inNight(date: night, minute: 18 * 60, night: night, from: NightRules.readFrom, wake: wake))
+        XCTAssertTrue(NightRules.inNight(date: next, minute: 5 * 60 - 1, night: night, from: NightRules.teethFrom, wake: nil), "no wake time: until 05:00")
+        XCTAssertFalse(NightRules.inNight(date: next, minute: 5 * 60, night: night, from: NightRules.teethFrom, wake: nil))
+    }
+
+    /// A brushing and a reading at 0:30 count for the night that started the evening before, up to your wake time, and
+    /// not for the evening of the day they fall on
+    @MainActor
+    func testBrushingAndReadingAtHalfPastMidnightCountForTheNight() throws {
+        let night = Fixed.saturday, next = Fixed.sunday
+        let brush = PromiseItem(id: "BR", title: "Brush teeth, night", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60))
+        let read = PromiseItem(id: "RD", title: "Read 30 min", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60 + 15))
+        let store = try makeStore { s in
+            s.promises[brush.id] = brush
+            s.promises[read.id] = read
+            s.profile.wakeMinute = 6 * 60
+        }
+        XCTAssertEqual(store.nightTeeth(on: night), false)
+        XCTAssertEqual(store.nightRead(on: night), false)
+        store.save(BrushLog(id: "B1", date: next, minute: 30, seconds: 120))
+        store.save(ReadingSession(id: "RS", date: next, start: Day.at(35, on: next).timeIntervalSince1970 * 1000, minutes: 20))
+        XCTAssertEqual(store.nightTeeth(on: night), true, "brushed at 0:30")
+        XCTAssertEqual(store.nightTeethAnswer(on: night), .done)
+        XCTAssertEqual(store.nightBrushMinute(on: night), 24 * 60 + 30, "on the evening's clock")
+        XCTAssertEqual(store.nightRead(on: night), true, "read at 0:35")
+        XCTAssertEqual(store.nightReadAnswer(on: night), .done)
+        XCTAssertEqual(store.nightTeeth(on: next), false, "0:30 isn't the evening of that day")
+        XCTAssertEqual(store.nightRead(on: next), false)
+        let wake = try makeStore { s in
+            s.promises[brush.id] = brush
+            s.profile.wakeMinute = 6 * 60
+            s.add(BrushLog(id: "B2", date: next, minute: 6 * 60, seconds: 120))
+        }
+        XCTAssertEqual(wake.nightTeeth(on: night), false, "at the wake time it's a morning brushing, by your wake time and not 7:15")
+    }
+
+    /// At 0:30 the night's status sees the brushing and the reading done since midnight
+    @MainActor
+    func testTheNightsStatusAtHalfPastMidnightSeesWhatYouDidThen() throws {
+        let brush = PromiseItem(id: "BR", title: "Brush teeth, night", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60))
+        let read = PromiseItem(id: "RD", title: "Read 30 min", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60 + 15))
+        let store = try makeStore { s in
+            s.promises[brush.id] = brush
+            s.promises[read.id] = read
+        }
+        XCTAssertFalse(store.nightStatus(minute: 30).done.contains(.teeth))
+        XCTAssertFalse(store.nightStatus(minute: 30).done.contains(.read))
+        store.save(BrushLog(id: "B1", date: Day.today, minute: 30, seconds: 120))
+        store.save(ReadingSession(id: "RS", date: Day.today, start: Day.at(20, on: Day.today).timeIntervalSince1970 * 1000, minutes: 20))
+        let status = store.nightStatus(minute: 30)
+        XCTAssertTrue(status.done.contains(.teeth), "brushed since midnight")
+        XCTAssertTrue(status.done.contains(.read), "read since midnight")
+        XCTAssertEqual(status.spoken(.teeth), "Dentes, feito")
+    }
+
+    /// The brushing timer used after midnight and before you wake answers the evening's open habit, as yours, and not
+    /// today's; with that one answered, or past the wake time, the rule is today's habit within 3 h, as before
+    @MainActor
+    func testTheBrushingTimerAfterMidnightAnswersTheEveningsHabit() throws {
+        let night = Fixed.saturday, next = Fixed.sunday
+        let brush = PromiseItem(id: "BR", title: "Brush teeth, night", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60))
+        let morning = PromiseItem(id: "BM", title: "Brush teeth, morning", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 7 * 60 + 30))
+        let store = try makeStore { s in
+            s.promises[brush.id] = brush
+            s.promises[morning.id] = morning
+        }
+        var target = try XCTUnwrap(store.brushingHabit(minute: 6 * 60, today: next))
+        XCTAssertEqual(target.promise.id, "BR", "before you wake, the night's habit first, though the morning's is within 3 h")
+        XCTAssertEqual(target.day, night)
+        store.saveBrushing(BrushLog(id: "B1", date: next, minute: 30, seconds: 120))
+        XCTAssertNotNil(store.record(BrushLog.self, "B1"), "the brushing itself is saved")
+        XCTAssertEqual(store.status(brush, on: night), .done, "the evening's habit")
+        XCTAssertEqual(store.answerOrigin(brush, on: night), .you)
+        XCTAssertNil(store.status(brush, on: next), "not today's")
+        XCTAssertNil(store.status(morning, on: next))
+        target = try XCTUnwrap(store.brushingHabit(minute: 6 * 60, today: next))
+        XCTAssertEqual(target.promise.id, "BM", "the night's answered: today's within 3 h, as before")
+        XCTAssertEqual(target.day, next)
+        XCTAssertNil(store.brushingHabit(minute: 30, today: next), "nothing open and nothing within 3 h")
+        let evening = try XCTUnwrap(store.brushingHabit(minute: 22 * 60 + 30, today: next))
+        XCTAssertEqual(evening.promise.id, "BR", "in the evening, today's habit")
+        XCTAssertEqual(evening.day, next)
+        let later = try makeStore { $0.promises[brush.id] = brush }
+        XCTAssertNil(later.brushingHabit(minute: later.profile.wakeMinute, today: next), "from the wake time on the evening's habit is left as it is")
+    }
+
+    // MARK: Desfazer's restores (validation C-L2)
+
+    /// restoreLeaveDay: puts the day back exactly as it was, or removes it if there was none; with none and nothing
+    /// there it adds nothing
+    @MainActor
+    func testRestoreLeaveDayPutsTheDayBackOrRemovesIt() throws {
+        let store = try makeStore()
+        let day = Fixed.monday
+        store.restoreLeaveDay(nil, day: day)
+        XCTAssertNil(store.records(LeaveDay.kind)[day], "nothing there: nothing added")
+        let before = LeaveDay(id: day, date: day, seen: ["keys"], at: 3)
+        store.save(LeaveDay(id: day, date: day, seen: ["keys", "umbrella"], ready: 9, closed: true, at: 9))
+        store.restoreLeaveDay(before, day: day)
+        XCTAssertEqual(store.leaveDay(day), before, "as it was before: not merged with what came after")
+        store.restoreLeaveDay(nil, day: day)
+        XCTAssertNil(store.leaveDay(day), "there was none before: gone")
+        XCTAssertNil(store.records(LeaveDay.kind)[day])
+    }
+
+    /// restoreLeaveItem: an edit to one of the app's three goes back to the code's version; one of yours to what it was
+    @MainActor
+    func testRestoreLeaveItemPutsTheItemBackOrRemovesIt() throws {
+        let store = try makeStore()
+        var keys = LeaveRules.builtIns[0]
+        keys.title = "Chaves"
+        store.save(keys)
+        XCTAssertEqual(store.leaveItems.first?.title, "Chaves")
+        store.restoreLeaveItem(nil, id: "keys")
+        XCTAssertNil(store.record(LeaveItem.self, "keys"), "no record before: none now")
+        XCTAssertEqual(store.leaveItems.first?.title, "Chaves e carteira")
+        let before = LeaveItem(id: "mine-pass", title: "Passe", at: 1)
+        store.save(LeaveItem(id: "mine-pass", title: "Passe do metro", removed: true, at: 2))
+        XCTAssertFalse(store.leaveItems.contains { $0.id == "mine-pass" })
+        store.restoreLeaveItem(before, id: "mine-pass")
+        XCTAssertEqual(store.record(LeaveItem.self, "mine-pass"), before)
+        XCTAssertTrue(store.leaveItems.contains { $0.id == "mine-pass" }, "back on the list")
+    }
+
+    /// restoreBag: the bag as it was, or none if there was none
+    @MainActor
+    func testRestoreBagPutsTheBagBackOrRemovesIt() throws {
+        let store = try makeStore()
+        let day = Fixed.monday
+        store.restoreBag(nil, day: day)
+        XCTAssertNil(store.records(GymBagPack.kind)[day], "nothing there: nothing added")
+        let before = GymBagPack(id: day, date: day, items: ["towel"], done: false, at: 5)
+        store.save(GymBagPack(id: day, date: day, items: ["towel", "bottle"], done: true, at: 9))
+        store.restoreBag(before, day: day)
+        XCTAssertEqual(store.gymBagPack(for: day), before)
+        store.restoreBag(nil, day: day)
+        XCTAssertNil(store.gymBagPack(for: day), "there was none before: gone")
+        XCTAssertNil(store.records(GymBagPack.kind)[day])
+    }
+
+    /// The reminder at the time to leave is on unless you turn it off. (The scheduling itself is inside Reminders'
+    /// private rebuild, on the shared store and the notification centre: not testable without changing it.)
+    func testTheLeaveReminderIsOnUnlessYouTurnItOff() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: LeaveRules.reminderKey)
+        defer { defaults.set(saved, forKey: LeaveRules.reminderKey) }
+        defaults.removeObject(forKey: LeaveRules.reminderKey)
+        XCTAssertTrue(LeaveRules.reminderOn, "on by default")
+        defaults.set(false, forKey: LeaveRules.reminderKey)
+        XCTAssertFalse(LeaveRules.reminderOn)
+    }
+
     // MARK: The morning
 
     /// Where an answer came from, as its label: imported, yours, or no label at all for an unknown source

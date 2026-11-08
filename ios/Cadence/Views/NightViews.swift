@@ -20,8 +20,13 @@ struct ReadingStart: Identifiable {
 struct HabitAnswer: Identifiable {
     var promise: PromiseItem
     var state: DataState
+    var text: String? = nil // «Não fiz» or «Não se aplica»; nil is the state's own word
+    var imported = false // answered from the band, not by you
     var id: String { promise.id }
 }
+
+/// A row's icon for an answer that isn't «feito»: a minus for «Não fiz», a slash for «Não se aplica», as their tags
+fileprivate func skipIcon(_ state: DataState) -> String { state == .unavailable ? "slash.circle" : "minus.circle" }
 
 // MARK: - Today at night
 
@@ -246,9 +251,13 @@ struct NightStepsRow: View {
             ForEach(status.steps, id: \.self) { step in
                 let done = status.done.contains(step)
                 let now = status.current == step
+                let skip = NightRules.skipTag(status.skipped[step])
                 VStack(spacing: 4) {
                     ZStack {
-                        if done {
+                        if let skip {
+                            Circle().stroke(Color.faint, lineWidth: 1.5)
+                            Image(systemName: skip.state == .unavailable ? "line.diagonal" : "minus").font(.system(size: 10, weight: .bold)).foregroundStyle(Color.soft)
+                        } else if done {
                             Circle().fill(Color.mint)
                             Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(Color(hex: 0x05140F))
                         } else {
@@ -257,23 +266,17 @@ struct NightStepsRow: View {
                         }
                     }
                     .frame(width: 20, height: 20)
-                    Text(step.label).font(.geist(11, .semibold)).foregroundStyle(done ? Color.mint : now ? Color.ink : Color.faint)
+                    Text(step.label).font(.geist(11, .semibold)).foregroundStyle(skip != nil ? Color.soft : done ? Color.mint : now ? Color.ink : Color.faint)
                         .multilineTextAlignment(.center)
+                    if let skip { Text(skip.text).font(.geist(10)).foregroundStyle(Color.faint).multilineTextAlignment(.center) }
                 }
                 .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 4)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Sequência da noite: " + status.steps.map(spoken).joined(separator: "; "))
+        .accessibilityLabel("Sequência da noite: " + status.steps.map { status.spoken($0) }.joined(separator: "; "))
         .accessibilityIdentifier("night.steps")
-    }
-
-    /// "Dentes, feito"
-    private func spoken(_ step: NightStep) -> String {
-        let state: String
-        if status.done.contains(step) { state = "feito" } else if status.current == step { state = "agora" } else { state = "depois" }
-        return step.label + ", " + state
     }
 }
 
@@ -531,6 +534,7 @@ struct BedtimeView: View {
         let routine = store.nightRoutine(on: day)
         let prepare = store.nightPrepare(on: day)
         let read = store.nightRead(on: day)
+        let readAnswer = store.nightReadAnswer(on: day)
         let hasRows = !teeth.isEmpty || prepare != nil || routine != nil || read != nil
         let planText: String = read == false && suggestion != nil ? "Ler até às \(clock(suggestion?.until ?? 0)) · luzes às \(clock(plan.perform))" : "Luzes às \(clock(plan.perform))"
         return Screen(glow: .sleep) {
@@ -555,7 +559,7 @@ struct BedtimeView: View {
                     if !teeth.isEmpty { teethRow(teeth, day: day) }
                     if let prepare { prepareRow(done: prepare) }
                     if let routine { ForEach(routine.steps) { step in routineRow(step, of: routine, day: day) } }
-                    if let read { readRow(done: read, suggestion: suggestion, day: day) }
+                    if read != nil { readRow(answer: readAnswer, suggestion: suggestion, day: day) }
                 }
             }
             Button { store.goingToSleep(minute: NightRules.evening(minute), on: day) } label: {
@@ -570,34 +574,38 @@ struct BedtimeView: View {
         }
     }
 
-    private func checkRow(_ title: String, sub: String, done: Bool, id: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// `skip`: answered «Não fiz» or «Não se aplica», which shows as that: never a tick, never «feito»
+    private func checkRow(_ title: String, sub: String, done: Bool, skip: (state: DataState, text: String)? = nil, id: String, action: @escaping () -> Void) -> some View {
+        let icon: String = skip.map { skipIcon($0.state) } ?? (done ? "checkmark.circle.fill" : "circle")
+        let spoken: String = skip?.text.lowercased() ?? (done ? "feito" : "por fazer")
+        return Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: done ? "checkmark.circle.fill" : "circle").font(.system(size: 22)).foregroundStyle(done ? Color.good : Color.soft)
+                Image(systemName: icon).font(.system(size: 22)).foregroundStyle(done && skip == nil ? Color.good : Color.soft)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.geist(14)).foregroundStyle(Color.ink)
                     Text(sub).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if let skip { StateTag(state: skip.state, text: skip.text) }
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(title), \(done ? "feito" : "por fazer")")
+        .accessibilityLabel("\(title), \(spoken)")
         .accessibilityIdentifier(id)
     }
 
     private func teethRow(_ habits: [PromiseItem], day: String) -> some View {
-        let open = habits.filter { store.status($0, on: day) == nil }
-        let brushed = store.brushes(on: day).filter { $0.minute >= 14 * 60 }.map { $0.minute }.max()
+        let answer = store.nightTeethAnswer(on: day)
+        let brushed = store.nightBrushMinute(on: day)
         let answered = habits.compactMap { store.logs["\($0.id)|\(day)"]?.at }.max()
-        let done = open.isEmpty || brushed != nil
+        let done = answer == .done
         let sub: String
         if let brushed { sub = clock(brushed) }
-        else if done, let answered { sub = clock(Day.minuteOfDay(Date(timeIntervalSince1970: answered / 1000))) }
+        else if answer != nil, let answered { sub = clock(Day.minuteOfDay(Date(timeIntervalSince1970: answered / 1000))) }
         else { sub = done ? "feito" : "2 min" }
-        return checkRow("Lavar os dentes", sub: sub, done: done, id: "night.step.teeth") { if !done { store.markTeethDone(on: day) } }
+        return checkRow("Lavar os dentes", sub: sub, done: done, skip: NightRules.skipTag(answer), id: "night.step.teeth") { if answer == nil { store.markTeethDone(on: day) } }
     }
 
     @ViewBuilder private func prepareRow(done: Bool) -> some View {
@@ -631,17 +639,26 @@ struct BedtimeView: View {
         }
     }
 
-    private func readRow(done: Bool, suggestion: (minutes: Int, until: Int)?, day: String) -> some View {
+    private func readRow(answer: ReviewAnswer?, suggestion: (minutes: Int, until: Int)?, day: String) -> some View {
+        let done = answer == .done
+        let skip = NightRules.skipTag(answer)
         let parts: [String] = [store.currentBook?.title, suggestion.map { "\($0.minutes) min sugeridos" }].compactMap { $0 }
-        let sub: String = done ? "feito" : (parts.isEmpty ? "quando quiseres" : parts.joined(separator: " · "))
+        let answered = store.readHabits(on: day).compactMap { store.logs["\($0.id)|\(day)"]?.at }.max()
+        let icon: String = skip.map { skipIcon($0.state) } ?? (done ? "checkmark.circle.fill" : "circle")
+        let sub: String
+        if done { sub = "feito" }
+        else if skip != nil { sub = answered.map { clock(Day.minuteOfDay(Date(timeIntervalSince1970: $0 / 1000))) } ?? "" }
+        else { sub = parts.isEmpty ? "quando quiseres" : parts.joined(separator: " · ") }
         return HStack(spacing: 10) {
-            Image(systemName: done ? "checkmark.circle.fill" : "circle").font(.system(size: 22)).foregroundStyle(done ? Color.good : Color.soft)
+            Image(systemName: icon).font(.system(size: 22)).foregroundStyle(done ? Color.good : Color.soft)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Ler").font(.geist(14))
                 Text(sub).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
             }
             Spacer(minLength: 0)
-            if !done {
+            if let skip { StateTag(state: skip.state, text: skip.text) }
+            if answer == nil {
                 Button { start(suggestion?.minutes, day: day) } label: {
                     Label("Começar", systemImage: "play.fill").font(.geist(13, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
                         .padding(.horizontal, 14).frame(minHeight: 44).background(Capsule().fill(Area.read.gradient))
@@ -793,7 +810,7 @@ struct SleepMorningView: View {
                 if band != nil, manual == nil, store.profile.usesBand {
                     Card {
                         Eyebrow(text: "Apple Health")
-                        Text("Se o mesmo sono estiver no Apple Health, vindo do Fitbit, conta uma vez: o sono vem só do Fitbit.").font(.geist(13))
+                        Text("Se o mesmo sono estiver no Apple Health, vindo do \(store.sleepSourceName), conta uma vez: o sono vem só do \(store.sleepSourceName).").font(.geist(13))
                     }
                 }
                 if correcting || !hasData { entryCard(day, hasData: hasData) }
@@ -912,9 +929,14 @@ struct SleepMorningView: View {
         else if let band { bed = clock(Day.minuteOfDay(band.startDate)); wake = clock(Day.minuteOfDay(band.endDate)) }
     }
 
-    /// The bedtime habit as it was answered: «Importado» when the band ticked it, «Confirmado» when you did
+    /// The bedtime habit as it was answered: «Importado» when the band ticked it, «Confirmado» when you did, and «Não
+    /// fiz» or «Não se aplica» when that was the answer
     @ViewBuilder private func habitsCard(_ evening: String) -> some View {
-        let rows = store.bedtimeHabits(on: evening).compactMap { p in NightRules.answerState(store.answerOrigin(p, on: evening)).map { HabitAnswer(promise: p, state: $0) } }
+        let rows = store.bedtimeHabits(on: evening).compactMap { p -> HabitAnswer? in
+            let origin = store.answerOrigin(p, on: evening)
+            guard let tag = NightRules.answerTag(origin, store.reviewAnswer(p, on: evening)) else { return nil }
+            return HabitAnswer(promise: p, state: tag.state, text: tag.text, imported: NightRules.answerState(origin) == .imported)
+        }
         if !rows.isEmpty {
             Card {
                 Eyebrow(text: "Hora de deitar")
@@ -922,10 +944,10 @@ struct SleepMorningView: View {
                     HStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(r.promise.title).font(.geist(14))
-                            Text(r.state == .imported ? "marcado com os dados da pulseira, não por ti" : "respondido por ti").font(.geist(12)).foregroundStyle(Color.soft)
+                            Text(r.imported ? "marcado com os dados da pulseira, não por ti" : "respondido por ti").font(.geist(12)).foregroundStyle(Color.soft)
                         }
                         Spacer(minLength: 4)
-                        StateTag(state: r.state)
+                        StateTag(state: r.state, text: r.text)
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityIdentifier("night.morning.habit.\(r.promise.id)")

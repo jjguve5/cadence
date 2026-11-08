@@ -3,6 +3,7 @@
 //   night.leave — a regular trip leaving 40 min after the test's minute and one item of yours: Antes de sair is the step
 //   night.prep  — tonight's brushing done; tomorrow a training day, two clean pieces, training clothes clean and drying
 //   night.late  — the same evening, for a test minute past lights out + 30 (the short version)
+//   night.skipped — the same evening, with the night's brushing answered «Não fiz»
 import Foundation
 
 @MainActor
@@ -20,8 +21,13 @@ enum NightSeeds {
             let leave = now + 40
             store.save(RegularTrip(id: "night-trip", title: "Faculdade", destination: "Rua do Instituto, 5", weekdays: [Day.weekday(today)], arrive: leave + 35, travel: 25, buffer: 10))
             store.save(LeaveItem(id: "mine-night-pass", title: "Passe", at: 1))
-        case "night.prep", "night.late":
-            for p in store.nightBrushHabits(on: today) { store.log(p, on: today, .done) }
+        case "night.prep", "night.late", "night.skipped":
+            if scenario == "night.skipped" {
+                store.save(PromiseItem(id: "night-brush", title: "Brush teeth, night", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 22 * 60)))
+                for p in store.nightBrushHabits(on: today) { store.log(p, on: today, .skipped) }
+            } else {
+                for p in store.nightBrushHabits(on: today) { store.log(p, on: today, .done) }
+            }
             store.save(Garment(id: "night-top", name: "T-shirt cinzenta", type: "top", colors: ["9AA3B2"]))
             store.save(Garment(id: "night-bottom", name: "Calças de ganga", type: "bottom", colors: ["3E5C8A"]))
             store.save(Garment(id: "night-shorts", name: "Calções de treino", type: "gym", washGroup: "gym 30°", wearsBeforeWash: 1))

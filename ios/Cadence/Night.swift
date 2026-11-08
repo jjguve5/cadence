@@ -213,17 +213,30 @@ enum NightStep: String, CaseIterable {
     }
 }
 
-/// The night as it stands: the steps that have something to do, the ones resolved, and the one for now
+/// The night as it stands: the steps that have something to do, the ones resolved, and the one for now. Resolved is
+/// not done: `done` moves the sequence on with any answer, and `skipped` keeps the ones answered «Não fiz» or «Não se
+/// aplica», which are never shown as «feito».
 struct NightStatus: Equatable {
     var steps: [NightStep]
     var done: Set<NightStep>
     var late = false
+    var skipped: [NightStep: ReviewAnswer] = [:]
 
     /// The step for now. After «Vou dormir», none; when it's late, the short version (Dormir) straight away
     var current: NightStep? {
         if done.contains(.sleep) { return nil }
         if late { return .sleep }
         return steps.first { !done.contains($0) }
+    }
+
+    /// What VoiceOver says for a step: "Dentes, feito", "Dentes, não fiz", "Dentes, não se aplica", "Ler, agora"
+    func spoken(_ step: NightStep) -> String {
+        let state: String
+        if let answer = skipped[step] { state = answer.label.lowercased() }
+        else if done.contains(step) { state = "feito" }
+        else if current == step { state = "agora" }
+        else { state = "depois" }
+        return step.label + ", " + state
     }
 }
 
@@ -264,8 +277,9 @@ enum NightRules {
     /// The morning, for «Como dormiste»: from two hours before you wake until 11:00 (or two hours after a late wake)
     static func isMorning(minute: Int, wake: Int) -> Bool { minute >= wake - 120 && minute < max(11 * 60, wake + 120) }
 
-    /// The night's steps. nil means nothing to do there today, so the step is hidden; sleep is always there.
-    static func status(teeth: Bool?, prepare: Bool?, read: Bool?, sleep: Bool, late: Bool = false) -> NightStatus {
+    /// The night's steps. nil means nothing to do there today, so the step is hidden; sleep is always there. `skipped`
+    /// says which resolved steps were answered «Não fiz» or «Não se aplica» instead of done.
+    static func status(teeth: Bool?, prepare: Bool?, read: Bool?, sleep: Bool, late: Bool = false, skipped: [NightStep: ReviewAnswer] = [:]) -> NightStatus {
         let all: [(NightStep, Bool?)] = [(.teeth, teeth), (.prepare, prepare), (.read, read), (.sleep, Optional(sleep))]
         var steps: [NightStep] = []
         var done: Set<NightStep> = []
@@ -274,7 +288,40 @@ enum NightRules {
             steps.append(step)
             if state { done.insert(step) }
         }
-        return NightStatus(steps: steps, done: done, late: late)
+        return NightStatus(steps: steps, done: done, late: late, skipped: skipped.filter { done.contains($0.key) })
+    }
+
+    /// From when, on its own day, a brushing or a reading counts for the night (audit B3-E4)
+    static let teethFrom = 14 * 60, readFrom = 18 * 60
+    /// The morning when there's no wake time to go by
+    static let morningWithoutWake = 5 * 60
+
+    /// After midnight the night still belongs to the evening before (Store.nightDay). Something you do counts for a
+    /// night on the night's own day from `from`, or on the next calendar day before the morning: your wake time, or
+    /// 05:00 without one.
+    static func inNight(date: String, minute: Int, night: String, from: Int, wake: Int?) -> Bool {
+        if date == night { return minute >= from }
+        return date == Day.add(1, to: night) && minute < (wake ?? morningWithoutWake)
+    }
+
+    /// How a night step ended, from what you did and how its habits were answered. Done when you did it, or when every
+    /// habit is answered and one of them «feito»; with every habit answered and none done, «Não se aplica» if all of
+    /// them were, otherwise «Não fiz». nil while one is still open, or with nothing to go by.
+    static func outcome(did: Bool, answers: [ReviewAnswer]) -> ReviewAnswer? {
+        if did { return .done }
+        guard !answers.isEmpty, !answers.contains(.notConfirmed) else { return nil }
+        if answers.contains(.done) { return .done }
+        return answers.allSatisfy { $0 == .notApplicable } ? .notApplicable : .notDone
+    }
+
+    /// The tag of an answer that isn't «feito», with the end-of-day review's states (2.8): «Não fiz» or «Não se aplica».
+    /// nil for done and for no answer.
+    static func skipTag(_ answer: ReviewAnswer?) -> (state: DataState, text: String)? {
+        switch answer {
+        case .notDone?: return (DataState.ignored, ReviewAnswer.notDone.label)
+        case .notApplicable?: return (DataState.unavailable, ReviewAnswer.notApplicable.label)
+        default: return nil
+        }
     }
 
     /// «Agora» at night follows the night's steps, except for a departure, a workout in progress or Antes de sair,
@@ -349,6 +396,14 @@ enum NightRules {
         case .imported?: return .imported
         default: return nil
         }
+    }
+
+    /// A bedtime habit's label in the morning: where the answer came from, unless it was «Não fiz» or «Não se aplica»,
+    /// which is what it then says (never «Confirmado»). nil without a known source, as answerState.
+    static func answerTag(_ origin: AnswerOrigin?, _ answer: ReviewAnswer) -> (state: DataState, text: String?)? {
+        guard let state = answerState(origin) else { return nil }
+        if let skip = skipTag(answer) { return (skip.state, skip.text) }
+        return (state, nil)
     }
 
     /// About how long the short version takes: brushing (2 min) if it's still to do, and the night routine's step
@@ -631,12 +686,44 @@ extension Store {
         return list.first { !pendingSteps($0, on: day).isEmpty } ?? list.first
     }
 
-    /// Teeth: nil without a brushing habit or a brushing tonight; done once brushed or answered
+    /// The night's last brushing, on the evening's clock (past 24:00 after midnight), or nil: from 14:00 on the night's
+    /// day, or on the next day before you wake
+    func nightBrushMinute(on day: String) -> Int? {
+        let wake = profile.wakeMinute
+        return (brushes(on: day) + brushes(on: Day.add(1, to: day)))
+            .filter { NightRules.inNight(date: $0.date, minute: $0.minute, night: day, from: NightRules.teethFrom, wake: wake) }
+            .map { $0.date == day ? $0.minute : $0.minute + 1440 }
+            .max()
+    }
+
+    /// How the night's teeth ended: done when brushed or answered «feito», or «Não fiz» / «Não se aplica»; nil while open
+    func nightTeethAnswer(on day: String) -> ReviewAnswer? {
+        NightRules.outcome(did: nightBrushMinute(on: day) != nil, answers: nightBrushHabits(on: day).map { reviewAnswer($0, on: day) })
+    }
+
+    /// Teeth: nil without a brushing habit or a brushing tonight; resolved once brushed or answered, whatever the answer
     func nightTeeth(on day: String) -> Bool? {
-        let habits = nightBrushHabits(on: day)
-        let brushed = brushes(on: day).contains { $0.minute >= 14 * 60 }
-        guard !habits.isEmpty || brushed else { return nil }
-        return brushed || habits.allSatisfy { status($0, on: day) != nil }
+        guard !nightBrushHabits(on: day).isEmpty || nightBrushMinute(on: day) != nil else { return nil }
+        return nightTeethAnswer(on: day) != nil
+    }
+
+    /// The habit the brushing timer answers when you save: after midnight and before you wake, the night's open brushing
+    /// habit (the evening before); otherwise, or with none open, today's brushing habit within 3 h of now. With the day
+    /// to answer it on.
+    func brushingHabit(minute: Int, today: String = Day.today) -> (promise: PromiseItem, day: String)? {
+        let night = Day.add(-1, to: today)
+        if NightRules.inNight(date: today, minute: minute, night: night, from: NightRules.teethFrom, wake: profile.wakeMinute),
+           let p = nightBrushHabits(on: night).first(where: { status($0, on: night) == nil }) {
+            return (p, night)
+        }
+        guard let p = due(on: today).first(where: { $0.title.lowercased().contains("brush") && status($0, on: today) == nil && abs(time(of: $0, on: today) - minute) < 180 }) else { return nil }
+        return (p, today)
+    }
+
+    /// The brushing timer's «Guardar»: saves the brushing and answers the habit it belongs to, as yours
+    func saveBrushing(_ brush: BrushLog) {
+        save(brush)
+        if let habit = brushingHabit(minute: brush.minute, today: brush.date) { log(habit.promise, on: habit.day, .done) }
     }
 
     /// Preparar amanhã: nil when there's nothing to prepare (no wardrobe, no training tomorrow); done once the outfit
@@ -652,20 +739,34 @@ extension Store {
         return outfitDone && bagDone
     }
 
-    /// Reading: nil with no reading habit and no book; done once you read this evening or answered the habit
+    /// Whether you read that night: from 18:00 on the night's day, or on the next day before you wake
+    func nightReadingDone(on day: String) -> Bool {
+        let next = Day.add(1, to: day), wake = profile.wakeMinute
+        return all(ReadingSession.self).contains { s in
+            (s.date == day || s.date == next) && NightRules.inNight(date: s.date, minute: Day.minuteOfDay(Date(timeIntervalSince1970: s.start / 1000)), night: day, from: NightRules.readFrom, wake: wake)
+        }
+    }
+
+    /// How the night's reading ended: done when you read or answered «feito», or «Não fiz» / «Não se aplica»; nil while open
+    func nightReadAnswer(on day: String) -> ReviewAnswer? {
+        NightRules.outcome(did: nightReadingDone(on: day), answers: readHabits(on: day).map { reviewAnswer($0, on: day) })
+    }
+
+    /// Reading: nil with no reading habit and no book; resolved once you read that night or answered the habit
     func nightRead(on day: String) -> Bool? {
-        let habits = readHabits(on: day)
-        guard !habits.isEmpty || currentBook != nil else { return nil }
-        let read = all(ReadingSession.self).contains { $0.date == day && Day.minuteOfDay(Date(timeIntervalSince1970: $0.start / 1000)) >= 18 * 60 }
-        return read || (!habits.isEmpty && habits.allSatisfy { status($0, on: day) != nil })
+        guard !readHabits(on: day).isEmpty || currentBook != nil else { return nil }
+        return nightReadAnswer(on: day) != nil
     }
 
     func sleepIntent(_ day: String) -> SleepIntent? { record(SleepIntent.self, day) }
 
     func nightStatus(minute: Int) -> NightStatus {
         let day = nightDay(minute: minute)
+        var skipped: [NightStep: ReviewAnswer] = [:]
+        if let a = nightTeethAnswer(on: day), a != .done { skipped[.teeth] = a }
+        if let a = nightReadAnswer(on: day), a != .done { skipped[.read] = a }
         return NightRules.status(teeth: nightTeeth(on: day), prepare: nightPrepare(on: day), read: nightRead(on: day),
-                                 sleep: sleepIntent(day) != nil, late: nightLate(minute: minute))
+                                 sleep: sleepIntent(day) != nil, late: nightLate(minute: minute), skipped: skipped)
     }
 
     /// The reading suggested tonight, from the evening's plan

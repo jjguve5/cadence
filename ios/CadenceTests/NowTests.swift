@@ -295,6 +295,21 @@ final class NowTests: RegressionCase {
         XCTAssertNotNil(store.record(WaterEntry.self, "kept"), "only what the quick log added goes")
     }
 
+    /// «Feito» on the step's habit answers it as yours, says so, and Desfazer takes the answer back
+    @MainActor
+    func testMarkNowDoneAnswersAsYoursWithUndo() throws {
+        let creatine = PromiseItem(id: "H1", title: "Creatina", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 17 * 60))
+        let store = try makeStore { $0.promises[creatine.id] = creatine }
+        XCTAssertNil(store.status(creatine))
+        store.markNowDone(creatine)
+        XCTAssertEqual(store.status(creatine), .done)
+        XCTAssertEqual(store.answerOrigin(creatine), .you)
+        XCTAssertEqual(UndoCenter.shared.current?.text, "Creatina · concluído")
+        UndoCenter.shared.undo()
+        XCTAssertNil(store.status(creatine), "Desfazer takes the answer back")
+        XCTAssertNil(store.answerOrigin(creatine))
+    }
+
     /// «Ver o que falta» shows only when records wait and sending fails
     func testTheUnsentCardOnlyWhenSendingFails() {
         XCTAssertTrue(TodayRules.showsUnsent(pending: 3, failing: true))
