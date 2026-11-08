@@ -15,7 +15,8 @@ from rollback_fixture import fixture
 r = sys.argv[1]
 load = lambda name: json.load(open(os.path.join(r, name), encoding="utf-8"))
 steps = ["1-old", "2-new", "3-old-again", "4-new-again", "5-old-control"]
-snaps = {s: load(s + ".json") for s in steps}
+fixture_run = "6-new-fixture"  # the new build on the fixture itself, checked against the fixture (see below)
+snaps = {s: load(s + ".json") for s in steps + [fixture_run]}
 problems, warnings = [], []
 
 def check(cond, what):
@@ -34,7 +35,7 @@ sources = lambda logs: {k: r.get("source") for k, r in (logs or {}).items()}
 old_steps = {"1-old", "3-old-again", "5-old-control"}
 
 # The container's content survives every install (the marker was put in once, at the start)
-for s in steps:
+for s in steps + [fixture_run]:
     files = open(os.path.join(r, s + "-files.txt"), encoding="utf-8").read()
     check("rollback-marker.txt" in files and "cadence.json" in files, f"{s}: container content still there after installing over the top")
 
@@ -46,8 +47,12 @@ for cat in ["days", "feedback", "health"]:
 warn(sources(ref.get("logs")) == sources(fixture["logs"]), "1-old: the 2 Nov build kept where each answer came from")
 # The one-off migrations are marked done before the first launch, as on the phone: none may run here
 check(ref["profile"].get("windDownLead") == fixture["profile"]["windDownLead"] and
-      "Brush teeth, morning" not in {p.get("title") for p in ref["promises"].values()},
+      "Brush teeth, morning" not in {p.get("title") for p in ref["promises"].values()} and
+      "template" not in ref.get("extra", {}),
       "1-old: no one-off migration ran (already done, as on the phone)")
+# What the reference itself lost to the 2 Nov build's known defect: then the later queue and source checks have less to
+# compare, which is why the sixth run checks the new build against the full fixture
+warn(queue(ref) == queue(fixture), "1-old: the 2 Nov build kept the fixture's sync queue, deletions and revision")
 for t, recs in fixture["extra"].items():
     for i, v in recs.items():
         check(ref.get("extra", {}).get(t, {}).get(i) == v, f"1-old: kept extra/{t}/{i}")
@@ -70,6 +75,18 @@ for s in steps[1:]:
         for i, v in recs.items():
             check(snap.get("extra", {}).get(t, {}).get(i) == v, f"{s}: extra/{t}/{i} identical")
     check(not starter & {p.get("title") for p in snap["promises"].values()}, f"{s}: no starter habits written over the data")
+
+# The new build on the full fixture: every record, the queue, the deletions, the revision and where each answer came
+# from, exactly as given (this can't come out empty: the fixture has all of them)
+fx = snaps[fixture_run]
+assert queue(fixture)[0] and queue(fixture)[1] and queue(fixture)[2] and any(sources(fixture["logs"]).values()), "the fixture must carry a queue and sources"
+check(queue(fx) == queue(fixture), f"{fixture_run}: the new build kept the fixture's sync queue, deletions and revision")
+check(fx.get("logs") == fixture["logs"], f"{fixture_run}: the new build kept every answer and where it came from, exactly")
+for cat in ["days", "feedback", "health", "connection"]:
+    check(fx.get(cat) == fixture[cat], f"{fixture_run}: {cat} exactly as given")
+for t, recs in fixture["extra"].items():
+    for i, v in recs.items():
+        check(fx.get("extra", {}).get(t, {}).get(i) == v, f"{fixture_run}: kept extra/{t}/{i}")
 
 # The new build keeps exactly the queue, deletions and revision it loaded
 check(queue(snaps["2-new"]) == queue(snaps["1-old"]), "2-new: sync queue, deletions and revision as loaded")

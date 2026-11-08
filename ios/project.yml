@@ -2,6 +2,7 @@ name: Cadence
 options:
   deploymentTarget:
     iOS: "17.0"
+  developmentLanguage: pt-PT # the interface is in European Portuguese: dates and numbers follow it
 packages:
   Lottie:
     url: https://github.com/airbnb/lottie-spm.git
@@ -22,6 +23,8 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Cadence
+        CFBundleDevelopmentRegion: pt-PT
+        CFBundleLocalizations: [pt-PT]
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
@@ -34,9 +37,9 @@ targets:
         NSSupportsLiveActivities: true
         LSApplicationQueriesSchemes: [fitbit]
         UIAppFonts: [Geist-Regular.ttf, Geist-Medium.ttf, Geist-SemiBold.ttf, Geist-Bold.ttf, GeistMono-Regular.ttf, GeistMono-Medium.ttf, InstrumentSerif-Regular.ttf, InstrumentSerif-Italic.ttf]
-        NSCameraUsageDescription: Scan food barcodes and receipt QR codes to log them.
-        NSLocationWhenInUseUsageDescription: Live travel time for leave-by alerts and the weather where you are.
-        NSHealthShareUsageDescription: Weight and water from Apple Health, and sleep, heart rate and steps if you use Apple Health instead of a Fitbit.
+        NSCameraUsageDescription: Para ler códigos de barras de alimentos e o QR das faturas e os registar.
+        NSLocationWhenInUseUsageDescription: Para o tempo de viagem nos avisos da hora de sair e a meteorologia onde estás.
+        NSHealthShareUsageDescription: Peso e água do Apple Health e, se usares o Apple Health em vez de um Fitbit, sono, frequência cardíaca e passos.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jjguve5.cadence
@@ -53,6 +56,8 @@ targets:
       path: Widgets/Info.plist
       properties:
         CFBundleDisplayName: Cadence
+        CFBundleDevelopmentRegion: pt-PT
+        CFBundleLocalizations: [pt-PT]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

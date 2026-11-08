@@ -292,18 +292,20 @@ extension Store {
     }
 
     /// Promises that tick themselves once the Air syncs: a steps goal, a bedtime. Each one is saved as imported from
-    /// the health source (PromiseLog.source), not as answered by you. A title matches by its English or Portuguese words.
+    /// the health source (PromiseLog.source), not as answered by you. Titles match by the English words the seeded habits
+    /// use (they stay in English, decision D10); Portuguese words were not added: «deitar» or «luzes» also name unrelated
+    /// habits, and a wrong tick from the band would come back on every refresh.
     func autoComplete() {
         let today = Day.today
         let source = profile.healthSource
         for p in due(on: today) where status(p, on: today) == nil {
             let t = p.title.lowercased()
-            if t.contains("steps") || t.contains("walk") || t.contains("passos") || t.contains("caminhar") || t.contains("caminhada"), let steps = health[today]?.steps, steps >= Double(profile.stepGoal) { log(p, on: today, .done, source: source) }
+            if t.contains("steps") || t.contains("walk"), let steps = health[today]?.steps, steps >= Double(profile.stepGoal) { log(p, on: today, .done, source: source) }
         }
         let yesterday = Day.add(-1, to: today)
         for p in due(on: yesterday) where status(p, on: yesterday) == nil {
             let t = p.title.lowercased()
-            guard t.contains("bed") || t.contains("lights out") || t.contains("deitar") || t.contains("luzes"), let s = health[today]?.sleep else { continue }
+            guard t.contains("bed") || t.contains("lights out"), let s = health[today]?.sleep else { continue }
             let start = Day.minuteOfDay(s.startDate), planned = time(of: p, on: yesterday)
             let a = start < 12 * 60 ? start + 1440 : start, b = planned < 12 * 60 ? planned + 1440 : planned
             if a <= b + 15 { log(p, on: yesterday, .done, source: source) }

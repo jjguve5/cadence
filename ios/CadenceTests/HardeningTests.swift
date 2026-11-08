@@ -242,7 +242,7 @@ final class CaptureHardeningTests: XCTestCase {
     func testCountsRepeatTheSingleItem() {
         guard case .food(let f, let rest) = QuickCapture.parse("Ate 2 eggs and a banana", today: today) else { return XCTFail() }
         XCTAssertEqual(f.count, 3)
-        XCTAssertEqual(f.filter { $0.name.hasPrefix("Ovo") }.count, 2, f.map(\.name).joined(separator: ","))
+        XCTAssertEqual(f.filter { $0.name == "Ovo" }.count, 2, f.map(\.name).joined(separator: ","))
         XCTAssertTrue(rest.isEmpty)
     }
 

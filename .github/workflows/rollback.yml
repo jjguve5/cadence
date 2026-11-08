@@ -98,6 +98,7 @@ jobs:
               /usr/libexec/PlistBuddy -c "Print" "$P" > r/0-defaults.txt
             fi
             if [ "$2" = "control" ]; then cp r/1-old.json "$C/Documents/cadence.json"; fi # a file the old build wrote itself
+            if [ "$2" = "fixture" ]; then cp r/0-fixture.json "$C/Documents/cadence.json"; fi # the new build on the full fixture
             xcrun simctl launch "$SIM" "$BUNDLE"
             sleep 20
             xcrun simctl terminate "$SIM" "$BUNDLE" || true
@@ -111,6 +112,7 @@ jobs:
           run old - 3-old-again old-again
           run new - 4-new-again new-again
           run old control 5-old-control old-control
+          run new fixture 6-new-fixture new-fixture
           xcrun simctl spawn "$SIM" log show --last 10m --style compact --predicate 'process == "Cadence"' > r/simulator.log 2>&1 || true
 
       - name: Check every record, the container and the copies

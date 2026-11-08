@@ -8,3 +8,4 @@ Payload/
 node_modules/
 vscode/*.vsix
 ios/Widgets/Info.plist
+__pycache__/
