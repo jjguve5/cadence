@@ -31,6 +31,7 @@ struct HygieneView: View {
             Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: "Higiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
             RoutineNowCard { playing = $0 }
             NextUpCard()
+            GlassesSuggestionCard()
             ShowerCard()
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {
@@ -140,6 +141,40 @@ struct RoutineNowCard: View {
         let s: Store = store, day = Day.today
         let before = s.unconfirmStep(step.id, of: r, on: day)
         UndoCenter.shared.show("Desmarcado: \(step.title)") { s.restoreRoutineLog(before, routine: r, on: day) }
+    }
+}
+
+/// A cloth takes off the dust, not the grease that builds up: a proper wash every so often. A suggestion until you accept
+/// it (decision D41); once it's yours it is one more item in Frequências, with its own interval
+struct GlassesSuggestionCard: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject private var hidden = CareSuggestionsHidden.shared
+    @State private var editing: GroomingEdit?
+
+    private var alreadyThere: Bool {
+        store.all(GroomingItem.self).contains { $0.title.folding(options: .diacriticInsensitive, locale: nil).lowercased().contains("oculos") }
+    }
+
+    var body: some View {
+        if !alreadyThere && !hidden.isHidden("glasses", for: "7") {
+            Card(state: .suggested) {
+                HStack { Eyebrow(text: "Sugestão"); Spacer(); StateTag(state: .suggested) }
+                Text("Lavar os óculos a cada 7 dias").font(.geist(15, .semibold))
+                WhyLine(text: "o pano tira o pó, mas a gordura vai ficando. Água morna e um pouco de detergente suave resolvem.")
+                DecisionButtons(onAccept: { accept() },
+                                onAdjust: { editing = GroomingEdit(item: GroomingItem(title: "Lavar os óculos", icon: "eyeglasses", interval: 7), interval: 7) },
+                                onIgnore: { hidden.hide("glasses", for: "7") })
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("hygiene.glasses")
+            .sheet(item: $editing) { e in GroomingEditor(item: e.item, interval: e.interval).environmentObject(store) }
+        }
+    }
+
+    private func accept() {
+        let glasses = GroomingItem(title: "Lavar os óculos", icon: "eyeglasses", interval: 7)
+        store.save(glasses)
+        UndoCenter.shared.show("Lavar os óculos · adicionado") { store.remove(glasses) }
     }
 }
 

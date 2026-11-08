@@ -234,14 +234,23 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
 
     // MARK: Answers from the lock screen
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+    /// The completion-handler form, on purpose: the `async` form hands iOS its answer off the main thread, and tapping a
+    /// notification then takes the app down («Call must be made on main thread»)
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        Task { @MainActor in
+            self.answer(response)
+            completionHandler()
+        }
+    }
+
+    @MainActor private func answer(_ response: UNNotificationResponse) {
         let parts = response.notification.request.identifier.split(separator: "|").map(String.init)
         NotificationLearning.record(parts.first ?? "", engaged: response.actionIdentifier != UNNotificationDismissActionIdentifier)
         if response.actionIdentifier == UNNotificationDismissActionIdentifier { return }
         // While the data isn't safe (protected or a failed save), actions from the lock screen change nothing
-        guard await MainActor.run(body: { Store.shared.canChange }) else { return }
+        guard Store.shared.canChange else { return }
         if parts.count == 4, parts[0] == "m", let minute = Int(parts[3]) {
-            await MainActor.run {
+            do {
                 let store = Store.shared
                 guard let med = store.record(Medicine.self, parts[1]) else { return }
                 switch response.actionIdentifier {
@@ -254,11 +263,11 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             return
         }
         if parts.count == 2, parts[0] == "gymbag" {
-            if response.actionIdentifier == "done" { await MainActor.run { Store.shared.unpackedGymBag(on: parts[1]); Store.shared.commit() } }
+            if response.actionIdentifier == "done" { Store.shared.unpackedGymBag(on: parts[1]); Store.shared.commit() }
             return
         }
         if parts.count == 3, parts[0] == "shower" {
-            await MainActor.run {
+            do {
                 switch response.actionIdentifier {
                 case "done": Store.shared.logShower()
                 case "morning": Store.shared.pickShower(.morning, for: parts[1])
@@ -270,7 +279,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         }
         guard parts.count >= 3, parts[0] == "p" || parts[0] == "s" else { return }
         let (promiseId, day) = (parts[1], parts[2])
-        await MainActor.run {
+        do {
             let store = Store.shared
             guard let promise = store.promises[promiseId] else { return }
             switch response.actionIdentifier {
@@ -286,8 +295,8 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .list])
     }
 
     private func snooze(_ promise: PromiseItem, day: String) {

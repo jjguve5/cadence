@@ -388,10 +388,12 @@ enum PlanRules {
     static func repeating(_ events: [CalendarEvent], window: ClosedRange<String>?) -> Set<String> {
         guard let window else { return [] }
         let covered = Day.between(window.lowerBound, window.upperBound) + 1
-        let workdays = Set((0..<covered).map { Day.add($0, to: window.lowerBound) }.filter { ![1, 7].contains(Day.weekday($0)) }) // 1 = Sunday, 7 = Saturday
+        func isWorkday(_ key: String) -> Bool { ![1, 7].contains(Day.weekday(key)) } // 1 = Sunday, 7 = Saturday
+        // counted, not walked through: the UI-test scenarios read a calendar of 10,000 years
+        let workdays = covered / 7 * 5 + (0..<(covered % 7)).filter { isWorkday(Day.add($0, to: window.lowerBound)) }.count
         var days: [String: Set<String>] = [:]
-        for e in events where !e.allDay && workdays.contains(e.day) { days[repeatKey(e), default: []].insert(e.day) }
-        return Set(days.filter { $0.value.count >= max(2, workdays.count - 1) }.keys)
+        for e in events where !e.allDay && window.contains(e.day) && isWorkday(e.day) { days[repeatKey(e), default: []].insert(e.day) }
+        return Set(days.filter { $0.value.count >= max(2, workdays - 1) }.keys)
     }
 
     /// The word in the day's load line: partial when the calendar wasn't read for that day

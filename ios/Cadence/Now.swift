@@ -3,6 +3,7 @@
 //   2. a workout in progress (continue it);
 //   3. Antes de sair: a departure within 60 min with something on the list still to see (phase 2.9, Night.swift);
 //   4. the routine of the moment still to confirm, Higiene's routineDueNow() (phase 2.5, wired here by phase 2.9);
+//   4b. Higiene's reminders (decision D40): the shower at its time, what's overdue from 19:30 (and earlier when no habit is next);
 //   5. the next habit (what "A seguir" did before);
 //   6. nothing: no card.
 // The rule is a pure function over its inputs (NowRule.pick); the Store glue at the end gathers them. Calendar events are
@@ -49,6 +50,8 @@ enum NowStep: Equatable {
     /// The routine of the moment, still to confirm («Começar»): Higiene's routineDueNow() (phase 2.5). The card reads
     /// the routine itself.
     case routine
+    /// A reminder from Higiene (decision D40): done, or not today
+    case care(NowCare)
     case habit(PromiseItem)
 
     /// An urgent step takes the place of «Agora» at the top, and the rest shrinks to a line
@@ -56,6 +59,14 @@ enum NowStep: Equatable {
         if case .leave = self { return true }
         return false
     }
+}
+
+/// A reminder from Higiene for «Agora»: the day's shower, or a grooming item that's overdue
+struct NowCare: Equatable {
+    var key: String // "shower", or "groom.<id>": what «Hoje não» hides for the day
+    var title: String
+    var why: String
+    var groomingId: String? // nil for the shower
 }
 
 /// Everything the rule looks at
@@ -66,6 +77,8 @@ struct NowInputs {
     var workout: NowWorkout?
     var beforeLeaving: NowStep? // Store.nowBeforeLeaving (phase 2.9)
     var routine: NowStep? // Store.nowRoutine: Higiene's routine of the moment (phase 2.5)
+    var care: NowStep? // Store.nowCare: a Higiene reminder that is due now, before the next habit (decision D40)
+    var careWhenFree: NowStep? // what's overdue but can wait: only when no habit is next
     var habits: [NowHabit] = [] // today's, in the order of the day
 }
 
@@ -89,6 +102,12 @@ enum NowRule {
     static let snoozeMinutes = 10
     /// With a place but no regular trip there is no travel estimate (no location is used): leave this long before
     static let defaultLead = 30
+    /// What's overdue in Higiene comes before the next habit from this time, the time of its notification (decision D40)
+    static let careFrom = 19 * 60 + 30
+
+    /// The shower's planned minute has come. The plan never says earlier than five minutes from now, so a plan that has
+    /// passed reads as about five minutes away
+    static func showerIsDue(at planned: Int, minute: Int) -> Bool { planned <= minute + 6 }
 
     /// The step to show, or nil for no card
     static func pick(_ i: NowInputs) -> NowStep? {
@@ -96,8 +115,9 @@ enum NowRule {
         if let w = i.workout { return .workout(w) }
         if let s = i.beforeLeaving { return s }
         if let s = i.routine { return s }
+        if let s = i.care { return s }
         if let h = nextHabit(i.habits, minute: i.minute) { return .habit(h.promise) }
-        return nil
+        return i.careWhenFree
     }
 
     /// The departure to warn about now: the time to leave is at most 45 min away, the event hasn't started, and you
@@ -202,16 +222,65 @@ extension Store {
         routineDueNow(minute: minute, day: day) == nil ? nil : .routine
     }
 
+    /// Step 4b (decision D40), what Higiene is already saying: the shower at its planned time, and what's overdue among
+    /// what you've done before (as «A seguir» in Higiene: never registered stays in Frequências). `now` comes before the
+    /// next habit; `whenFree` is the overdue item earlier in the day, only when no habit is next.
+    func nowCare(minute: Int, day: String = Day.today) -> (now: NowStep?, whenFree: NowStep?) {
+        guard profile.on("care") else { return (nil, nil) }
+        let open = { (key: String) -> Bool in self.record(NowDismiss.self, NowRule.dismissKey(day: day, event: key)) == nil }
+        // the plan reads the real clock, so it only means something for the real minute
+        if !TestMode.active, abs(minute - Day.minuteOfDay()) <= 1, open("shower"), !showerTimes.isEmpty {
+            for d in [Day.add(-1, to: day), day] { // last night's shower can be planned for this morning
+                if let s = showerPlan(for: d), Day.key(s.at) == day, NowRule.showerIsDue(at: Day.minuteOfDay(s.at), minute: minute) {
+                    return (.care(NowCare(key: "shower", title: "Tomar duche", why: s.why, groomingId: nil)), nil)
+                }
+            }
+        }
+        let overdue = all(GroomingItem.self).filter { $0.last != nil && $0.isDue(on: day) && open("groom." + $0.id) }.sorted { $0.freshness < $1.freshness }
+        guard let g = overdue.first else { return (nil, nil) }
+        let since = g.last.map { Day.between($0, day) } ?? 0
+        let step = NowStep.care(NowCare(key: "groom." + g.id, title: g.title, why: "há \(ptCount(since, "dia", "dias")) desde a última vez; o ritmo é a cada \(g.rhythm).", groomingId: g.id))
+        if minute >= NowRule.careFrom { return (step, nil) }
+        return (nil, step)
+    }
+
+    /// «Feito» on a Higiene reminder, with Desfazer
+    func finishNowCare(_ c: NowCare, day: String = Day.today) {
+        guard canChange else { return }
+        if let id = c.groomingId {
+            guard let g = record(GroomingItem.self, id), let before = markGroomingDone(g, on: day) else { return }
+            UndoCenter.shared.show("\(g.title) · feito") { [weak self] in self?.save(before) }
+        } else {
+            let shower = Shower()
+            save(shower)
+            Reminders.shared.reschedule()
+            UndoCenter.shared.show("Duche registado") { [weak self] in
+                self?.remove(shower)
+                Reminders.shared.reschedule()
+            }
+        }
+    }
+
+    /// «Hoje não»: not asked again today, with Desfazer. Nothing else changes
+    func skipNowCare(_ c: NowCare, day: String = Day.today) {
+        guard canChange else { return }
+        let id = NowRule.dismissKey(day: day, event: c.key)
+        let before = records(NowDismiss.kind)[id]
+        save(NowDismiss(id: id, date: day, event: c.key, action: NowDismiss.gone))
+        UndoCenter.shared.show("Hoje já não pergunto") { [weak self] in self?.put(NowDismiss.kind, id, before) }
+    }
+
     func nowInputs(minute: Int, events: [CalendarEvent]? = nil, day: String = Day.today) -> NowInputs {
         let departures = nowDepartures(events: events, day: day)
         var dismissals: [String: NowDismiss] = [:]
         for d in departures {
             if let answer = record(NowDismiss.self, NowRule.dismissKey(day: day, event: d.eventId)) { dismissals[d.eventId] = answer }
         }
+        let care = nowCare(minute: minute, day: day)
         return NowInputs(minute: minute, departures: departures, dismissals: dismissals,
                          workout: activeSession.map { NowWorkout(id: $0.id, name: $0.name, start: $0.start) },
                          beforeLeaving: nowBeforeLeaving(minute: minute, events: events, day: day), routine: nowRoutine(minute: minute, day: day),
-                         habits: nowHabits(on: day))
+                         care: care.now, careWhenFree: care.whenFree, habits: nowHabits(on: day))
     }
 
     /// The step «Agora» shows now, or nil for no card

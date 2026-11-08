@@ -500,8 +500,25 @@ struct TodayNowCard: View {
         case .workout(let w): workout(w)
         case .beforeLeaving: beforeLeaving
         case .routine: routine
+        case .care(let c): care(c)
         case .habit(let p): habit(p)
         }
+    }
+
+    /// A reminder from Higiene: done, or not today (decision D40)
+    private func care(_ c: NowCare) -> some View {
+        Card {
+            HStack(spacing: 8) {
+                Eyebrow(text: "Agora", color: .mint)
+                StateTag(state: .suggested)
+                Spacer(minLength: 0)
+            }
+            Text(c.title).font(.geist(16, .bold)).fixedSize(horizontal: false, vertical: true)
+            WhyLine(text: c.why)
+            DecisionButtons(accept: "Feito", adjust: nil, ignore: "Hoje não", onAccept: { store.finishNowCare(c) }, onIgnore: { store.skipNowCare(c) })
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("now.care")
     }
 
     /// An event to leave for: when to leave, from what, and the two answers. Neither changes the Google event.
