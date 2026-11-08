@@ -10,6 +10,8 @@ enum TestMode {
     /// A fixed time of day for rules that depend on it (minutes after midnight)
     static let minute: Int? = env["CADENCE_UITEST_MINUTE"].flatMap(Int.init)
     static let reset = env["CADENCE_UITEST_RESET"] == "1"
+    /// Areas the scenario starts with switched off (comma-separated, e.g. "care"), as if turned off in You
+    static let areasOff: [String] = env["CADENCE_UITEST_AREAS_OFF"].map { $0.split(separator: ",").map(String.init) } ?? []
     static let storeFile = FileManager.default.temporaryDirectory.appendingPathComponent("cadence-uitest.json")
 }
 
@@ -24,6 +26,7 @@ enum TestSeed {
     static func apply(_ store: Store, scenario: String) {
         let today = Day.today
         let iso = ISO8601DateFormatter()
+        if !TestMode.areasOff.isEmpty { store.update { $0.areasOff = TestMode.areasOff } }
         // A first day: set up, but no band data and nothing learned yet
         if scenario == "empty" { store.update { $0.setupDone = true }; return }
         func night(_ day: String, minutes: Int) -> SleepRecord {

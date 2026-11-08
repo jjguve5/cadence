@@ -17,10 +17,14 @@ final class CadenceUITests: XCTestCase {
 
     // MARK: Helpers
 
+    /// `areasOff` starts the scenario with those areas switched off (as in You); `portuguese` runs the app with the
+    /// system language and region set to Portugal
     @discardableResult
-    private func launch(_ scenario: String, minute: Int = 8 * 60, reset: Bool = true) -> XCUIApplication {
+    private func launch(_ scenario: String, minute: Int = 8 * 60, reset: Bool = true, areasOff: [String] = [], portuguese: Bool = false) -> XCUIApplication {
         let a = XCUIApplication()
         a.launchEnvironment = ["CADENCE_UITEST": scenario, "CADENCE_UITEST_MINUTE": String(minute), "CADENCE_UITEST_RESET": reset ? "1" : "0"]
+        if !areasOff.isEmpty { a.launchEnvironment["CADENCE_UITEST_AREAS_OFF"] = areasOff.joined(separator: ",") }
+        if portuguese { a.launchArguments += ["-AppleLanguages", "(pt-PT)", "-AppleLocale", "pt_PT"] }
         a.launch()
         // Today is recognised by the identifier on its title, not by the tab's name, so translating it can't break this
         XCTAssertTrue(a.descendants(matching: .any)[Tab.today.screen].firstMatch.waitForExistence(timeout: 20), "Cadence didn't reach the Today tab")
@@ -121,6 +125,24 @@ final class CadenceUITests: XCTestCase {
         launch("normal")
         checkEveryTab(Tab.allCases)
         shot("tabs", app)
+    }
+
+    /// With Hygiene switched off there are four tabs and Life moves to the fourth place: found by its identifier, it
+    /// still opens (finding tabs by place, as the 2.0 tests did, would have tapped the wrong one or none)
+    func testLifeOpensWithHygieneOff() {
+        launch("normal", areasOff: ["care"])
+        XCTAssertFalse(app.tabBars.buttons[Tab.hygiene.button].exists, "Hygiene is off")
+        checkEveryTab([.today, .plan, .body, .life])
+        XCTAssertEqual(app.tabBars.buttons.element(boundBy: 3).identifier, Tab.life.button, "Life is now in the fourth place")
+        shot("tabs-hygiene-off", app)
+    }
+
+    /// Navigation doesn't depend on the language: the same check with the system in European Portuguese. Until phase
+    /// 2.3 translates the app this proves the system language and region don't matter; after it, that the tabs don't.
+    func testNavigationInEuropeanPortuguese() {
+        launch("normal", portuguese: true)
+        checkEveryTab(Tab.allCases)
+        shot("tabs-pt-PT", app)
     }
 
     /// The Sleep and Recovery rings open their screens and Strain doesn't open anything, now that the rings are told

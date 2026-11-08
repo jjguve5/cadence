@@ -103,4 +103,5 @@ final class RegressionPlannedChangeTests: RegressionCase {
 // - 2.6 Treino: the suggested weight is written into the set (TrainingView); warm-ups go on every exercise above
 //   bar + 10 kg instead of the first exercise of each muscle group.
 // - 2.7 Comida: several paths save on one tap with no confirmation (portion pick, recent foods, caffeine drinks).
-// - 2.3 PT-PT: tab names, ring identifiers built from English names (ring.sleep…), and the texts the UI tests read.
+// - 2.3 PT-PT: tab names and the texts the UI tests read (UIText in CadenceUITests). Tabs, tab screens and rings are
+//   found by internal identifiers since phase 2.1 (tab.*, *.screen, ring.<key>), which a translation doesn't change.
