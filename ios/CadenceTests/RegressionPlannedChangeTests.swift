@@ -65,7 +65,7 @@ final class RegressionPlannedChangeTests: RegressionCase {
         }
         store.autoComplete()
         XCTAssertEqual(store.status(lightsOut, on: yesterday), .done, "still counts as done")
-        XCTAssertEqual(store.answerSource(lightsOut, on: yesterday), "fitbit", "but kept as imported from the band, not as your answer")
+        XCTAssertEqual(store.answerOrigin(lightsOut, on: yesterday), .imported("fitbit"), "but kept as imported from the band, not as your answer")
     }
 
     /// Phase 2.8 (Plano): the end-of-day review tells «não fiz», «não confirmado» and «não se aplica» apart. Update:

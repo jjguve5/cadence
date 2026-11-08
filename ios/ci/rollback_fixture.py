@@ -5,7 +5,10 @@ fixture = {
     "promises": {"P1": {"id": "P1", "title": "Creatina", "icon": "pills.fill", "kind": "mustDo",
                         "schedule": {"rule": "daily", "every": 2, "start": "2026-11-01", "weekdays": [2, 4, 6], "minute": 470},
                         "active": True, "created": 1793524150000}},
-    "logs": {"P1|2026-11-04": {"promiseId": "P1", "date": "2026-11-04", "status": "done", "at": 1793790000000}},
+    # an answer from before phase 2.2 (no source), one imported from the band and one you gave (phase 2.2)
+    "logs": {"P1|2026-11-04": {"promiseId": "P1", "date": "2026-11-04", "status": "done", "at": 1793790000000},
+             "P1|2026-11-03": {"promiseId": "P1", "date": "2026-11-03", "status": "done", "at": 1793700000000, "source": "fitbit"},
+             "P1|2026-11-02": {"promiseId": "P1", "date": "2026-11-02", "status": "skipped", "at": 1793610000000, "source": "you"}},
     "days": {"2026-11-03": {"date": "2026-11-03", "rating": 4, "note": "Dia bom: ação e ténis", "top3": ["Pernas"], "top3Done": [True],
                             "closedAt": 1793741954837.537, "score": 45, "points": 45, "energy": 4}},
     # The whole profile, as the app writes it (every build saves all its fields): with only a few fields, whether a
@@ -21,6 +24,8 @@ fixture = {
         "water": {"W1": {"id": "W1", "date": "2026-11-04", "minute": 891, "ml": 250}},
         "medlog": {"M1|2026-11-04|480": {"medId": "M1", "taken": True, "minute": 480}},
         "gymBag": {"2026-11-02": True},
+        # a bought mark as phase 2.2 saves it (id the server takes, object value)
+        "bought": {"2026-11-02_whey": {"at": 1793610000000}},
         "session": {"S1": {"id": "S1", "date": "2026-11-02", "name": "Pernas", "start": 1793600000000, "end": 1793604000000,
                            "order": [], "sets": [], "notes": []}},
     },

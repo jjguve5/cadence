@@ -127,15 +127,24 @@ struct PromiseItem: Codable, Identifiable, Equatable {
 
 enum LogStatus: String, Codable { case done, skipped, tiny }
 
+/// Where a day's answer to a habit came from (see PromiseLog.source)
+enum AnswerOrigin: Equatable {
+    case you
+    case imported(String)
+    case unknown
+}
+
 struct PromiseLog: Codable, Identifiable, Equatable {
     var promiseId: String
     var date: String
     var status: LogStatus
     var at: Double = nowMs()
-    /// Where the answer came from: nil when you gave it (a tap, a notification, the brushing or reading timer); the
-    /// data source when it was imported ("fitbit", "apple"), so it can be shown as imported, never as confirmed by you.
-    /// Optional, so older files read as before and older builds ignore it.
+    /// Where the answer came from: "you" when you gave it (a tap, a notification, Pip, the brushing or reading timer);
+    /// the data source when it was imported ("fitbit", "apple"). nil means unknown: answers saved before phase 2.2,
+    /// and any that went through an older build, which ignores this field and drops it when it saves. A missing source
+    /// is never taken as yours (the absence of a label proves no confirmation).
     var source: String? = nil
+    static let byYou = "you"
     var id: String { "\(promiseId)|\(date)" }
 }
 

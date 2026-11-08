@@ -190,14 +190,20 @@ extension Store {
     }
 
     /// The id a bought mark is saved under: the week, then the line, with only the characters the server takes
-    /// (letters and digits, "_", ".", ":" and "-"; accents dropped, anything else becomes "-"), at most 80. The value is
-    /// an object for the same reason. Marks saved before phase 2.2 as "<week>|<line>" with a bare true, which the server
-    /// skips, are still read.
+    /// (letters and digits, "_", ".", ":" and "-"; accents dropped, anything else becomes "-"), at most 80. When cleaning
+    /// or the length changed the line, a hash of the original line (FNV-1a, 8 hex digits) goes at the end, so two lines
+    /// that clean to the same text ("café", "cafe") never share a mark. A line already in those characters keeps its
+    /// plain id, which builds before phase 2.2 also recognise. The value is an object for the same reason. Marks saved
+    /// before phase 2.2 as "<week>|<line>" with a bare true, which the server skips, are still read.
     nonisolated static func boughtKey(week: String, line: String) -> String {
-        let safe = line.folding(options: .diacriticInsensitive, locale: nil).map { c -> Character in
+        let safe = String(line.folding(options: .diacriticInsensitive, locale: nil).map { c -> Character in
             c.isASCII && (c.isLetter || c.isNumber || "_.:-".contains(c)) ? c : "-"
-        }
-        return String((week + "_" + String(safe)).prefix(80))
+        })
+        let plain = week + "_" + safe
+        if safe == line && plain.count <= 80 { return plain }
+        var hash: UInt32 = 2166136261
+        for byte in line.utf8 { hash = (hash ^ UInt32(byte)) &* 16777619 }
+        return String(plain.prefix(80 - 9)) + "_" + String(format: "%08x", hash)
     }
 
     func tick(_ line: ListLine) {
