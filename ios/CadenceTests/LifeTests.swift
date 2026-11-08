@@ -179,7 +179,7 @@ final class LifeTests: RegressionCase {
 
     /// B4-N5. A piece suggested for washing isn't «disponível»: not in that filter (the same rule as the panel's count)
     /// and the Lavandaria's summary says so instead of «Nada por lavar»
-    func testSuggestedPiecesAreNotAvailableAndTheSummaryMentionsThem() {
+    func testSuggestedPiecesStayAvailableUntilParaLavarAndTheSummaryMentionsThem() {
         let free = Garment(name: "Livre")
         let worn = Garment(name: "Usada", wearsBeforeWash: 3, wears: 1, state: "worn")
         let near = Garment(name: "Perto", wearsBeforeWash: 3, wears: 2, state: "worn")
@@ -187,8 +187,11 @@ final class LifeTests: RegressionCase {
         XCTAssertEqual([near.stage, atLimit.stage], [.suggested, .suggested])
         XCTAssertTrue(WardrobeFilter.available.matches(free))
         XCTAssertTrue(WardrobeFilter.available.matches(worn), "worn, still well below its limit")
-        XCTAssertFalse(WardrobeFilter.available.matches(near))
-        XCTAssertFalse(WardrobeFilter.available.matches(atLimit))
+        // N_Roupeiro shows «Ganga azul · 4 de 4 usos · Lavar?» under «Disponível», and «Para lavar passa a peça à Lavandaria
+        // e esconde-a das disponíveis»: until then a suggested piece is still listed
+        XCTAssertTrue(WardrobeFilter.available.matches(near))
+        XCTAssertTrue(WardrobeFilter.available.matches(atLimit))
+        XCTAssertFalse(WardrobeFilter.available.matches(Garment(name: "Para lavar", state: "wash")), "«Para lavar» hides it")
         XCTAssertTrue(WardrobeFilter.suggested.matches(atLimit), "it has its own filter")
         XCTAssertEqual(laundrySummary([free, worn]), "Nada por lavar")
         XCTAssertEqual(laundrySummary([free, atLimit]), "1 sugerida para lavar")

@@ -127,7 +127,7 @@ enum WardrobeFilter: String, CaseIterable {
     /// «Disponível» is only the pieces whose stage is «Disponível»: a piece suggested for washing has its own filter
     func matches(_ g: Garment) -> Bool {
         switch self {
-        case .available: return g.stage == .available
+        case .available: return g.stage == .available || g.stage == .suggested // N_Roupeiro: only «Para lavar» hides a piece from the available ones
         case .suggested: return g.stage == .suggested
         case .toWash: return g.stage == .toWash
         case .washing: return g.stage == .washing
