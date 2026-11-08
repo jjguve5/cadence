@@ -9,19 +9,22 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Reminders()
     private let center = UNUserNotificationCenter.current()
     static let category = "promise"
+    /// What a laundry notification calls each wash group. The groups are stored values (Garment.washGroup) and stay
+    /// in English; only the name on screen is Portuguese.
+    private static let washGroupText = ["darks 30°": "Escuros 30°", "whites 40°": "Brancos 40°", "colours 30°": "Cores 30°", "delicates": "Delicados", "towels 60°": "Toalhas 60°", "gym 30°": "Treino 30°"]
 
     func setUp() {
         center.delegate = self
-        let done = UNNotificationAction(identifier: "done", title: "Done ✓", options: [])
-        let snooze = UNNotificationAction(identifier: "snooze", title: "In 30 min", options: [])
-        let skip = UNNotificationAction(identifier: "skip", title: "Skip", options: [.destructive])
-        let start = UNNotificationAction(identifier: "start", title: "Start ▶", options: [.foreground])
+        let done = UNNotificationAction(identifier: "done", title: "Concluído ✓", options: [])
+        let snooze = UNNotificationAction(identifier: "snooze", title: "Daqui a 30 min", options: [])
+        let skip = UNNotificationAction(identifier: "skip", title: "Saltar", options: [.destructive])
+        let start = UNNotificationAction(identifier: "start", title: "Começar ▶", options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: "startable", actions: [start, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
-            UNNotificationCategory(identifier: "gymbag", actions: [UNNotificationAction(identifier: "done", title: "Unpacked ✓", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: "gymbag", actions: [UNNotificationAction(identifier: "done", title: "Esvaziado ✓", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: Self.category, actions: [done, snooze, skip], intentIdentifiers: [], options: [.customDismissAction]),
             UNNotificationCategory(identifier: "info", actions: [], intentIdentifiers: [], options: [.customDismissAction]),
-            UNNotificationCategory(identifier: "shower", actions: [UNNotificationAction(identifier: "done", title: "Showered ✓", options: []), UNNotificationAction(identifier: "morning", title: "Tomorrow morning", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
+            UNNotificationCategory(identifier: "shower", actions: [UNNotificationAction(identifier: "done", title: "Duche tomado ✓", options: []), UNNotificationAction(identifier: "morning", title: "Amanhã de manhã", options: [])], intentIdentifiers: [], options: [.customDismissAction]),
         ])
         if !TestMode.active { center.requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in } }
     }
@@ -78,14 +81,14 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             for promise in store.due(on: day) where store.status(promise, on: day) == nil {
                 let at = Day.at(store.time(of: promise, on: day), on: day)
                 if promise.kind == .mustDo {
-                    let asks: [(Int, String)] = [(0, "\(promise.title) · now"), (90, "\(promise.title) not taken yet"), (150, "\(promise.title): last ask before wind-down")]
+                    let asks: [(Int, String)] = [(0, "\(promise.title) · agora"), (90, "\(promise.title) ainda por fazer"), (150, "\(promise.title): último aviso antes de desacelerar")]
                     // the follow-ups stop at wind-down, which names what's still open
                     for (k, (after, title)) in asks.enumerated() where k == 0 || at.addingTimeInterval(Double(after) * 60) < wind {
                         let w = store.week(promise, upTo: day)
-                        planned.append(Planned(id: "p|\(promise.id)|\(day)|\(k)", at: at.addingTimeInterval(Double(after) * 60), title: title, body: "Must-do · \(w.done)/\(w.total) this week", priority: 0, promise: true))
+                        planned.append(Planned(id: "p|\(promise.id)|\(day)|\(k)", at: at.addingTimeInterval(Double(after) * 60), title: title, body: "Obrigatório · \(w.done)/\(w.total) esta semana", priority: 0, promise: true))
                     }
                 } else if !quiet(at) {
-                    let body = promise.tiny.map { "Short on time? \($0)." } ?? promise.schedule.summary.capitalized
+                    let body = promise.tiny.map { "Pouco tempo? \($0)." } ?? promise.schedule.summary.capitalized
                     let startable = promise.title.lowercased().contains("brush") || promise.title.lowercased().hasPrefix("read")
                     planned.append(Planned(id: "p|\(promise.id)|\(day)|0", at: at, title: promise.title, body: body, priority: 2, promise: true, category: startable ? "startable" : nil))
                 }
@@ -96,40 +99,40 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             }
             // Leave-by alerts for regular trips
             for c in store.commutes(on: day) {
-                planned.append(Planned(id: "leave|\(c.id)|\(day)", at: Day.at(c.leave, on: day), title: "Leave for \(c.title) now", body: "\(c.travel) min door to door, at \(clock(c.arrive)) there.", priority: 0, promise: false))
+                planned.append(Planned(id: "leave|\(c.id)|\(day)", at: Day.at(c.leave, on: day), title: "Sai agora para \(c.title)", body: "\(c.travel) min porta a porta; chegas às \(clock(c.arrive)).", priority: 0, promise: false))
             }
             // Grooming that's due, in the evening
             if offset == 0 || offset == 1, let g = store.groomingDue.first {
-                planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: "\(g.daysSince ?? 0) days since last time; you usually do it every \(g.rhythm).", priority: 2, promise: false))
+                planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: "Há \(g.daysSince ?? 0) dias desde a última vez; costumas fazê-lo a cada \(g.rhythm) dias.", priority: 2, promise: false))
             }
             // Life admin, each within the budget
             if offset == 0 {
                 let f = store.fuel(on: day)
                 if f.protein < store.profile.proteinTarget * 0.6 {
                     let gap = Int(store.profile.proteinTarget - f.protein)
-                    planned.append(Planned(id: "protein|\(day)", at: Day.at(18 * 60, on: day), title: "Protein catch-up", body: "\(gap) g left today. A shake or a fridge portion closes most of it.", priority: 2, promise: false))
+                    planned.append(Planned(id: "protein|\(day)", at: Day.at(18 * 60, on: day), title: "Proteína em falta", body: "Faltam \(gap) g hoje. Um batido ou uma porção do frigorífico resolve a maior parte.", priority: 2, promise: false))
                 }
                 for m in [15 * 60, 19 * 60] where store.fuel(on: day).water + 300 < store.waterGoal(on: day) * Double(m - store.profile.wakeMinute) / Double(max(60, store.sleepPlan().perform - 120 - store.profile.wakeMinute)) {
-                    planned.append(Planned(id: "water|\(day)|\(m)", at: Day.at(m, on: day), title: "Water", body: "Behind pace: a glass now.", priority: 3, promise: false))
+                    planned.append(Planned(id: "water|\(day)|\(m)", at: Day.at(m, on: day), title: "Água", body: "Abaixo do ritmo: um copo agora.", priority: 3, promise: false))
                 }
                 for (g, at) in store.records("laundry").compactMap({ k, v -> (String, Double)? in if case .number(let t) = v, k.hasPrefix(day) { return (String(k.dropFirst(11)), t) }; return nil }) {
-                    planned.append(Planned(id: "dry|\(day)|\(g)", at: Date(timeIntervalSince1970: at / 1000 + 2 * 3600), title: "Laundry done", body: "\(g.capitalized): hang it or into the dryer.", priority: 2, promise: false))
+                    planned.append(Planned(id: "dry|\(day)|\(g)", at: Date(timeIntervalSince1970: at / 1000 + 2 * 3600), title: "Lavagem concluída", body: "\(Self.washGroupText[g] ?? g.capitalized): estender ou pôr na máquina de secar.", priority: 2, promise: false))
                 }
             }
             for p in store.all(Plant.self) where store.plantDue(p).due && offset == 0 {
-                planned.append(Planned(id: "plant|\(p.id)|\(day)", at: Day.at(19 * 60, on: day), title: "Water \(p.name)", body: store.plantDue(p).note, priority: 3, promise: false))
+                planned.append(Planned(id: "plant|\(p.id)|\(day)", at: Day.at(19 * 60, on: day), title: "Regar \(p.name)", body: store.plantDue(p).note, priority: 3, promise: false))
             }
             for b in store.birthdaysSoon where b.date == Day.add(1, to: day) {
-                planned.append(Planned(id: "bday|\(b.name)|\(day)", at: Day.at(19 * 60, on: day), title: "\(b.name)'s birthday is tomorrow", body: b.person?.gifts.first.map { "Gift idea: \($0)" } ?? "Time for a message or a gift.", priority: 1, promise: false))
+                planned.append(Planned(id: "bday|\(b.name)|\(day)", at: Day.at(19 * 60, on: day), title: "Amanhã é o aniversário de \(b.name)", body: b.person?.gifts.first.map { "Ideia de prenda: \($0)" } ?? "Boa altura para uma mensagem ou uma prenda.", priority: 1, promise: false))
             }
             for (r, d) in store.upcomingRenewals where Day.between(day, d) == r.remindDays && r.amount < 0 {
-                planned.append(Planned(id: "renew|\(r.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(r.title) renews in \(r.remindDays) days", body: "\(euro(-r.amount, decimals: true))" + (r.cancelBy.map { " · cancel by \(Day.date($0).formatted(.dateTime.day().month())) if you don't need it" } ?? ""), priority: 1, promise: false))
+                planned.append(Planned(id: "renew|\(r.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(r.title) renova daqui a \(r.remindDays) dias", body: "\(euro(-r.amount, decimals: true))" + (r.cancelBy.map { " · cancela até \(Day.date($0).formatted(.dateTime.day().month())) se não precisares" } ?? ""), priority: 1, promise: false))
             }
             for d in store.all(DocumentItem.self) where Day.between(day, d.expires) == d.leadDays || Day.between(day, d.expires) == 7 {
-                planned.append(Planned(id: "doc|\(d.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(d.title) expires soon", body: Day.date(d.expires).formatted(.dateTime.day().month().year()), priority: 1, promise: false))
+                planned.append(Planned(id: "doc|\(d.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(d.title) expira em breve", body: Day.date(d.expires).formatted(.dateTime.day().month().year()), priority: 1, promise: false))
             }
             if Day.weekday(day) == 1, offset <= 1, !store.keepInTouchDue.isEmpty {
-                planned.append(Planned(id: "touch|\(day)", at: Day.at(18 * 60, on: day), title: "Keep in touch", body: "It's been a while: " + store.keepInTouchDue.prefix(3).map(\.name).joined(separator: ", "), priority: 3, promise: false))
+                planned.append(Planned(id: "touch|\(day)", at: Day.at(18 * 60, on: day), title: "Manter o contacto", body: "Já passou algum tempo: " + store.keepInTouchDue.prefix(3).map(\.name).joined(separator: ", "), priority: 3, promise: false))
             }
             // Fixed-time nudges that fall while you're out (a trip, an event) wait until you're back; promises already
             // moved in time(of:), and medicines and leave-by keep their times
@@ -142,21 +145,21 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             if offset == 0, store.gymBagDue, let end = store.sessions(on: day).compactMap(\.end).max() {
                 let arrival = CLLocationManager().authorizationStatus == .authorizedWhenInUse || CLLocationManager().authorizationStatus == .authorizedAlways ? store.homeCoordinate : nil
                 let at = max(now.addingTimeInterval(60), Date(timeIntervalSince1970: end / 1000).addingTimeInterval(45 * 60))
-                planned.append(Planned(id: "gymbag|\(day)", at: at, title: "Unpack the gym bag", body: "Clothes in the wash, towel out to dry.", priority: 1, promise: false, category: "gymbag", arriving: arrival))
+                planned.append(Planned(id: "gymbag|\(day)", at: at, title: "Esvaziar o saco do ginásio", body: "Roupa para lavar, toalha a secar.", priority: 1, promise: false, category: "gymbag", arriving: arrival))
             }
             // The day's shower, tonight or tomorrow morning
             if offset <= 1, let s = store.showerPlan(for: day) {
-                planned.append(Planned(id: "shower|\(day)|\(s.when.rawValue)", at: s.at, title: s.when == .morning ? "Shower (for yesterday)" : "Shower", body: s.why + ".", priority: 1, promise: false, category: s.when == .tonight ? "shower" : "info"))
+                planned.append(Planned(id: "shower|\(day)|\(s.when.rawValue)", at: s.at, title: s.when == .morning ? "Duche (conta para ontem)" : "Duche", body: s.why + ".", priority: 1, promise: false, category: s.when == .tonight ? "shower" : "info"))
             }
             // Wind-down: holds until must-dos are answered
             let open = store.openMustDos(on: day)
-            var body = open.isEmpty ? "Lights out by \(clock(plan.perform)). Reading slot is next." : "First: \(open.map(\.title).joined(separator: ", ")). Then screens away."
-            if let a = plan.after { body = "Back from \(a.title): " + body.prefix(1).lowercased() + String(body.dropFirst()) }
-            planned.append(Planned(id: "wind|\(day)", at: wind, title: "Wind-down", body: body, priority: open.isEmpty ? 1 : 0, promise: false))
+            var body = open.isEmpty ? "Apagar as luzes até às \(clock(plan.perform)). A seguir, tempo de leitura." : "Primeiro: \(open.map(\.title).joined(separator: ", ")). Depois, ecrãs de lado."
+            if let a = plan.after { body = "De volta de \(a.title): " + body.prefix(1).lowercased() + String(body.dropFirst()) }
+            planned.append(Planned(id: "wind|\(day)", at: wind, title: "Desacelerar", body: body, priority: open.isEmpty ? 1 : 0, promise: false))
             // after a late trip, closing the day waits until you're in the door
             let close = plan.after.map { Day.at($0.end + 5, on: day) } ?? wind.addingTimeInterval(-15 * 60)
-            planned.append(Planned(id: "close|\(day)", at: close, title: "Close the day", body: "Two minutes: how it went and tomorrow's top 3.", priority: 1, promise: false))
-            planned.append(Planned(id: "brief|\(day)", at: Day.at(p.wakeMinute + 10, on: day), title: "Your morning brief", body: "Readiness, last night and today's promises.", priority: 1, promise: false))
+            planned.append(Planned(id: "close|\(day)", at: close, title: "Fechar o dia", body: "Dois minutos: como correu e as 3 prioridades de amanhã.", priority: 1, promise: false))
+            planned.append(Planned(id: "brief|\(day)", at: Day.at(p.wakeMinute + 10, on: day), title: "O teu resumo da manhã", body: "Prontidão, a última noite e os hábitos de hoje.", priority: 1, promise: false))
         }
 
         // Within the daily budget, must-dos always first
@@ -275,7 +278,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
     private func snooze(_ promise: PromiseItem, day: String) {
         let content = UNMutableNotificationContent()
         content.title = promise.title
-        content.body = "Snoozed 30 min ago. Done now?"
+        content.body = "Adiado há 30 min. Já está feito?"
         content.sound = .default
         content.categoryIdentifier = Self.category
         center.add(UNNotificationRequest(identifier: "s|\(promise.id)|\(day)", content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 30 * 60, repeats: false)))

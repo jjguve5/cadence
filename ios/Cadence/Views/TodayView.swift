@@ -13,7 +13,7 @@ struct TodayView: View {
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
-        return m < 12 * 60 ? "Good morning" : m < 18 * 60 ? "Good afternoon" : "Good evening"
+        return m < 12 * 60 ? "Bom dia" : m < 18 * 60 ? "Boa tarde" : "Boa noite"
     }
 
     var body: some View {
@@ -25,8 +25,8 @@ struct TodayView: View {
                 if !store.profile.setupDone {
                     Button { settingUp = true } label: {
                         Card(tint: .mint) {
-                            Eyebrow(text: "Smart setup · 1 minute", icon: "wand.and.stars", color: .mint)
-                            Text("Answer a few questions and Cadence sets your calories, protein, water, steps and sleep from the research, with the reason for each.").font(.geist(13.5)).foregroundStyle(Color.ink)
+                            Eyebrow(text: "Configuração inteligente · 1 minuto", icon: "wand.and.stars", color: .mint)
+                            Text("Responde a umas perguntas e o Cadence define as tuas calorias, proteína, água, passos e sono com base na investigação, com a razão de cada um.").font(.geist(13.5)).foregroundStyle(Color.ink)
                         }
                     }
                     .buttonStyle(Pressable())
@@ -69,14 +69,14 @@ struct TodayView: View {
                     .frame(width: 40, height: 40).background(Circle().fill(.white.opacity(0.09)).overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1)))
             }
             .buttonStyle(Pressable())
-            .accessibilityLabel("Quick capture").accessibilityIdentifier("capture.open")
+            .accessibilityLabel("Registo rápido").accessibilityIdentifier("capture.open")
             .padding(.trailing, 6)
             Button { showingYou = true } label: {
                 Image(systemName: "person.fill").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
                     .frame(width: 40, height: 40).background(Circle().fill(.white.opacity(0.09)).overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1)))
             }
             .buttonStyle(Pressable())
-            .accessibilityLabel("You").accessibilityIdentifier("you.open")
+            .accessibilityLabel("Perfil").accessibilityIdentifier("you.open")
             .padding(.trailing, 6)
             NavigationLink { PipPage() } label: {
                 ZStack(alignment: .topTrailing) {
@@ -88,7 +88,7 @@ struct TodayView: View {
                     }
                 }
             }
-            .accessibilityLabel(store.pipNotices > 0 ? "Pip, \(store.pipNotices) waiting" : "Pip")
+            .accessibilityLabel(store.pipNotices > 0 ? "Pip, \(store.pipNotices) à espera" : "Pip")
         }
         .padding(.top, 8)
     }
@@ -96,8 +96,8 @@ struct TodayView: View {
     /// First run with no data yet: a Fitbit through the server, or Apple Health on its own
     private var sourceCard: some View {
         Card(tint: .sleep) {
-            Eyebrow(text: "Sleep and heart data", icon: "heart.text.square", color: .sleep)
-            Text("Where should Cadence get your sleep, HRV and steps?").font(.geist(14))
+            Eyebrow(text: "Dados de sono e coração", icon: "heart.text.square", color: .sleep)
+            Text("De onde deve o Cadence ler o teu sono, VFC e passos?").font(.geist(14))
             HStack {
                 NavigationLink { SettingsView() } label: { Chip(text: "Fitbit", color: .sleep) }
                 Button { store.update { $0.healthSource = "apple" }; Task { await store.refreshHealth(force: true) } } label: { Chip(text: "Apple Health", color: .sleep) }
@@ -108,16 +108,16 @@ struct TodayView: View {
 
     private var googleCard: some View {
         Card(tint: .warn) {
-            Eyebrow(text: "Fitbit data paused", icon: "exclamationmark.triangle.fill", color: .warn)
-            Text("Google's sign-in expired (it lasts 7 days while the app is in testing). Connect again to keep readiness and sleep up to date.").font(.geist(14))
-            NavigationLink { SettingsView() } label: { Chip(text: "Connect Google", color: .warn) }
+            Eyebrow(text: "Dados do Fitbit em pausa", icon: "exclamationmark.triangle.fill", color: .warn)
+            Text("A sessão do Google expirou (dura 7 dias enquanto a app está em teste). Volta a ligar para manteres a prontidão e o sono atualizados.").font(.geist(14))
+            NavigationLink { SettingsView() } label: { Chip(text: "Ligar o Google", color: .warn) }
         }
     }
 
     private var brief: some View {
         Card(tint: .sleep) {
             HStack {
-                Eyebrow(text: "Morning brief", icon: "sunrise.fill", color: .sleep)
+                Eyebrow(text: "Resumo da manhã", icon: "sunrise.fill", color: .sleep)
                 Spacer()
                 Button { briefHidden = true } label: { Image(systemName: "xmark").font(.geist(11, .bold)).foregroundStyle(Color.faint) }
             }
@@ -142,8 +142,8 @@ struct TodayView: View {
                         .frame(width: 46, height: 46)
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(spacing: 6) {
-                                Text("Readiness · \(r.label)").font(.geist(14.5, .semibold))
-                                Chip(text: r.confidence.label + " confidence", color: r.confidence == .high ? .good : .soft)
+                                Text("Prontidão · \(r.label)").font(.geist(14.5, .semibold))
+                                Chip(text: "confiança " + r.confidence.label, color: r.confidence == .high ? .good : .soft)
                             }
                             Text(store.freshnessNote ?? r.summary).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(2)
                         }
@@ -151,7 +151,7 @@ struct TodayView: View {
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint)
                     }
                 } else {
-                    Label(store.freshnessNote ?? (store.health.isEmpty ? "Waiting for your first sync from the Air." : "Readiness appears once last night's data arrives."), systemImage: "clock.arrow.circlepath")
+                    Label(store.freshnessNote ?? (store.health.isEmpty ? "À espera da primeira sincronização do Air." : "A prontidão aparece quando chegarem os dados da última noite."), systemImage: "clock.arrow.circlepath")
                         .font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
@@ -167,9 +167,9 @@ struct TodayView: View {
                 Card {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
-                            Eyebrow(text: "Next up", icon: "play")
+                            Eyebrow(text: "A seguir", icon: "play")
                             Text(next.title).font(.geist(16, .bold))
-                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "must-do" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
+                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "obrigatório" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
                         let brush = next.title.lowercased().contains("brush"), read = next.title.lowercased().hasPrefix("read")
@@ -177,7 +177,7 @@ struct TodayView: View {
                             Image(systemName: brush || read ? "play.fill" : "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
                                 .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
                         }
-                        .accessibilityLabel(brush || read ? "Start \(next.title)" : "Mark \(next.title) done").accessibilityIdentifier("next.action")
+                        .accessibilityLabel(brush || read ? "Começar \(next.title)" : "Marcar \(next.title) como feito").accessibilityIdentifier("next.action")
                     }
                 }
             }
@@ -187,12 +187,12 @@ struct TodayView: View {
     private var promisesCard: some View {
         Card {
             HStack {
-                Eyebrow(text: "Promises today", icon: "bell")
+                Eyebrow(text: "Hábitos de hoje", icon: "bell")
                 Spacer()
-                NavigationLink { PromisesView() } label: { Text("All").font(.geist(13, .semibold)).foregroundStyle(Color.mint) }
+                NavigationLink { PromisesView() } label: { Text("Todos").font(.geist(13, .semibold)).foregroundStyle(Color.mint) }
             }
             let due = store.due()
-            if due.isEmpty { Text("Nothing due today.").foregroundStyle(Color.soft).font(.geist(14)) }
+            if due.isEmpty { Text("Nada para hoje.").foregroundStyle(Color.soft).font(.geist(14)) }
             ForEach(due) { p in PromiseRow(promise: p, edit: { editing = p }) }
         }
     }
@@ -202,7 +202,7 @@ struct TodayView: View {
         return Group {
             if !entry.top3.isEmpty {
                 Card {
-                    Eyebrow(text: "Today's top 3", icon: "list.number")
+                    Eyebrow(text: "3 prioridades de hoje", icon: "list.number")
                     ForEach(Array(entry.top3.enumerated()), id: \.offset) { i, item in
                         let done = i < entry.top3Done.count && entry.top3Done[i]
                         Button {
@@ -229,9 +229,9 @@ struct TodayView: View {
         let late = (TestMode.minute ?? Day.minuteOfDay(store.tick)) >= 19 * 60
         return Group {
             if closed {
-                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Day closed · \(store.day().score ?? store.score()) / 100").font(.geist(14, .semibold)) }.accessibilityElement(children: .combine).accessibilityIdentifier("closeday.closed") }
+                Card { HStack { Image(systemName: "moon.stars.fill").foregroundStyle(Color.sleep); Text("Dia fechado · \(store.day().score ?? store.score()) / 100").font(.geist(14, .semibold)) }.accessibilityElement(children: .combine).accessibilityIdentifier("closeday.closed") }
             } else if late {
-                PrimaryButton(title: "Close the day") { closing = true }.accessibilityIdentifier("closeday.open")
+                PrimaryButton(title: "Fechar o dia") { closing = true }.accessibilityIdentifier("closeday.open")
             }
         }
     }
@@ -246,7 +246,7 @@ struct TodayView: View {
     private var syncLabel: some View {
         HStack(spacing: 6) {
             Circle().fill(store.syncError == nil && !store.needsGoogle ? Color.good : Color.warn).frame(width: 7, height: 7)
-            Text(syncText + " · tap to sync the Air").font(.geist(11.5)).foregroundStyle(Color.faint)
+            Text(syncText + " · toca para sincronizar o Air").font(.geist(11.5)).foregroundStyle(Color.faint)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -254,11 +254,11 @@ struct TodayView: View {
 
     private var syncText: String {
         var parts: [String] = []
-        if let s = store.device?.lastSync, let d = ISO8601DateFormatter().date(from: s) { parts.append("Air synced \(d.formatted(.relative(presentation: .named)))") }
-        if let b = store.device?.battery { parts.append("battery \(b)%") }
+        if let s = store.device?.lastSync, let d = ISO8601DateFormatter().date(from: s) { parts.append("Air sincronizado \(d.formatted(.relative(presentation: .named)))") }
+        if let b = store.device?.battery { parts.append("bateria \(b)%") }
         if let e = store.syncError { parts.append(e) }
-        if store.syncing { parts.append("syncing…") }
-        return parts.isEmpty ? "Not synced yet" : parts.joined(separator: " · ")
+        if store.syncing { parts.append("a sincronizar…") }
+        return parts.isEmpty ? "Ainda não sincronizado" : parts.joined(separator: " · ")
     }
 }
 
@@ -285,25 +285,25 @@ struct PromiseRow: View {
             Image(systemName: promise.icon).foregroundStyle(Color.soft).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(promise.title).font(.geist(14.5, .medium)).strikethrough(status == .skipped)
-                Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) this week").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) esta semana").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
             if status == nil, promise.title.lowercased().contains("brush") {
                 Button { if insideSheet { brushing = true } else { store.brushingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
                 Button { if insideSheet { reading = true } else { store.readingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
-            } else if promise.kind == .mustDo { Chip(text: "must-do", color: status == nil ? .warn : .good) }
-            else if store.isMinimumDay(day) { Chip(text: "optional today", color: .faint) }
+            } else if promise.kind == .mustDo { Chip(text: "obrigatório", color: status == nil ? .warn : .good) }
+            else if store.isMinimumDay(day) { Chip(text: "opcional hoje", color: .faint) }
             else { Chip(text: promise.schedule.summary, color: .soft) }
         }
         .fullScreenCover(isPresented: $brushing) { BrushingView() }
         .fullScreenCover(isPresented: $reading) { ReadingMode() }
         .contentShape(Rectangle())
         .contextMenu {
-            if let tiny = promise.tiny, status == nil { Button("Tiny version: \(tiny)", systemImage: "leaf") { store.log(promise, on: day, .tiny) } }
-            if status == nil { Button("Skip today", systemImage: "forward") { store.log(promise, on: day, .skipped) } }
-            if status != nil { Button("Undo", systemImage: "arrow.uturn.backward") { store.undo(promise, on: day) } }
-            Button("Edit", systemImage: "pencil") { edit() }
+            if let tiny = promise.tiny, status == nil { Button("Versão mínima: \(tiny)", systemImage: "leaf") { store.log(promise, on: day, .tiny) } }
+            if status == nil { Button("Saltar hoje", systemImage: "forward") { store.log(promise, on: day, .skipped) } }
+            if status != nil { Button("Desfazer", systemImage: "arrow.uturn.backward") { store.undo(promise, on: day) } }
+            Button("Editar", systemImage: "pencil") { edit() }
         }
     }
 }
@@ -320,12 +320,12 @@ struct ReadinessView: View {
                     ZStack { Ring(progress: Double(r.score) / 100, area: .mint, width: 10, marker: Double(store.usualRecovery) / 100); Text("\(r.score)").font(.geist(34, .bold)) }.frame(width: 110, height: 110)
                     VStack(alignment: .leading) {
                         Text(r.label).font(.geist(24, .bold))
-                        Text("Against your own 14-day baseline").font(.geist(13)).foregroundStyle(Color.soft)
+                        Text("Comparada com a tua base dos últimos 14 dias").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .padding(.top, 10)
                 Card {
-                    Eyebrow(text: "What it's made of")
+                    Eyebrow(text: "De que é feita")
                     ForEach(r.parts) { part in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -340,21 +340,21 @@ struct ReadinessView: View {
                     }
                 }
                 Card {
-                    Eyebrow(text: "Feels wrong?", icon: "bubble.left")
-                    Text("Tell Cadence how you actually feel. It tunes the score over time.").font(.geist(13)).foregroundStyle(Color.soft)
-                    if sent { Text("Thanks, noted.").font(.geist(14, .semibold)).foregroundStyle(Color.good) }
+                    Eyebrow(text: "Parece-te errado?", icon: "bubble.left")
+                    Text("Diz ao Cadence como te sentes de facto. A pontuação vai-se ajustando com o tempo.").font(.geist(13)).foregroundStyle(Color.soft)
+                    if sent { Text("Obrigado, registado.").font(.geist(14, .semibold)).foregroundStyle(Color.good) }
                     else {
                         HStack {
-                            SoftButton(title: "I feel worse", icon: "arrow.down") { store.addFeedback(ReadinessFeedback(date: Day.today, score: r.score, felt: -1)); sent = true }
-                            SoftButton(title: "I feel better", icon: "arrow.up") { store.addFeedback(ReadinessFeedback(date: Day.today, score: r.score, felt: 1)); sent = true }
+                            SoftButton(title: "Sinto-me pior", icon: "arrow.down") { store.addFeedback(ReadinessFeedback(date: Day.today, score: r.score, felt: -1)); sent = true }
+                            SoftButton(title: "Sinto-me melhor", icon: "arrow.up") { store.addFeedback(ReadinessFeedback(date: Day.today, score: r.score, felt: 1)); sent = true }
                         }
                     }
                 }
             } else {
-                Text("No readiness yet: it needs a night of data from the Air and four days of baseline.").foregroundStyle(Color.soft).padding(.top, 20)
+                Text("Ainda sem prontidão: precisa de uma noite de dados do Air e de quatro dias de base.").foregroundStyle(Color.soft).padding(.top, 20)
             }
         }
-        .navigationTitle("Readiness")
+        .navigationTitle("Prontidão")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

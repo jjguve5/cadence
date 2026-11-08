@@ -45,8 +45,8 @@ struct FocusView: View {
             let center = UNUserNotificationCenter.current()
             if p == .background {
                 let c = UNMutableNotificationContent()
-                c.title = "Back to focus?"
-                c.body = "Pip is still growing: \(s.intention)"
+                c.title = "Voltar ao foco?"
+                c.body = "O Pip ainda está a crescer: \(s.intention)"
                 c.sound = .default
                 center.add(UNNotificationRequest(identifier: "focus-nudge", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 10, repeats: false)))
             } else if p == .active {
@@ -68,8 +68,8 @@ struct FocusView: View {
     private var setup: some View {
         VStack(spacing: 16) {
             PipAnimation(mood: .idle).frame(width: 150, height: 150)
-            Text("What will you focus on?").font(.geist(22, .bold))
-            TextField("One clear intention", text: $intention).font(.geist(17)).padding(14).background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.07)))
+            Text("Em que te vais focar?").font(.geist(22, .bold))
+            TextField("Uma intenção clara", text: $intention).font(.geist(17)).padding(14).background(RoundedRectangle(cornerRadius: 14).fill(.white.opacity(0.07)))
             HStack {
                 ForEach([25, 50, 90], id: \.self) { m in
                     Button("\(m) min") { planned = m }.buttonStyle(.plain).font(.geist(15, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 11)
@@ -79,15 +79,15 @@ struct FocusView: View {
             }
             let projects = store.all(Project.self).filter { !$0.archived }
             if !projects.isEmpty {
-                Picker("Project", selection: $projectId) {
-                    Text("No project").tag(String?.none)
+                Picker("Projeto", selection: $projectId) {
+                    Text("Sem projeto").tag(String?.none)
                     ForEach(projects) { Text($0.title).tag(Optional($0.id)) }
                 }
                 .tint(.mint)
             }
-            Toggle("Drift chimes every 7 minutes", isOn: $chimes).tint(.mint).font(.geist(14))
-            PrimaryButton(title: "Start") {
-                let s = FocusSession(intention: intention.isEmpty ? "Focus" : intention, planned: planned, chimes: chimes, projectId: projectId)
+            Toggle("Sinal de atenção a cada 7 minutos", isOn: $chimes).tint(.mint).font(.geist(14))
+            PrimaryButton(title: "Começar") {
+                let s = FocusSession(intention: intention.isEmpty ? "Foco" : intention, planned: planned, chimes: chimes, projectId: projectId)
                 store.save(s)
                 store.recordFocusPrediction(session: s)
                 sessionId = s.id
@@ -98,13 +98,13 @@ struct FocusView: View {
                 let atDesk = store.all(DeskEvent.self).contains { nowMs() - $0.at < 30 * 60 * 1000 }
                 if !atDesk, s.planned > 50 {
                     let c = UNMutableNotificationContent()
-                    c.title = "Time to move"
-                    c.body = "50 minutes in: stand up and walk for two minutes, then back to it."
+                    c.title = "Hora de te mexeres"
+                    c.body = "Já passaram 50 minutos: levanta-te, anda dois minutos e depois volta ao que estavas a fazer."
                     c.sound = .default
                     UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "move-\(s.id)", content: c, trigger: UNTimeIntervalNotificationTrigger(timeInterval: 50 * 60, repeats: false)))
                 }
             }
-            Text("Turn on Do Not Disturb or your Focus mode now; desk breaks appear in VS Code while it's open.").font(.geist(12)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
+            Text("Ativa agora o Não incomodar ou um modo de Concentração; as pausas de secretária aparecem no VS Code enquanto estiver aberto.").font(.geist(12)).foregroundStyle(Color.faint).multilineTextAlignment(.center)
         }
     }
 
@@ -119,20 +119,20 @@ struct FocusView: View {
                 VStack(spacing: 4) {
                     PipHead(mood: over ? .proud : .idle, size: 70)
                     Text(over ? "+" + timeText(elapsed - total) : timeText(total - elapsed)).font(.mono(40, .semibold))
-                    Text(over ? "in flow · overflow" : "of \(s.planned) min").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text(over ? "em fluxo · tempo extra" : "de \(s.planned) min").font(.geist(13)).foregroundStyle(Color.soft)
                 }
             }
-            Text("Pip's sprout grows while you stay. \(s.leftApp == 0 ? "" : "Left \(s.leftApp)× , that's fine.")").font(.geist(13)).foregroundStyle(Color.soft)
-            PrimaryButton(title: "End session") { ending = true }
+            Text("O rebento do Pip cresce enquanto ficas. \(s.leftApp == 0 ? "" : "Saíste \(s.leftApp)×, não faz mal.")").font(.geist(13)).foregroundStyle(Color.soft)
+            PrimaryButton(title: "Terminar sessão") { ending = true }
         }
     }
 
     private var finish: some View {
         VStack(spacing: 16) {
             PipAnimation(mood: .celebrate).frame(width: 140, height: 140)
-            Text("How did that feel?").font(.geist(22, .bold))
+            Text("Como te sentiste?").font(.geist(22, .bold))
             HStack {
-                ForEach([(1, "Drained", "battery.25"), (2, "Neutral", "battery.50"), (3, "Energized", "battery.100.bolt")], id: \.0) { v, name, icon in
+                ForEach([(1, "Esgotado", "battery.25"), (2, "Neutro", "battery.50"), (3, "Com energia", "battery.100.bolt")], id: \.0) { v, name, icon in
                     Button { rating = v } label: {
                         VStack(spacing: 6) { Image(systemName: icon).font(.geist(20)); Text(name).font(.geist(12, .semibold)) }
                             .frame(maxWidth: .infinity).padding(.vertical, 12)
@@ -142,13 +142,13 @@ struct FocusView: View {
                 }
             }
             HStack {
-                Text("Depth").font(.geist(14)).foregroundStyle(Color.soft)
+                Text("Profundidade").font(.geist(14)).foregroundStyle(Color.soft)
                 ForEach(1...5, id: \.self) { n in Image(systemName: n <= depth ? "circle.fill" : "circle").foregroundStyle(Color.mint).onTapGesture { depth = n } }
             }
             if let pid = session?.projectId, let p = store.record(Project.self, pid) {
-                TextField("\(p.unit.capitalized) done for \(p.title)", text: $progress).keyboardType(.decimalPad).padding(12).background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.07)))
+                TextField("\(["pages": "Páginas", "words": "Palavras", "hours": "Horas"][p.unit] ?? p.unit.capitalized) feitas em \(p.title)", text: $progress).keyboardType(.decimalPad).padding(12).background(RoundedRectangle(cornerRadius: 12).fill(.white.opacity(0.07))) // p.unit is stored (pages, words, hours) and stays; only its name on screen is Portuguese
             }
-            PrimaryButton(title: "Save") {
+            PrimaryButton(title: "Guardar") {
                 guard var s = session else { dismiss(); return }
                 s.end = nowMs()
                 s.rating = rating

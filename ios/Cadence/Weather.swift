@@ -82,7 +82,7 @@ final class WeatherStore: NSObject, ObservableObject, CLLocationManagerDelegate 
         func clockMinute(_ s: String?) -> Int { guard let s, s.count >= 16 else { return 0 }; return (Int(s.dropFirst(11).prefix(2)) ?? 0) * 60 + (Int(s.dropFirst(14).prefix(2)) ?? 0) }
         let sunrise = clockMinute((d["sunrise"] as? [String])?.first), sunset = clockMinute((d["sunset"] as? [String])?.first)
         let highs = (d["temperature_2m_max"] as? [Any])?.compactMap { $0 as? Double } ?? [], lows = (d["temperature_2m_min"] as? [Any])?.compactMap { $0 as? Double } ?? []
-        var place = "Where you are"
+        var place = "Onde estás"
         if let p = try? await CLGeocoder().reverseGeocodeLocation(loc).first { place = p.locality ?? place }
         var w = WeatherDay(date: Day.today, place: place, hours: hours, sunrise: sunrise, sunset: sunset, high: highs.first ?? 0, low: lows.first ?? 0, fetched: nowMs())
         // Air quality and pollen (European model)
@@ -134,11 +134,11 @@ extension Store {
         let uvHigh = out.filter { $0.uv >= 3 }
         let uvHours = uvHigh.isEmpty ? nil : "\(clock(uvHigh.first!.minute))–\(clock(uvHigh.last!.minute + 60))"
         var air: String?
-        if let pm = w.pm25, pm > 25 { air = "Air quality is poor today (PM2.5 \(Int(pm))): train indoors." }
-        else if let p = w.pollen, p > 50 { air = "High pollen today: a run is better indoors or early." }
-        let words = ["", "T-shirt weather", "Light layer", "Jumper and a jacket", "Coat and layers"][layers]
+        if let pm = w.pm25, pm > 25 { air = "A qualidade do ar está má hoje (PM2.5 \(Int(pm))): treina num espaço fechado." }
+        else if let p = w.pollen, p > 50 { air = "Muito pólen hoje: é melhor correr num espaço fechado ou cedo." }
+        let words = ["", "Tempo de t-shirt", "Uma camada leve", "Camisola e casaco", "Casaco quente e várias camadas"][layers]
         return WeatherCall(umbrella: umbrella, rainWindow: window, layers: layers, feels: feels, uvPeak: uvPeak, uvHours: uvHours, airNote: air,
-                           summary: (umbrella ? "Take the umbrella (\(window!)). " : "No umbrella needed. ") + "\(words): feels like \(Int(feels.rounded()))° at its coldest.")
+                           summary: (umbrella ? "Leva o guarda-chuva (\(window!)). " : "Não precisas de guarda-chuva. ") + "\(words): sensação de \(Int(feels.rounded()))° na hora mais fria.")
     }
 
     /// Daylight you probably got: steps between sunrise and sunset count as time outside, plus "I was outside" taps

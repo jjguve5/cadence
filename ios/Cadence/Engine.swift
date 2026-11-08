@@ -11,7 +11,7 @@ enum Provenance: String, Codable {
 enum Confidence: Int, Comparable, Codable {
     case low = 0, moderate = 1, high = 2
     static func < (a: Confidence, b: Confidence) -> Bool { a.rawValue < b.rawValue }
-    var label: String { ["low", "moderate", "high"][rawValue] }
+    var label: String { ["baixa", "moderada", "alta"][rawValue] }
     func lowered() -> Confidence { Confidence(rawValue: max(0, rawValue - 1)) ?? .low }
 }
 
@@ -116,19 +116,19 @@ enum Engine {
             if let p = previousHrvZ { z = 0.75 * z + 0.25 * max(-3, min(3, p)) }
             hz = z
             parts.append((min(100, max(0, 62 + 16 * z)), 0.4))
-        } else { notes.append("HRV not available yet") }
+        } else { notes.append("VFC ainda não disponível") }
         if let rhr, let b = rhrBase {
             var z = max(-3, min(3, b.z(rhr)))
             if let p = previousRhrZ { z = 0.75 * z + 0.25 * max(-3, min(3, p)) }
             rz = z
             parts.append((min(100, max(0, 62 - 16 * z)), 0.3))
-        } else { notes.append("Resting HR not available yet") }
+        } else { notes.append("FC em repouso ainda não disponível") }
         var ratio: Double?
         if let s = sleepMinutes {
             let r = Double(s) / Double(max(1, sleepNeed))
             ratio = r
             parts.append((min(100, max(0, 100 * (r - 0.55) / 0.45)), 0.3))
-        } else { notes.append("Last night's sleep hasn't synced") }
+        } else { notes.append("O sono da última noite ainda não sincronizou") }
         guard !parts.isEmpty else { return nil }
         let w = parts.map(\.1).reduce(0, +)
         let score = Int(min(100, max(1, parts.map { $0.0 * $0.1 }.reduce(0, +) / w + offset)).rounded())
@@ -217,11 +217,11 @@ enum Engine {
 
     static func minimumDayReasons(_ c: DayContext) -> [String] {
         var out: [String] = []
-        if c.illnessSigns.count >= 2 { out.append("Several body signals are off together (\(c.illnessSigns.prefix(2).joined(separator: ", ")))") }
-        if let s = c.sleepMinutes, s < 330 { out.append("Only \(duration(s)) of sleep") }
-        if let r = c.readiness, r.score < 35, r.confidence >= .moderate { out.append("Readiness \(r.score)") }
-        if c.meetingsMinutes >= 360 { out.append("\(duration(c.meetingsMinutes)) of calendar events") }
-        if let last = c.recentEnergy.first, last <= 1, c.recentEnergy.prefix(2).allSatisfy({ $0 <= 2 }) { out.append("You've reported low energy two days running") }
+        if c.illnessSigns.count >= 2 { out.append("Vários sinais do corpo alterados ao mesmo tempo (\(c.illnessSigns.prefix(2).joined(separator: ", ")))") }
+        if let s = c.sleepMinutes, s < 330 { out.append("Só \(duration(s)) de sono") }
+        if let r = c.readiness, r.score < 35, r.confidence >= .moderate { out.append("Prontidão \(r.score)") }
+        if c.meetingsMinutes >= 360 { out.append("\(duration(c.meetingsMinutes)) de eventos no calendário") }
+        if let last = c.recentEnergy.first, last <= 1, c.recentEnergy.prefix(2).allSatisfy({ $0 <= 2 }) { out.append("Registaste pouca energia dois dias seguidos") }
         return out
     }
 
@@ -236,14 +236,14 @@ enum Engine {
 
         // Safety and commitments first: deterministic
         for m in c.openMustDos where m.late {
-            out.append(Recommendation(kind: "mustdo", title: "\(m.title) now", why: "It's a must-do and its time has passed.", evidence: ["Scheduled earlier today, not answered yet"], confidence: .high, action: .doMustDo(m.title), actionLabel: "Done", priority: 100))
+            out.append(Recommendation(kind: "mustdo", title: "\(m.title) agora", why: "É obrigatório e a hora já passou.", evidence: ["Marcado para mais cedo hoje, ainda sem resposta"], confidence: .high, action: .doMustDo(m.title), actionLabel: "Concluído", priority: 100))
             break
         }
 
         // A lighter day, offered, never imposed
         let reasons = minimumDayReasons(c)
         if !c.minimumDay, !reasons.isEmpty, morning || c.minute < 16 * 60 {
-            out.append(Recommendation(kind: "minimumday", title: "Make today a minimum viable day", why: "Keep the essentials, drop the optional, and count it as a full day. Medicines and must-dos stay as they are.", evidence: reasons, confidence: reasons.count >= 2 ? .high : .moderate, action: .offerMinimumDay, actionLabel: "Switch on", priority: 90))
+            out.append(Recommendation(kind: "minimumday", title: "Fazer de hoje um dia mínimo", why: "Fica o essencial, sai o opcional, e conta como um dia completo. Medicamentos e obrigatórios ficam como estão.", evidence: reasons, confidence: reasons.count >= 2 ? .high : .moderate, action: .offerMinimumDay, actionLabel: "Ativar", priority: 90))
         }
 
         // Short sleep with important work: protect the best focus window
@@ -253,57 +253,57 @@ enum Engine {
             return s < c.sleepNeed - 75
         }()
         if shortSleep, c.deepWorkPlanned || (c.deadline.map { $0.daysLeft <= 7 } ?? false), morning {
-            var ev = ["Slept \(duration(c.sleepMinutes ?? 0))" + (c.sleepBaseline.map { ", your usual is \(duration(Int($0.median)))" } ?? "")]
-            if let d = c.deadline { ev.append("\(d.title) due in \(d.daysLeft) days") }
-            var why = "After a short night, attention is best early and fades sooner. Put the hard thinking first and keep meetings later."
-            if let t = c.trainingToday { why += " Keep \(t), and let your warm-up decide how hard to go." }
-            out.append(Recommendation(kind: "focus", title: "Protect your morning focus block", why: why, evidence: ev, confidence: c.sleepBaseline != nil ? .moderate : .low, action: .protectFocus, actionLabel: "Start focus", priority: 80))
+            var ev = ["Dormiste \(duration(c.sleepMinutes ?? 0))" + (c.sleepBaseline.map { ", o teu habitual é \(duration(Int($0.median)))" } ?? "")]
+            if let d = c.deadline { ev.append("\(d.title): prazo daqui a \(d.daysLeft) dias") }
+            var why = "Depois de uma noite curta, a atenção está melhor cedo e esgota-se mais depressa. Põe primeiro o que exige mais concentração e deixa as reuniões para mais tarde."
+            if let t = c.trainingToday { why += " Mantém \(t) e deixa o aquecimento decidir a intensidade." }
+            out.append(Recommendation(kind: "focus", title: "Protege o teu bloco de foco da manhã", why: why, evidence: ev, confidence: c.sleepBaseline != nil ? .moderate : .low, action: .protectFocus, actionLabel: "Começar foco", priority: 80))
         }
 
         // Training on a low-readiness day: decide by feel, never an automatic cut
         if let t = c.trainingToday, let r = c.readiness, r.score < 50 {
-            var ev = ["Readiness \(r.score) (\(r.confidence.label) confidence)"]
-            if let z = r.hrvZ, z < -1 { ev.append("HRV below your usual") }
-            if let z = r.rhrZ, z > 1 { ev.append("Resting HR above your usual") }
+            var ev = ["Prontidão \(r.score) (confiança \(r.confidence.label))"]
+            if let z = r.hrvZ, z < -1 { ev.append("VFC abaixo do habitual") }
+            if let z = r.rhrZ, z > 1 { ev.append("FC em repouso acima do habitual") }
             var conf = r.confidence.lowered()
-            if c.readinessUseful == false { conf = .low; ev.append("Your readiness hasn't predicted your sessions well so far") }
-            out.append(Recommendation(kind: "trainfeel", title: "Train, and let the warm-up decide", why: "\(t) stays on the plan. If the warm-up sets feel heavy, stop each set a rep or two earlier; if they feel normal, train as planned. Readiness is a hint, not an instruction.", evidence: ev, confidence: conf, action: .trainByFeel, actionLabel: "Open the session", priority: 70))
+            if c.readinessUseful == false { conf = .low; ev.append("Até agora, a tua prontidão não previu bem os teus treinos") }
+            out.append(Recommendation(kind: "trainfeel", title: "Treina e deixa o aquecimento decidir", why: "\(t) continua no plano. Se as séries de aquecimento custarem, termina cada série uma ou duas repetições mais cedo; se parecerem normais, treina como planeado. A prontidão é uma pista, não uma ordem.", evidence: ev, confidence: conf, action: .trainByFeel, actionLabel: "Abrir o treino", priority: 70))
         }
 
         // A deadline falling behind
         if let d = c.deadline, d.behind, !c.deepWorkPlanned, c.minute < 18 * 60 {
-            out.append(Recommendation(kind: "deadline", title: "Place a deep-work block for \(d.title)", why: "At the current pace it finishes after the deadline. One block today keeps it on track.", evidence: ["Due in \(d.daysLeft) days", "Pace from your last 14 days of progress"], confidence: .moderate, action: .placeDeepWork(d.title), actionLabel: "Place it", priority: 65))
+            out.append(Recommendation(kind: "deadline", title: "Marca um bloco de trabalho focado para \(d.title)", why: "Ao ritmo atual, acaba depois do prazo. Um bloco hoje mantém-no a tempo.", evidence: ["Prazo daqui a \(d.daysLeft) dias", "Ritmo do teu progresso nos últimos 14 dias"], confidence: .moderate, action: .placeDeepWork(d.title), actionLabel: "Adicionar ao plano", priority: 65))
         }
 
         // Sleep debt: a small, realistic change tonight
         if let e = c.eveningAfter, c.sleepDebt >= 180 {
-            out.append(Recommendation(kind: "bedtime", title: "Straight to wind-down after \(e.title)", why: "You're back at \(clock(e.back)), so lights out can't be much before \(clock(e.lightsOut)). Keep the evening short: brush, two pages, bed. Tomorrow is the night to pay back.", evidence: ["About \(duration(c.sleepDebt)) short over the last 7 nights (an estimate)", "\(e.title) until \(clock(e.back))"], confidence: .high, action: .none, actionLabel: "", priority: 75))
+            out.append(Recommendation(kind: "bedtime", title: "Desacelerar logo a seguir a \(e.title)", why: "Voltas às \(clock(e.back)), por isso apagar as luzes não pode ser muito antes das \(clock(e.lightsOut)). Noite curta: dentes, duas páginas, cama. A noite de amanhã é para recuperar.", evidence: ["Cerca de \(duration(c.sleepDebt)) em falta nas últimas 7 noites (uma estimativa)", "\(e.title) até às \(clock(e.back))"], confidence: .high, action: .none, actionLabel: "", priority: 75))
         } else if c.sleepDebt >= 180 {
             let earlier = c.sleepDebt >= 360 ? 30 : 20
-            out.append(Recommendation(kind: "bedtime", title: "Lights out \(earlier) minutes earlier tonight", why: "Small, regular paybacks work better than one long lie-in, which shifts your body clock.", evidence: ["About \(duration(c.sleepDebt)) short over the last 7 nights (an estimate)"], confidence: c.sleepBaseline != nil ? .moderate : .low, action: .earlierBedtime(earlier), actionLabel: "Set it", priority: evening ? 75 : 55))
+            out.append(Recommendation(kind: "bedtime", title: "Apagar as luzes \(earlier) minutos mais cedo esta noite", why: "Recuperar um pouco todas as noites resulta melhor do que uma manhã longa na cama, que desacerta o relógio do corpo.", evidence: ["Cerca de \(duration(c.sleepDebt)) em falta nas últimas 7 noites (uma estimativa)"], confidence: c.sleepBaseline != nil ? .moderate : .low, action: .earlierBedtime(earlier), actionLabel: "Aceitar", priority: evening ? 75 : 55))
         }
 
         // Protein in the evening
         if let g = c.proteinGap, g >= 30, c.minute >= 16 * 60, c.minute < 21 * 60 {
-            out.append(Recommendation(kind: "protein", title: "\(Int(g)) g protein left today", why: "Spreading protein over the day supports recovery from training; a shake or a fridge portion closes most of it.", evidence: ["From what you've logged today"], confidence: .moderate, action: .logFood, actionLabel: "Log food", priority: 55))
+            out.append(Recommendation(kind: "protein", title: "Faltam \(Int(g)) g de proteína hoje", why: "Distribuir a proteína pelo dia ajuda a recuperar do treino; um batido ou uma porção do frigorífico resolve a maior parte.", evidence: ["Pelo que registaste hoje"], confidence: .moderate, action: .logFood, actionLabel: "Registar comida", priority: 55))
         }
 
         // Data that hasn't arrived
         if c.usesBand, let h = c.lastSyncHours, h >= 24 {
             let days = Int(h / 24)
-            out.append(Recommendation(kind: "sync", title: "Your Air hasn't synced for \(days) day\(days == 1 ? "" : "s")", why: "Readiness, sleep debt and the plan are working from older data until it syncs. Open the Fitbit app near the band.", evidence: ["Last sync \(Int(h)) hours ago"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 85))
+            out.append(Recommendation(kind: "sync", title: "O teu Air não sincroniza há \(days) dia\(days == 1 ? "" : "s")", why: "Até sincronizar, a prontidão, a dívida de sono e o plano usam dados antigos. Abre a app Fitbit perto da pulseira.", evidence: ["Última sincronização há \(Int(h)) horas"], confidence: .high, action: .syncAir, actionLabel: "Abrir o Fitbit", priority: 85))
         } else if stale, c.sleepMinutes == nil, morning {
-            out.append(Recommendation(kind: "sync", title: "Sync your Air", why: "Today's sleep and HRV haven't arrived, so readiness and the plan are running on yesterday.", evidence: [c.lastSyncHours.map { "Last sync \(Int($0)) hours ago" } ?? "No sync yet"], confidence: .high, action: .syncAir, actionLabel: "Open Fitbit", priority: 60))
+            out.append(Recommendation(kind: "sync", title: "Sincroniza o teu Air", why: "O sono e a VFC de hoje ainda não chegaram, por isso a prontidão e o plano estão a usar os dados de ontem.", evidence: [c.lastSyncHours.map { "Última sincronização há \(Int($0)) horas" } ?? "Ainda não sincronizou"], confidence: .high, action: .syncAir, actionLabel: "Abrir o Fitbit", priority: 60))
         }
         if c.usesBand, let b = c.airBattery, b <= 15 {
-            out.append(Recommendation(kind: "battery", title: "Charge your Air", why: "Below 15%, tonight's sleep and HRV may be lost.", evidence: ["Battery \(b)%"], confidence: .high, action: .chargeAir, actionLabel: "OK", priority: 45))
+            out.append(Recommendation(kind: "battery", title: "Carrega o teu Air", why: "Abaixo de 15%, o sono e a VFC desta noite podem perder-se.", evidence: ["Bateria a \(b)%"], confidence: .high, action: .chargeAir, actionLabel: "OK", priority: 45))
         }
 
         // Stale data lowers confidence in anything built on physiology
         if stale {
             for i in out.indices where ["focus", "trainfeel", "bedtime"].contains(out[i].kind) {
                 out[i].confidence = out[i].confidence.lowered()
-                out[i].evidence.append("Air data is \(Int(c.lastSyncHours ?? 0)) hours old")
+                out[i].evidence.append("Os dados do Air têm \(Int(c.lastSyncHours ?? 0)) horas")
             }
         }
         // A light day drops the push-harder advice; an offered light day drops deadline pressure
@@ -328,16 +328,16 @@ enum Engine {
     /// error against that naive baseline; under 10 pairs it says so instead of showing a number.
     static func calibrate(_ pairs: [(predicted: Double, observed: Double)]) -> Calibration {
         let n = pairs.count
-        guard n >= 10 else { return Calibration(n: n, spearman: nil, modelError: nil, baselineError: nil, verdict: n == 0 ? "No pairs yet" : "\(n) of 10 pairs needed") }
+        guard n >= 10 else { return Calibration(n: n, spearman: nil, modelError: nil, baselineError: nil, verdict: n == 0 ? "Ainda sem pares" : "\(n) de 10 pares necessários") }
         let obsMean = pairs.map(\.observed).reduce(0, +) / Double(n)
         // put predictions on the outcome's scale by their own ranks before comparing errors
         let model = pairs.map { abs($0.predicted - $0.observed) }.reduce(0, +) / Double(n)
         let base = pairs.map { abs(obsMean - $0.observed) }.reduce(0, +) / Double(n)
         let rho = spearman(pairs.map(\.predicted), pairs.map(\.observed))
         let verdict: String
-        if let rho, rho >= 0.3, model <= base * 0.95 { verdict = "Useful: it beats guessing your average" }
-        else if let rho, rho >= 0.15 { verdict = "Weak: a hint at best" }
-        else { verdict = "Not useful yet: no better than your average" }
+        if let rho, rho >= 0.3, model <= base * 0.95 { verdict = "Útil: acerta mais do que adivinhar pela tua média" } // LearnedView colours a verdict that starts with "Útil"
+        else if let rho, rho >= 0.15 { verdict = "Fraco: no máximo, uma pista" }
+        else { verdict = "Ainda não é útil: não é melhor do que a tua média" }
         return Calibration(n: n, spearman: rho, modelError: model, baselineError: base, verdict: verdict)
     }
 
@@ -386,8 +386,8 @@ enum Engine {
         let mb = mean(before), md = mean(during)
         let pooled = sqrt(((Double(before.count) - 1) * variance(before) + (Double(during.count) - 1) * variance(during)) / Double(before.count + during.count - 2))
         let d = pooled > 0 ? (md - mb) / pooled : 0
-        let size = abs(d) < 0.2 ? "no clear change" : abs(d) < 0.5 ? "a small change" : abs(d) < 0.8 ? "a moderate change" : "a large change"
+        let size = abs(d) < 0.2 ? "sem mudança clara" : abs(d) < 0.5 ? "uma mudança pequena" : abs(d) < 0.8 ? "uma mudança moderada" : "uma mudança grande"
         return ExperimentResult(before: mb, during: md, difference: md - mb, effectSize: d, nBefore: before.count, nDuring: during.count,
-                                summary: "\(size.prefix(1).uppercased() + size.dropFirst()) (\(before.count) days before, \(during.count) during). Other things changed too, so this is a pattern, not proof.")
+                                summary: "\(size.prefix(1).uppercased() + size.dropFirst()) (\(before.count) dias antes, \(during.count) durante). Outras coisas também mudaram, por isso é um padrão, não uma prova.")
     }
 }

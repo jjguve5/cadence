@@ -52,7 +52,7 @@ enum PipMood: String {
         }
     }
     var label: String {
-        ["idle": "Calm", "happy": "Happy", "proud": "Proud", "sleepy": "Sleepy", "sad": "A little sad", "celebrate": "Thrilled", "eat": "Waiting with the scoop", "levelup": "Growing", "tapped": "Surprised"][rawValue]!
+        ["idle": "Calmo", "happy": "Contente", "proud": "Orgulhoso", "sleepy": "Com sono", "sad": "Um pouco triste", "celebrate": "Radiante", "eat": "À espera com a colher", "levelup": "A crescer", "tapped": "Surpreendido"][rawValue]!
     }
 }
 
@@ -91,22 +91,22 @@ extension Store {
         var parts: [ReadinessPart] = []
         if let hrv = today.hrv, let z = r.hrvZ, let b = robust({ $0.hrv }, before: day) {
             let pct = (hrv / b.median - 1) * 100
-            parts.append(ReadinessPart(name: "HRV", value: "\(Int(hrv)) ms", detail: String(format: "%+.0f%% vs your usual (median of %d days)", pct, b.n), score: min(100, max(0, 62 + 16 * z)), good: z > -1))
+            parts.append(ReadinessPart(name: "VFC", value: "\(Int(hrv)) ms", detail: String(format: "%+.0f%% face ao habitual (mediana de %d dias)", pct, b.n), score: min(100, max(0, 62 + 16 * z)), good: z > -1))
         }
         if let rhr = today.rhr, let z = r.rhrZ, let b = robust({ $0.rhr }, before: day) {
-            parts.append(ReadinessPart(name: "Resting HR", value: "\(Int(rhr)) bpm", detail: String(format: "%+.0f vs your usual", rhr - b.median), score: min(100, max(0, 62 - 16 * z)), good: z < 1))
+            parts.append(ReadinessPart(name: "FC em repouso", value: "\(Int(rhr)) bpm", detail: String(format: "%+.0f face ao habitual", rhr - b.median), score: min(100, max(0, 62 - 16 * z)), good: z < 1))
         }
         if let s = today.sleep, let ratio = r.sleepRatio {
-            parts.append(ReadinessPart(name: "Sleep", value: duration(s.asleep), detail: "\(Int(ratio * 100))% of your \(duration(profile.sleepNeed)) need", score: min(100, max(0, 100 * (ratio - 0.55) / 0.45)), good: ratio >= 0.9))
+            parts.append(ReadinessPart(name: "Sono", value: duration(s.asleep), detail: "\(Int(ratio * 100))% das \(duration(profile.sleepNeed)) de que precisas", score: min(100, max(0, 100 * (ratio - 0.55) / 0.45)), good: ratio >= 0.9))
         }
         if let t = today.temp, abs(t) >= 0.5 {
-            parts.append(ReadinessPart(name: "Skin temp", value: String(format: "%+.1f°", t), detail: "Off your baseline: alcohol, a warm room, stress or a coming cold can all do this", score: 50, good: false))
+            parts.append(ReadinessPart(name: "Temperatura da pele", value: String(format: "%+.1f°", t), detail: "Fora da tua base: álcool, um quarto quente, stress ou uma constipação a caminho podem causar isto", score: 50, good: false))
         }
         var notes = r.notes
         let week = (0..<7).compactMap { health[Day.add(-$0, to: day)]?.hrv }
-        if week.count >= 5, let b = robust({ $0.hrv }, before: day), Engine.sustainedDecline(week: week, baseline: b) { notes.append("HRV has been below your usual for most of the week") }
+        if week.count >= 5, let b = robust({ $0.hrv }, before: day), Engine.sustainedDecline(week: week, baseline: b) { notes.append("A VFC esteve abaixo do habitual na maior parte da semana") }
         let score = r.score
-        let label = score >= 80 ? "Primed" : score >= 65 ? "Good to go" : score >= 50 ? "Steady" : score >= 35 ? "Go easy" : "Take it easy"
+        let label = score >= 80 ? "Em plena forma" : score >= 65 ? "Tudo a postos" : score >= 50 ? "Estável" : score >= 35 ? "Com calma" : "Poupa-te"
         return Readiness(score: score, label: label, parts: parts, summary: parts.map { "\($0.name) \($0.value)" }.joined(separator: " · "), confidence: r.confidence, notes: notes)
     }
 
@@ -220,14 +220,14 @@ extension Store {
         var out: [MoodReason] = []
         for p in due().filter({ $0.kind == .mustDo }) {
             let w = week(p)
-            out.append(MoodReason(text: "\(p.title) \(w.done)/\(w.total) this week", good: w.done >= w.due - (status(p) == nil ? 1 : 0)))
+            out.append(MoodReason(text: "\(p.title) \(w.done)/\(w.total) esta semana", good: w.done >= w.due - (status(p) == nil ? 1 : 0)))
         }
-        if let r = readiness() { out.append(MoodReason(text: "Readiness \(r.score), \(r.label.lowercased())", good: r.score >= 60)) }
+        if let r = readiness() { out.append(MoodReason(text: "Prontidão \(r.score), \(r.label.lowercased())", good: r.score >= 60)) }
         if let s = health[Day.today]?.sleep {
             let short = s.asleep < profile.sleepNeed - 30
-            out.append(MoodReason(text: "Sleep \(duration(s.asleep))\(short ? ", a bit short" : "")", good: !short))
+            out.append(MoodReason(text: "Sono \(duration(s.asleep))\(short ? ", um pouco curto" : "")", good: !short))
         }
-        if let steps = health[Day.today]?.steps { out.append(MoodReason(text: "\(Int(steps).formatted()) steps", good: steps >= Double(profile.stepGoal))) }
+        if let steps = health[Day.today]?.steps { out.append(MoodReason(text: "\(Int(steps).formatted()) passos", good: steps >= Double(profile.stepGoal))) }
         return out
     }
 
@@ -244,7 +244,7 @@ extension Store {
         if let r = readiness(), r.score < 50, !sessions(on: Day.today).filter({ $0.end != nil }).isEmpty { noticed.append((.trainedLowDay, nil, "")) }
         for p in due().filter({ $0.kind == .mustDo }) {
             let w = week(p)
-            if w.due >= 4, w.done == w.due, status(p) != nil { noticed.append((.streak, "\(p.title) \(w.done)/\(w.total) this week.", p.id)) }
+            if w.due >= 4, w.done == w.due, status(p) != nil { noticed.append((.streak, "\(p.title) \(w.done)/\(w.total) esta semana.", p.id)) }
         }
         if shortNightsInARow() == 0, let s = health[Day.today]?.sleep, s.asleep >= profile.sleepNeed - 15, minute < 12 * 60 { noticed.append((.sleepGood, nil, "")) }
         if !noticed.isEmpty, minute % 3 == 0 || noticed.count == 1 {
@@ -262,7 +262,7 @@ extension Store {
             let topic = pipTopic(minute: minute)
             // What's next stays the main thing; every other hour Pip mentions what it has noticed instead
             if let next, topic == nil || (minute / 60) % 2 == 1 {
-                return Pip.stable(.generic, store: self, key: "next", lead: "Next: \(next.title.lowercased()) at \(timeLabel(next)).")
+                return Pip.stable(.generic, store: self, key: "next", lead: "A seguir: \(next.title.lowercased()) às \(timeLabel(next)).")
             }
             return Pip.stable(topic ?? (minute < 12 * 60 ? .morning : .generic), store: self)
         }
@@ -292,18 +292,18 @@ extension Store {
     }
 
     /// Promises that tick themselves once the Air syncs: a steps goal, a bedtime. Each one is saved as imported from
-    /// the health source (PromiseLog.source), not as answered by you.
+    /// the health source (PromiseLog.source), not as answered by you. A title matches by its English or Portuguese words.
     func autoComplete() {
         let today = Day.today
         let source = profile.healthSource
         for p in due(on: today) where status(p, on: today) == nil {
             let t = p.title.lowercased()
-            if t.contains("steps") || t.contains("walk"), let steps = health[today]?.steps, steps >= Double(profile.stepGoal) { log(p, on: today, .done, source: source) }
+            if t.contains("steps") || t.contains("walk") || t.contains("passos") || t.contains("caminhar") || t.contains("caminhada"), let steps = health[today]?.steps, steps >= Double(profile.stepGoal) { log(p, on: today, .done, source: source) }
         }
         let yesterday = Day.add(-1, to: today)
         for p in due(on: yesterday) where status(p, on: yesterday) == nil {
             let t = p.title.lowercased()
-            guard t.contains("bed") || t.contains("lights out"), let s = health[today]?.sleep else { continue }
+            guard t.contains("bed") || t.contains("lights out") || t.contains("deitar") || t.contains("luzes"), let s = health[today]?.sleep else { continue }
             let start = Day.minuteOfDay(s.startDate), planned = time(of: p, on: yesterday)
             let a = start < 12 * 60 ? start + 1440 : start, b = planned < 12 * 60 ? planned + 1440 : planned
             if a <= b + 15 { log(p, on: yesterday, .done, source: source) }
@@ -359,22 +359,22 @@ extension Store {
             TemplateExercise(exerciseId: id, name: name, sets: sets, repLow: lo, repHigh: hi, rest: rest, increment: inc)
         }
         let plan = [
-            WorkoutTemplate(name: "Monday · chest, back, arms", exercises: [
+            WorkoutTemplate(name: "Segunda · peito, costas, braços", exercises: [
                 t("incline-bench-press", "Incline Bench Press", 3, 6, 10, 150), t("pec-deck", "Pec Deck Fly", 3, 10, 15), t("lat-pulldown", "Lat Pulldown", 4, 8, 12, 120),
                 t("zottman-curl", "Zottman Hammer Curl", 3, 10, 12, 75, 1), t("cable-overhead-tricep-extension", "Cable Overhead Extension", 3, 10, 15, 75),
                 t("seated-dumbbell-lateral-raise", "Front & Back Seated DB Lateral Raises", 3, 12, 15, 60, 1),
             ], weekdays: [2], minutes: 70),
-            WorkoutTemplate(name: "Wednesday · legs and core, low intensity", exercises: [
+            WorkoutTemplate(name: "Quarta · pernas e core, baixa intensidade", exercises: [
                 t("squat", "High Bar Squat", 3, 6, 10, 150), t("db-shrug", "Shrugs", 3, 10, 15, 75), t("reverse-curl", "Reverse Grip Curl", 3, 10, 15, 60, 1),
-                t("dragon-flag", "Dragon Flags", 3, 5, 10, 90, 0), t("treadmill-running", "Run / walk mix, low and high, 20–30 min", 1, 1, 1, 0, 0),
+                t("dragon-flag", "Dragon Flags", 3, 5, 10, 90, 0), t("treadmill-running", "Corrida e caminhada, ritmo baixo e alto, 20–30 min", 1, 1, 1, 0, 0),
             ], weekdays: [4], minutes: 70),
-            WorkoutTemplate(name: "Friday · back, chest, arms", exercises: [
+            WorkoutTemplate(name: "Sexta · costas, peito, braços", exercises: [
                 t("pull-up", "Pull Ups", 3, 6, 10, 150, 1.25), t("chest-supported-db-row", "Chest Supported Row", 3, 8, 12, 120), t("incline-db-press", "Inclined DB Press", 3, 8, 12, 120, 2),
                 t("tricep-pushdown", "Cable Press Down", 3, 10, 15, 75), t("cable-curl", "Cable Curl / Face-Away Cable Curl", 3, 10, 15, 75),
                 t("cable-lateral-raise", "Cable Lateral Raises", 3, 12, 15, 60, 1),
             ], weekdays: [6], minutes: 70),
-            WorkoutTemplate(name: "Saturday · legs", exercises: [
-                t("treadmill-running", "Run, 7 min warm-up", 1, 1, 1, 0, 0), t("stiff-leg-deadlift", "DB Stiff-Legged Deadlift (glute bias)", 3, 8, 12, 120),
+            WorkoutTemplate(name: "Sábado · pernas", exercises: [
+                t("treadmill-running", "Corrida, 7 min de aquecimento", 1, 1, 1, 0, 0), t("stiff-leg-deadlift", "DB Stiff-Legged Deadlift (glute bias)", 3, 8, 12, 120),
                 t("leg-extension", "Leg Extensions", 4, 10, 15, 75), t("standing-calf-raise", "Standing Calf Raise", 3, 10, 15, 60),
                 t("leg-curl", "Hamstring Curl", 3, 10, 15, 75), t("hip-abduction", "Abductors", 2, 12, 20, 60), t("hip-adduction", "Adductors", 2, 12, 20, 60),
             ], weekdays: [7], minutes: 75),
@@ -406,14 +406,14 @@ extension Store {
     func briefLines() -> [MoodReason] {
         var out: [MoodReason] = []
         let plan = sleepPlan()
-        if shortNightsInARow() >= 3 { out.append(MoodReason(text: "Three short nights in a row. Tonight: lights out by \(clock(plan.perform)).", good: false)) }
-        else if plan.debt > 120 { out.append(MoodReason(text: "Sleep debt \(duration(plan.debt)). Bed 15 min earlier tonight pays it back.", good: false)) }
-        if let b = device?.battery, b <= 20 { out.append(MoodReason(text: "Air battery \(b)%: charge it during your shower.", good: false)) }
-        if let r = readiness(), r.score < 45 { out.append(MoodReason(text: "Readiness is low: lighter training and an early night.", good: false)) }
+        if shortNightsInARow() >= 3 { out.append(MoodReason(text: "Três noites curtas seguidas. Esta noite: apagar as luzes até às \(clock(plan.perform)).", good: false)) }
+        else if plan.debt > 120 { out.append(MoodReason(text: "Dívida de sono de \(duration(plan.debt)). Deitar 15 min mais cedo esta noite ajuda a recuperá-la.", good: false)) }
+        if let b = device?.battery, b <= 20 { out.append(MoodReason(text: "Bateria do Air a \(b)%: carrega-o durante o duche.", good: false)) }
+        if let r = readiness(), r.score < 45 { out.append(MoodReason(text: "Prontidão baixa: treino mais leve e deitar cedo.", good: false)) }
         if let t = health[Day.today]?.temp, t >= 0.8, let rhr = health[Day.today]?.rhr, let b = baseline({ $0.rhr }), rhr > b.mean + 4 {
-            out.append(MoodReason(text: "Temperature and resting HR are both up: you may be getting sick. Take it easy.", good: false))
+            out.append(MoodReason(text: "A temperatura e a FC em repouso estão ambas acima do normal: podes estar a ficar doente. Vai com calma.", good: false))
         }
-        for m in openMustDos() { out.append(MoodReason(text: "\(m.title) is a must-do today, at \(timeLabel(m)).", good: nil)) }
+        for m in openMustDos() { out.append(MoodReason(text: "\(m.title): obrigatório hoje, às \(timeLabel(m)).", good: nil)) }
         return out
     }
 }

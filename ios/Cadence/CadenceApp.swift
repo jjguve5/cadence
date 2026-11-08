@@ -65,11 +65,11 @@ struct RootView: View {
                 RecoveryView() // the data couldn't be read or saved: nothing else until it's safe
             } else if store.connection.configured {
                 TabView(selection: $tab) {
-                    TodayView().tabItem { Label("Today", systemImage: "house") }.tag(0)
-                    PlanView().tabItem { Label("Plan", systemImage: "calendar") }.tag(1)
-                    BodyView().tabItem { Label("Body", systemImage: "heart.text.square") }.tag(2)
-                    if store.profile.on("care") { HygieneView().tabItem { Label("Hygiene", systemImage: "shower.fill") }.tag(3) }
-                    LifeView().tabItem { Label("Life", systemImage: "square.stack.3d.up") }.tag(4)
+                    TodayView().tabItem { Label("Hoje", systemImage: "house") }.tag(0)
+                    PlanView().tabItem { Label("Plano", systemImage: "calendar") }.tag(1)
+                    BodyView().tabItem { Label("Corpo", systemImage: "heart.text.square") }.tag(2)
+                    if store.profile.on("care") { HygieneView().tabItem { Label("Higiene", systemImage: "shower.fill") }.tag(3) }
+                    LifeView().tabItem { Label("Vida", systemImage: "square.stack.3d.up") }.tag(4)
                 }
                 .tint(.mint)
             } else {
@@ -80,7 +80,7 @@ struct RootView: View {
         .fullScreenCover(item: $store.openWorkout) { s in
             NavigationStack {
                 WorkoutView(sessionId: s.id)
-                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { store.openWorkout = nil } } }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { store.openWorkout = nil } } }
             }
             .environmentObject(store)
         }

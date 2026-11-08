@@ -10,7 +10,7 @@ struct PromisesView: View {
             ForEach([PromiseKind.mustDo, .routine], id: \.self) { kind in
                 let items = store.promises.values.filter { $0.kind == kind }.sorted { store.time(of: $0) < store.time(of: $1) }
                 if !items.isEmpty {
-                    Section(kind == .mustDo ? "Must-dos" : "Routines") {
+                    Section(kind == .mustDo ? "Obrigatórios" : "Rotinas") {
                         ForEach(items) { p in
                             Button { editing = p } label: {
                                 HStack(spacing: 12) {
@@ -18,24 +18,24 @@ struct PromisesView: View {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(p.title).foregroundStyle(p.active ? Color.ink : Color.faint)
                                         let w = store.week(p)
-                                        Text(store.timeLabel(p) + (p.schedule.anchor.map { " (\(Schedule.anchors[$0] ?? $0))" } ?? "") + (p.schedule.weekendMinute.map { ", weekends \(clock($0))" } ?? "") + " · \(p.schedule.summary) · \(w.done)/\(w.total) this week").font(.caption).foregroundStyle(Color.soft)
+                                        Text(store.timeLabel(p) + (p.schedule.anchor.map { " (\(Schedule.anchors[$0] ?? $0))" } ?? "") + (p.schedule.weekendMinute.map { ", fim de semana \(clock($0))" } ?? "") + " · \(p.schedule.summary) · \(w.done)/\(w.total) esta semana").font(.caption).foregroundStyle(Color.soft)
                                     }
                                     Spacer()
-                                    if !p.active { Text("paused").font(.caption).foregroundStyle(Color.faint) }
+                                    if !p.active { Text("em pausa").font(.caption).foregroundStyle(Color.faint) }
                                 }
                             }
-                            .swipeActions { Button("Delete", role: .destructive) { store.delete(p) } }
+                            .swipeActions { Button("Apagar", role: .destructive) { store.delete(p) } }
                         }
                     }
                 }
             }
             Section {
-                Text("Weekly windows instead of fragile streaks: a missed day lowers this week's count, it never resets you to zero.")
+                Text("Janelas semanais em vez de sequências frágeis: um dia falhado baixa a contagem desta semana, mas nunca te põe a zero.")
                     .font(.footnote).foregroundStyle(Color.soft)
             }
         }
         .cadenceList()
-        .navigationTitle("Promises")
+        .navigationTitle("Hábitos")
         .toolbar { Button { editing = PromiseItem(title: "") } label: { Image(systemName: "plus") } }
         .sheet(item: $editing) { PromiseEditor(promise: $0) }
     }
@@ -54,23 +54,23 @@ struct PromiseEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("What", text: $promise.title)
-                    Picker("Type", selection: $promise.kind) { ForEach(PromiseKind.allCases, id: \.self) { Text($0.label).tag($0) } }
-                    Toggle("Active", isOn: $promise.active)
+                    TextField("O quê", text: $promise.title)
+                    Picker("Tipo", selection: $promise.kind) { ForEach(PromiseKind.allCases, id: \.self) { Text($0.label).tag($0) } }
+                    Toggle("Ativo", isOn: $promise.active)
                 } footer: {
-                    Text(promise.kind == .mustDo ? "A must-do asks at its time, then 90 and 150 minutes later, and holds wind-down until you answer." : "A routine asks once, within your notification budget.")
+                    Text(promise.kind == .mustDo ? "Um obrigatório avisa à hora marcada, outra vez 90 e 150 minutos depois, e o desacelerar espera até responderes." : "Uma rotina avisa uma vez, dentro do teu limite de notificações.")
                 }
-                Section("When") {
-                    Picker("Repeats", selection: $promise.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
+                Section("Quando") {
+                    Picker("Repete", selection: $promise.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
                     if promise.schedule.rule == .everyNDays {
-                        Stepper("Every \(promise.schedule.every) days", value: $promise.schedule.every, in: 1...60)
-                        DatePicker("Starting", selection: Binding(get: { Day.date(promise.schedule.start) }, set: { promise.schedule.start = Day.key($0) }), displayedComponents: .date)
+                        Stepper("A cada \(promise.schedule.every) dias", value: $promise.schedule.every, in: 1...60)
+                        DatePicker("A partir de", selection: Binding(get: { Day.date(promise.schedule.start) }, set: { promise.schedule.start = Day.key($0) }), displayedComponents: .date)
                     }
                     if promise.schedule.rule == .weekdays {
                         HStack {
                             ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { wd in
                                 let on = promise.schedule.weekdays.contains(wd)
-                                Button(["S", "M", "T", "W", "T", "F", "S"][wd - 1]) {
+                                Button(["D", "S", "T", "Q", "Q", "S", "S"][wd - 1]) {
                                     if on { promise.schedule.weekdays.removeAll { $0 == wd } } else { promise.schedule.weekdays.append(wd) }
                                 }
                                 .buttonStyle(.plain)
@@ -83,13 +83,13 @@ struct PromiseEditor: View {
                     TimeChoice(promise: $promise, time: $time)
                 }
                 Section {
-                    TextField("Tiny version (e.g. two pages)", text: Binding(get: { promise.tiny ?? "" }, set: { promise.tiny = $0.isEmpty ? nil : $0 }))
-                } footer: { Text("Offered before you skip: it still counts toward the week.") }
-                Section("Logs food when ticked") {
+                    TextField("Versão mínima (p. ex. duas páginas)", text: Binding(get: { promise.tiny ?? "" }, set: { promise.tiny = $0.isEmpty ? nil : $0 }))
+                } footer: { Text("Proposta antes de saltares: conta na mesma para a semana.") }
+                Section("Regista comida ao marcar") {
                     TextField("kcal", value: $promise.kcal, format: .number).keyboardType(.decimalPad)
-                    TextField("Protein g", value: $promise.protein, format: .number).keyboardType(.decimalPad)
+                    TextField("Proteína g", value: $promise.protein, format: .number).keyboardType(.decimalPad)
                 }
-                Section("Icon") {
+                Section("Ícone") {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6)) {
                         ForEach(Self.icons, id: \.self) { icon in
                             Image(systemName: icon).frame(width: 40, height: 40)
@@ -100,12 +100,12 @@ struct PromiseEditor: View {
                 }
             }
             .cadenceList()
-            .navigationTitle(promise.title.isEmpty ? "New promise" : promise.title)
+            .navigationTitle(promise.title.isEmpty ? "Novo hábito" : promise.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button("Guardar") {
                         promise.schedule.minute = Day.minuteOfDay(time)
                         promise.title = promise.title.trimmingCharacters(in: .whitespaces)
                         store.save(promise)
@@ -134,22 +134,22 @@ struct TimeChoice: View {
     }
 
     var body: some View {
-        Picker("Time", selection: mode) {
-            Text("Same time every day").tag("fixed")
-            Text("Different on weekends").tag("weekend")
-            Text("After waking").tag("wake")
-            Text("At wind-down").tag("windDown")
-            Text("Before lights out").tag("lightsOut")
+        Picker("Hora", selection: mode) {
+            Text("Mesma hora todos os dias").tag("fixed")
+            Text("Diferente ao fim de semana").tag("weekend")
+            Text("Depois de acordar").tag("wake")
+            Text("Ao desacelerar").tag("windDown")
+            Text("Antes de apagar as luzes").tag("lightsOut")
         }
         if let a = promise.schedule.anchor {
             let off = promise.schedule.offset ?? 0
-            let name = a == "wake" ? "waking" : a == "lightsOut" ? "lights out" : "wind-down"
-            Stepper("\(abs(off)) min \(off < 0 ? "before" : "after") \(name)", value: Binding(get: { promise.schedule.offset ?? 0 }, set: { promise.schedule.offset = $0 }), in: -180...240, step: 5)
-            Text("Today: \(store.timeLabel(promise)). It moves when your bedtime moves.").font(.footnote).foregroundStyle(Color.soft)
+            let name = a == "wake" ? "acordar" : a == "lightsOut" ? "apagar as luzes" : "desacelerar"
+            Stepper("\(abs(off)) min \(off < 0 ? "antes de" : "depois de") \(name)", value: Binding(get: { promise.schedule.offset ?? 0 }, set: { promise.schedule.offset = $0 }), in: -180...240, step: 5)
+            Text("Hoje: \(store.timeLabel(promise)). Muda quando a tua hora de deitar muda.").font(.footnote).foregroundStyle(Color.soft)
         } else {
-            DatePicker(promise.schedule.weekendMinute == nil ? "Time" : "Weekdays", selection: $time, displayedComponents: .hourAndMinute)
+            DatePicker(promise.schedule.weekendMinute == nil ? "Hora" : "Dias úteis", selection: $time, displayedComponents: .hourAndMinute)
             if promise.schedule.weekendMinute != nil {
-                DatePicker("Weekends", selection: Binding(get: { Day.at(promise.schedule.weekendMinute ?? 0, on: Day.today) }, set: { promise.schedule.weekendMinute = Day.minuteOfDay($0) }), displayedComponents: .hourAndMinute)
+                DatePicker("Fim de semana", selection: Binding(get: { Day.at(promise.schedule.weekendMinute ?? 0, on: Day.today) }, set: { promise.schedule.weekendMinute = Day.minuteOfDay($0) }), displayedComponents: .hourAndMinute)
             }
         }
     }

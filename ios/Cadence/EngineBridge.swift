@@ -48,8 +48,8 @@ extension Store {
     /// What's known about this morning, said plainly
     var freshnessNote: String? {
         let today = health[Day.today]
-        if today?.sleep == nil, Clock.minute() < 14 * 60 { return "Last night's sleep hasn't " + (profile.usesBand ? "synced yet" : "reached Apple Health yet") + ((profile.usesBand ? syncAgeHours : nil).map { ": the Air last synced \(Int($0)) h ago" } ?? "") + "." }
-        if today?.hrv == nil, today?.sleep != nil { return "Today's HRV hasn't synced; readiness uses sleep and resting HR." }
+        if today?.sleep == nil, Clock.minute() < 14 * 60 { return "O sono da última noite ainda não " + (profile.usesBand ? "sincronizou" : "chegou ao Apple Health") + ((profile.usesBand ? syncAgeHours : nil).map { ": o Air sincronizou pela última vez há \(Int($0)) h" } ?? "") + "." }
+        if today?.hrv == nil, today?.sleep != nil { return "A VFC de hoje ainda não sincronizou; a prontidão usa o sono e a FC em repouso." }
         return nil
     }
 

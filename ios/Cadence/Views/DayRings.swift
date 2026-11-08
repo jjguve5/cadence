@@ -104,17 +104,17 @@ extension Store {
         func litres(_ v: Double) -> String { String(format: "%.1fL", v / 1000) }
         let main = [
             // sleep and recovery run on a fixed scale too, with the bar on what you need and what's usual for you
-            RingStat(key: .sleep, name: "Sleep", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
-            RingStat(key: .recovery, name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "usual \(usual)"),
+            RingStat(key: .sleep, name: "Sono", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "precisas de \(duration(p.sleepNeed))"),
+            RingStat(key: .recovery, name: "Recuperação", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "habitual \(usual)"),
             // strain runs on a fixed 0–100% scale, so the circle is the maximum and the bar is today's target on it
-            RingStat(key: .strain, name: "Strain", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "target \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
+            RingStat(key: .strain, name: "Esforço", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "alvo \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
         ]
         let day = [
-            RingStat(key: .calories, name: "Calories", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "of \(k(p.kcal))", now: "now \(k(p.kcal * eat))"),
-            RingStat(key: .protein, name: "Protein", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "of \(Int(p.proteinTarget))g", now: "now \(Int(p.proteinTarget * eat))g"),
-            RingStat(key: .water, name: "Water", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(goal * drink))"),
-            RingStat(key: .move, name: "Move", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "of \(k(Double(p.stepGoal)))", now: "now \(k(Double(p.stepGoal) * walk))"),
-            RingStat(key: .promises, name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
+            RingStat(key: .calories, name: "Calorias", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "de \(k(p.kcal))", now: "agora \(k(p.kcal * eat))"),
+            RingStat(key: .protein, name: "Proteína", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "de \(Int(p.proteinTarget))g", now: "agora \(Int(p.proteinTarget * eat))g"),
+            RingStat(key: .water, name: "Água", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "de \(litres(goal))", now: "agora \(litres(goal * drink))"),
+            RingStat(key: .move, name: "Passos", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "de \(k(Double(p.stepGoal)))", now: "agora \(k(Double(p.stepGoal) * walk))"),
+            RingStat(key: .promises, name: "Hábitos", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "de \(due.count)", now: "agora \(dueNow)"),
         ]
         return (main, day)
     }
@@ -135,12 +135,12 @@ struct DayRings: View {
                 ForEach(stats.day) { smallRing($0) }
             }
             HStack {
-                Text("Bar: your target right now. Sleep shows what you need, recovery what's usual for you, strain today's target (an estimate). The rest: where you should be by now, with a full circle for the whole day.").font(.geist(10.5)).foregroundStyle(Color.faint)
+                Text("Barra: o teu alvo neste momento. No sono, o que precisas; na recuperação, o teu habitual; no esforço, o alvo de hoje (uma estimativa). Nos restantes: onde devias estar agora, com o círculo completo para o dia inteiro.").font(.geist(10.5)).foregroundStyle(Color.faint)
                 Spacer()
             }
             HStack {
                 Button { loggingFood = true } label: {
-                    Label("Food", systemImage: "plus").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
+                    Label("Comida", systemImage: "plus").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
                         .padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(Area.fuel.gradient))
                 }
                 .buttonStyle(Pressable())
@@ -203,14 +203,14 @@ struct ShowerTodayCard: View {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "shower.fill").foregroundStyle(Color.water).frame(width: 22)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(s.when == .tonight ? "Shower tonight around \(clock(Day.minuteOfDay(s.at)))" : "Shower tomorrow morning around \(clock(Day.minuteOfDay(s.at)))").font(.geist(14, .semibold))
+                        Text(s.when == .tonight ? "Duche esta noite, por volta das \(clock(Day.minuteOfDay(s.at)))" : "Duche amanhã de manhã, por volta das \(clock(Day.minuteOfDay(s.at)))").font(.geist(14, .semibold))
                         Text(s.why).font(.geist(12)).foregroundStyle(Color.soft)
-                        Button(s.when == .tonight ? "Rather tomorrow morning" : "Rather tonight") { store.pickShower(s.when == .tonight ? .morning : .tonight) }
+                        Button(s.when == .tonight ? "Prefiro amanhã de manhã" : "Prefiro esta noite") { store.pickShower(s.when == .tonight ? .morning : .tonight) }
                             .font(.geist(12, .semibold)).tint(.water).accessibilityIdentifier("shower.switch")
                     }
                     Spacer()
                     Button { store.logShower() } label: { Image(systemName: "checkmark").font(.geist(15, .bold)).foregroundStyle(Color(hex: 0x03202A)).frame(width: 44, height: 44).background(Circle().fill(Area.water.gradient)) }
-                        .buttonStyle(Pressable()).accessibilityLabel("Showered").accessibilityIdentifier("shower.done")
+                        .buttonStyle(Pressable()).accessibilityLabel("Já tomei duche").accessibilityIdentifier("shower.done")
                 }
             }
             .accessibilityIdentifier("shower.today")
@@ -228,12 +228,12 @@ struct GymBagCard: View {
                 HStack(spacing: 10) {
                     Image(systemName: "bag.fill").foregroundStyle(Color.train).frame(width: 22)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Unpack the gym bag").font(.geist(14, .semibold))
-                        Text("Clothes in the wash, towel out to dry.").font(.geist(12)).foregroundStyle(Color.soft)
+                        Text("Esvaziar o saco do ginásio").font(.geist(14, .semibold))
+                        Text("Roupa para lavar, toalha a secar.").font(.geist(12)).foregroundStyle(Color.soft)
                     }
                     Spacer()
                     Button { store.unpackedGymBag() } label: { Image(systemName: "checkmark").font(.geist(15, .bold)).foregroundStyle(Color(hex: 0x032018)).frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient)) }
-                        .buttonStyle(Pressable()).accessibilityLabel("Unpacked").accessibilityIdentifier("gymbag.done")
+                        .buttonStyle(Pressable()).accessibilityLabel("Saco esvaziado").accessibilityIdentifier("gymbag.done")
                 }
             }
         }

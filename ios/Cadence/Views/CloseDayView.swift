@@ -14,27 +14,27 @@ struct CloseDayView: View {
                 HStack(spacing: 12) {
                     PipAnimation(mood: done ? .celebrate : (store.score() >= 60 ? .proud : .idle)).frame(width: 110, height: 110)
                     VStack(alignment: .leading, spacing: 2) {
-                        Eyebrow(text: "Today")
+                        Eyebrow(text: "Hoje")
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
                             Text("\(store.score())").font(.geist(40, .bold))
                             Text("/ 100").font(.geist(13)).foregroundStyle(Color.soft)
                         }
-                        Text("Pip: “\(store.pipLine())”").font(.geist(13)).foregroundStyle(Color.soft)
+                        Text("Pip: «\(store.pipLine())»").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
 
                 let open = store.due().filter { store.status($0) == nil }
                 if !open.isEmpty {
                     Card(tint: .warn) {
-                        Eyebrow(text: "Still open", color: .warn)
+                        Eyebrow(text: "Ainda por fazer", color: .warn)
                         ForEach(open) { PromiseRow(promise: $0, insideSheet: true) }
                     }
                 }
 
-                DisclosureGroup("Journal, if you have a minute") { JournalCard(day: Day.today) }
+                DisclosureGroup("Diário, se tiveres um minuto") { JournalCard(day: Day.today) }
                     .font(.geist(13.5, .medium)).tint(.soft).padding(.horizontal, 4)
                 Card {
-                    Eyebrow(text: "How was today?")
+                    Eyebrow(text: "Como correu o dia?")
                     HStack(spacing: 6) {
                         ForEach(1...5, id: \.self) { n in
                             Button { entry.rating = n } label: {
@@ -46,7 +46,7 @@ struct CloseDayView: View {
                         }
                     }
                     HStack {
-                        Text("Energy").font(.geist(13)).foregroundStyle(Color.soft)
+                        Text("Energia").font(.geist(13)).foregroundStyle(Color.soft)
                         Spacer()
                         ForEach(1...5, id: \.self) { n in
                             Button { entry.energy = n } label: {
@@ -54,28 +54,28 @@ struct CloseDayView: View {
                                     .frame(width: 36, height: 44).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel("Energy \(n) of 5").accessibilityAddTraits(n == entry.energy ? .isSelected : [])
+                            .accessibilityLabel("Energia \(n) de 5").accessibilityAddTraits(n == entry.energy ? .isSelected : [])
                             .accessibilityIdentifier("energy.\(n)")
                         }
                     }
-                    TextField("One line about today (optional)", text: $entry.note, axis: .vertical).font(.geist(14))
+                    TextField("Uma linha sobre hoje (opcional)", text: $entry.note, axis: .vertical).font(.geist(14))
                 }
 
                 Card {
-                    Eyebrow(text: "Tomorrow's top 3")
+                    Eyebrow(text: "3 prioridades de amanhã")
                     ForEach(0..<3, id: \.self) { i in
-                        TextField("\(i + 1) · add one", text: $tomorrow[i]).font(.geist(14))
+                        TextField("\(i + 1) · acrescenta uma", text: $tomorrow[i]).font(.geist(14))
                     }
                     let carry = entry.top3.enumerated().filter { $0.offset >= entry.top3Done.count || !entry.top3Done[$0.offset] }.map(\.element)
                     if !carry.isEmpty {
-                        Button("Carry over unfinished: \(carry.joined(separator: ", "))") {
+                        Button("Passar o que ficou por fazer: \(carry.joined(separator: ", "))") {
                             for (i, item) in carry.prefix(3).enumerated() where tomorrow[i].isEmpty { tomorrow[i] = item }
                         }
                         .font(.geist(12.5)).foregroundStyle(Color.mint)
                     }
                 }
 
-                PrimaryButton(title: done ? "Good night" : "Close the day") {
+                PrimaryButton(title: done ? "Boa noite" : "Fechar o dia") {
                     if done { dismiss(); return }
                     let score = store.score()
                     entry.score = score
@@ -91,7 +91,7 @@ struct CloseDayView: View {
                 }
                 .accessibilityIdentifier("closeday.save")
             }
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Later") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Mais tarde") { dismiss() } } }
             .onAppear {
                 entry = store.day()
                 let t = store.day(Day.add(1, to: Day.today)).top3

@@ -52,7 +52,7 @@ final class Agenda: ObservableObject {
             last = Date()
             if let e = try? JSONEncoder().encode(r.events) { try? e.write(to: file, options: .atomic) }
         } else {
-            error = code == 403 ? "Calendar needs the Calendar API enabled and Google connected again" : code == 409 ? nil : "Calendar unavailable"
+            error = code == 403 ? "O calendário precisa da Calendar API ativa e de voltares a ligar o Google" : code == 409 ? nil : "Calendário indisponível"
         }
     }
 

@@ -15,7 +15,7 @@ struct FocusCard: View {
         Group {
             if !recs.isEmpty {
                 Card(tint: .mint) {
-                    HStack { Eyebrow(text: "Today's focus", icon: "scope", color: .mint); Spacer() }
+                    HStack { Eyebrow(text: "Foco de hoje", icon: "scope", color: .mint); Spacer() }
                     ForEach(Array(recs.enumerated()), id: \.element.id) { i, r in
                         if i > 0 { Divider().overlay(Color.white.opacity(0.06)) }
                         row(r, open: i == 0 || expanded == r.id)
@@ -52,7 +52,7 @@ struct FocusCard: View {
                 HStack(spacing: 8) {
                     if r.action != .none { SoftButton(title: r.actionLabel, icon: icon(r.action)) { act(r) }.accessibilityIdentifier("rec.\(r.kind).action") }
                     Spacer()
-                    Button("Not useful") { store.feedback(r, useful: false) }.font(.geist(12.5)).foregroundStyle(Color.faint)
+                    Button("Não é útil") { store.feedback(r, useful: false) }.font(.geist(12.5)).foregroundStyle(Color.faint)
                         .frame(minWidth: 44, minHeight: 44).contentShape(Rectangle()).accessibilityIdentifier("rec.\(r.kind).dismiss")
                 }
             }
@@ -84,7 +84,7 @@ struct FocusCard: View {
         case .placeDeepWork(let title):
             if let start = store.suggestedDeepWork() {
                 let p = store.all(Project.self).first { $0.title == title }
-                store.save(PlanBlock(date: Day.today, start: start, minutes: 100, title: "Deep work · \(title)", type: "deep", projectId: p?.id))
+                store.save(PlanBlock(date: Day.today, start: start, minutes: 100, title: "Trabalho focado · \(title)", type: "deep", projectId: p?.id))
             }
         case .logFood: loggingFood = true
         case .syncAir: openURL(URL(string: "fitbit://")!)
@@ -99,9 +99,9 @@ struct MinimumDayBanner: View {
         if store.isMinimumDay() {
             HStack(spacing: 8) {
                 Image(systemName: "leaf.fill").font(.geist(12)).foregroundStyle(Color.good)
-                Text("Minimum day: essentials only").font(.geist(12.5, .medium)).foregroundStyle(Color.ink.opacity(0.9))
+                Text("Dia mínimo: só o essencial").font(.geist(12.5, .medium)).foregroundStyle(Color.ink.opacity(0.9))
                 Spacer()
-                Button("Turn off") { store.setMinimumDay(false) }.font(.geist(12.5, .semibold)).tint(.soft)
+                Button("Desligar") { store.setMinimumDay(false) }.font(.geist(12.5, .semibold)).tint(.soft)
                     .frame(minHeight: 44).accessibilityIdentifier("mvd.off")
             }
             .padding(.horizontal, 14)
@@ -122,17 +122,17 @@ struct QuickCaptureSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 14) {
-                TextField("Ate a banana · spent 12 € on groceries · remind me…", text: $text, axis: .vertical)
+                TextField("Comi uma banana · gastei 12 € no supermercado · lembra-me…", text: $text, axis: .vertical)
                     .font(.geist(17)).focused($focused)
                     .padding(14).background(RoundedRectangle(cornerRadius: 16).fill(.white.opacity(0.07)))
                     .accessibilityIdentifier("capture.field")
                 if !text.trimmingCharacters(in: .whitespaces).isEmpty {
                     let intent = QuickCapture.parse(text)
                     Card {
-                        Eyebrow(text: "Understood as", icon: "text.magnifyingglass")
+                        Eyebrow(text: "Percebido como", icon: "text.magnifyingglass")
                         Text(intent.summary).font(.geist(15, .medium)).accessibilityIdentifier("capture.summary")
                     }
-                    PrimaryButton(title: "Confirm") {
+                    PrimaryButton(title: "Confirmar") {
                         let r = store.apply(intent)
                         done = r.message
                         undo = r.undo
@@ -147,14 +147,14 @@ struct QuickCaptureSheet: View {
                         Text(done).font(.geist(14)).foregroundStyle(Color.good).accessibilityIdentifier("capture.done")
                         Spacer()
                         if let undo {
-                            Button("Undo") { undo(); self.undo = nil; self.done = "Undone" }
+                            Button("Desfazer") { undo(); self.undo = nil; self.done = "Desfeito" }
                                 .font(.geist(14, .semibold)).frame(minWidth: 44, minHeight: 44).accessibilityIdentifier("capture.undo")
                         }
                     }
                 }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Try").font(.geist(12, .semibold)).foregroundStyle(Color.faint)
-                    ForEach(["Ate Greek yogurt and a banana", "Spent 12 euros on groceries", "Remind me to wash my clothes tomorrow at 18:00", "Move studying to tomorrow", "Felt exhausted after lunch"], id: \.self) { s in
+                    Text("Experimenta").font(.geist(12, .semibold)).foregroundStyle(Color.faint)
+                    ForEach(["Comi iogurte grego e uma banana", "Gastei 12 euros no supermercado", "Lembra-me de lavar a roupa amanhã às 18:00", "Mudar estudo para amanhã", "Senti-me cansado depois do almoço"], id: \.self) { s in
                         Button(s) { text = s }.font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
@@ -162,9 +162,9 @@ struct QuickCaptureSheet: View {
             }
             .padding(18)
             .background(Color.bg.ignoresSafeArea())
-            .navigationTitle("Quick capture")
+            .navigationTitle("Registo rápido")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() }.accessibilityIdentifier("capture.close") } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() }.accessibilityIdentifier("capture.close") } }
             .onAppear { focused = true }
         }
     }
@@ -175,37 +175,37 @@ struct LearnedView: View {
     @EnvironmentObject var store: Store
     var body: some View {
         Screen(glow: .mind) {
-            Text("Each prediction is written down before the day happens, then checked against what you reported. Under 10 pairs Cadence says so instead of guessing.")
+            Text("Cada previsão fica registada antes de o dia acontecer e depois é comparada com o que indicaste. Com menos de 10 pares, o Cadence diz isso em vez de adivinhar.")
                 .font(.geist(13)).foregroundStyle(Color.soft).padding(.top, 6).accessibilityIdentifier("learned.screen")
-            calibration("Morning readiness → your energy that evening", store.energyPairs())
-            calibration("Readiness → how the session felt", store.trainingPairs())
-            calibration("Energy curve → focus session quality", store.focusPairs())
+            calibration("Prontidão da manhã → a tua energia nessa noite", store.energyPairs())
+            calibration("Prontidão → como correu o treino", store.trainingPairs())
+            calibration("Curva de energia → qualidade da sessão de foco", store.focusPairs())
             let effects = store.journalEffects()
             Card {
-                Eyebrow(text: "Habits and your sleep", icon: "moon.stars")
-                if effects.isEmpty { Text("Answer the morning journal for a few weeks; each habit needs 5 days with it and 5 without.").font(.geist(12.5)).foregroundStyle(Color.soft) }
+                Eyebrow(text: "Hábitos e o teu sono", icon: "moon.stars")
+                if effects.isEmpty { Text("Responde ao diário da manhã durante algumas semanas; cada hábito precisa de 5 dias com ele e 5 sem ele.").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 ForEach(effects, id: \.question) { e in
                     HStack { Text(journalText(e.question)).font(.geist(13.5)); Spacer(); Text(e.sleep.map { "\($0 > 0 ? "+" : "")\($0) min" } ?? "–").font(.mono(12.5)).foregroundStyle(Color.soft) }
                 }
-                Text("Associations in your own days. Other things change at the same time, so none of this proves cause.").font(.geist(11)).foregroundStyle(Color.faint)
+                Text("Associações nos teus próprios dias. Outras coisas mudam ao mesmo tempo, por isso nada disto prova uma causa.").font(.geist(11)).foregroundStyle(Color.faint)
             }
             Card {
-                Eyebrow(text: "Notifications you answer", icon: "bell.badge")
+                Eyebrow(text: "Notificações a que respondes", icon: "bell.badge")
                 let n = NotificationLearning.summary
-                if n.isEmpty { Text("Builds up as you answer or swipe away reminders.").font(.geist(12.5)).foregroundStyle(Color.soft) }
+                if n.isEmpty { Text("Vai-se formando à medida que respondes aos lembretes ou os descartas.").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 ForEach(n, id: \.kind) { k in
-                    HStack { Text(kindName(k.kind)).font(.geist(13.5)); Spacer(); Text("\(Int((1 - k.rate) * 100))% answered · \(k.n)").font(.mono(12)).foregroundStyle(k.rate >= 0.7 ? Color.warn : Color.soft) }
+                    HStack { Text(kindName(k.kind)).font(.geist(13.5)); Spacer(); Text("\(Int((1 - k.rate) * 100))% respondidas · \(k.n)").font(.mono(12)).foregroundStyle(k.rate >= 0.7 ? Color.warn : Color.soft) }
                 }
-                Text("Kinds you swipe away 70% of the time drop in priority; at 90% they stop. Must-dos, medicines and leave-by alerts never do.").font(.geist(11)).foregroundStyle(Color.faint)
+                Text("Os tipos que descartas 70% das vezes descem de prioridade; a 90% deixam de aparecer. Obrigatórios, medicamentos e avisos de saída nunca.").font(.geist(11)).foregroundStyle(Color.faint)
             }
         }
-        .navigationTitle("What Cadence has learned")
+        .navigationTitle("O que o Cadence aprendeu")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func kindName(_ k: String) -> String {
-        ["p": "Promises", "wind": "Wind-down", "close": "Close the day", "brief": "Morning brief", "protein": "Protein catch-up", "water": "Water", "plant": "Plants",
-         "dry": "Laundry", "bday": "Birthdays", "renew": "Renewals", "doc": "Documents", "touch": "Keep in touch", "groom": "Grooming", "m": "Medicines", "leave": "Leave-by", "shower": "Shower", "gymbag": "Gym bag"][k] ?? k
+        ["p": "Hábitos", "wind": "Desacelerar", "close": "Fechar o dia", "brief": "Resumo da manhã", "protein": "Proteína em falta", "water": "Água", "plant": "Plantas",
+         "dry": "Lavandaria", "bday": "Aniversários", "renew": "Renovações", "doc": "Documentos", "touch": "Manter o contacto", "groom": "Cuidados pessoais", "m": "Medicamentos", "leave": "Hora de sair", "shower": "Duche", "gymbag": "Saco do ginásio"][k] ?? k
     }
 
     private func calibration(_ title: String, _ pairs: [(predicted: Double, observed: Double)]) -> some View {
@@ -214,10 +214,10 @@ struct LearnedView: View {
             Eyebrow(text: title)
             HStack(alignment: .firstTextBaseline) {
                 Text(c.spearman.map { String(format: "%.2f", $0) } ?? "–").font(.mono(24, .medium))
-                Text("rank correlation · \(c.n) pairs").font(.geist(12)).foregroundStyle(Color.soft).accessibilityIdentifier("calibration.pairs")
+                Text("correlação de ordem · \(c.n) pares").font(.geist(12)).foregroundStyle(Color.soft).accessibilityIdentifier("calibration.pairs")
             }
-            Text(c.verdict).font(.geist(13.5, .semibold)).foregroundStyle(c.verdict.hasPrefix("Useful") ? Color.good : Color.soft)
-            if let m = c.modelError, let b = c.baselineError { Text(String(format: "Average miss %.2f points, against %.2f from guessing your own average", m, b)).font(.geist(11.5)).foregroundStyle(Color.faint) }
+            Text(c.verdict).font(.geist(13.5, .semibold)).foregroundStyle(c.verdict.hasPrefix("Útil") ? Color.good : Color.soft) // "Útil" starts Engine.calibrate's useful verdict (was "Useful" before phase 2.3)
+            if let m = c.modelError, let b = c.baselineError { Text(String(format: "Erro médio de %.2f pontos, contra %.2f se adivinhasse pela tua média", m, b)).font(.geist(11.5)).foregroundStyle(Color.faint) }
         }
     }
 }

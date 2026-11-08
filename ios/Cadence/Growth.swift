@@ -19,14 +19,14 @@ let journalQuestions = ["Caffeine after 14:00", "Alcohol", "Screens in bed", "La
 
 /// What each journal question says on screen, by key. Phase 2.3 translates these texts; the keys stay.
 let journalQuestionText: [String: String] = [
-    "Caffeine after 14:00": "Caffeine after 14:00",
-    "Alcohol": "Alcohol",
-    "Screens in bed": "Screens in bed",
-    "Late dinner": "Late dinner",
-    "Stressful day": "Stressful day",
-    "Outside in the morning": "Outside in the morning",
-    "Trained": "Trained",
-    "Hot or noisy room": "Hot or noisy room",
+    "Caffeine after 14:00": "Cafeína depois das 14:00",
+    "Alcohol": "Álcool",
+    "Screens in bed": "Ecrãs na cama",
+    "Late dinner": "Jantar tarde",
+    "Stressful day": "Dia stressante",
+    "Outside in the morning": "Ao ar livre de manhã",
+    "Trained": "Treino",
+    "Hot or noisy room": "Quarto quente ou barulhento",
 ]
 
 /// The text shown for a journal question's key (the key itself if it has none)
@@ -137,17 +137,17 @@ extension Store {
             let rateAll = Double(answered.filter { $0.yes.contains(q) }.count) / Double(answered.count)
             out.append((q, rateBest - rateAll))
         }
-        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { ($0.1 > 0 ? "More " : "Less ") + journalText($0.0).lowercased() }
+        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { ($0.1 > 0 ? "Mais " : "Menos ") + journalText($0.0).lowercased() }
     }
 
     func prompts() -> [String] {
         var out: [String] = []
-        if let s = sessions(on: Day.today).first(where: { $0.end != nil }) { out.append("How did \(s.name) feel today?") }
-        if all(Book.self).contains(where: { $0.finished == Day.today }) { out.append("You finished a book. What will you keep from it?") }
-        if let t = nextTrip, Day.between(Day.today, t.start) <= 2 { out.append("What do you want from the trip to \(t.destination)?") }
+        if let s = sessions(on: Day.today).first(where: { $0.end != nil }) { out.append("Como correu \(s.name) hoje?") }
+        if all(Book.self).contains(where: { $0.finished == Day.today }) { out.append("Acabaste um livro. O que vais guardar dele?") }
+        if let t = nextTrip, Day.between(Day.today, t.start) <= 2 { out.append("O que queres da viagem a \(t.destination)?") }
         let lastYear = Day.add(-365, to: Day.today)
-        if let old = days[lastYear], !old.note.isEmpty { out.append("A year ago: “\(old.note)”") }
-        if out.isEmpty { out.append("What gave you energy today, and what took it?") }
+        if let old = days[lastYear], !old.note.isEmpty { out.append("Há um ano: «\(old.note)»") }
+        if out.isEmpty { out.append("O que te deu energia hoje, e o que te cansou?") }
         return out
     }
 
@@ -209,9 +209,9 @@ extension Store {
         let kept = due.filter { status($0.1, on: $0.0).map { $0 != .skipped } ?? false }.count
         let reading = days.map { readingMinutes(on: $0) }.reduce(0, +)
         return [
-            ("Focus", duration(focus)), ("Workouts", "\(workouts)"), ("Protein", "\(proteinDays) of \(days.count) days"),
-            ("Sleep", nights.isEmpty ? "–" : duration(nights.reduce(0, +) / nights.count) + " a night"),
-            ("Promises kept", due.isEmpty ? "–" : "\(Int(Double(kept) / Double(due.count) * 100))%"), ("Reading", duration(reading)),
+            ("Foco", duration(focus)), ("Treinos", "\(workouts)"), ("Proteína", "\(proteinDays) de \(days.count) dias"),
+            ("Sono", nights.isEmpty ? "–" : duration(nights.reduce(0, +) / nights.count) + " por noite"),
+            ("Hábitos cumpridos", due.isEmpty ? "–" : "\(Int(Double(kept) / Double(due.count) * 100))%"), ("Leitura", duration(reading)),
         ]
     }
 
@@ -221,13 +221,13 @@ extension Store {
         let days = (1...7).map { Day.add(-$0, to: Day.today) }
         var areas: [(String, Double, String)] = []
         let nights = days.compactMap { health[$0]?.sleep?.asleep }
-        if !nights.isEmpty { areas.append(("sleep", Double(nights.reduce(0, +) / nights.count) / Double(profile.sleepNeed), "Lights out by \(clock(sleepPlan().perform)) on 5 nights")) }
-        areas.append(("protein", Double(days.filter { fuel(on: $0).protein >= profile.proteinTarget * 0.9 }.count) / 7, "Hit your protein on 6 of 7 days"))
-        areas.append(("water", Double(days.filter { fuel(on: $0).water >= waterGoal(on: $0) * 0.9 }.count) / 7, "Water goal on 5 days"))
+        if !nights.isEmpty { areas.append(("sleep", Double(nights.reduce(0, +) / nights.count) / Double(profile.sleepNeed), "Apagar as luzes até às \(clock(sleepPlan().perform)) em 5 noites")) }
+        areas.append(("protein", Double(days.filter { fuel(on: $0).protein >= profile.proteinTarget * 0.9 }.count) / 7, "Chegar à proteína em 6 de 7 dias"))
+        areas.append(("water", Double(days.filter { fuel(on: $0).water >= waterGoal(on: $0) * 0.9 }.count) / 7, "Meta de água em 5 dias"))
         let steps = days.compactMap { health[$0]?.steps }
-        if !steps.isEmpty { areas.append(("steps", steps.reduce(0, +) / Double(steps.count) / Double(profile.stepGoal), "A 15-minute walk after lunch, 5 days")) }
-        areas.append(("reading", Double(days.map { readingMinutes(on: $0) }.reduce(0, +)) / (7 * 30), "Read 20 minutes on 5 nights"))
-        let weakest = areas.min { $0.1 < $1.1 } ?? ("sleep", 0, "Lights out on time on 5 nights")
+        if !steps.isEmpty { areas.append(("steps", steps.reduce(0, +) / Double(steps.count) / Double(profile.stepGoal), "Uma caminhada de 15 minutos depois do almoço, 5 dias")) }
+        areas.append(("reading", Double(days.map { readingMinutes(on: $0) }.reduce(0, +)) / (7 * 30), "Ler 20 minutos em 5 noites"))
+        let weakest = areas.min { $0.1 < $1.1 } ?? ("sleep", 0, "Apagar as luzes a horas em 5 noites")
         let c = WeeklyChallenge(week: week, text: weakest.2, area: weakest.0)
         save(c)
         return c
@@ -240,10 +240,10 @@ extension Store {
         let mustDos = logs.values.filter { l in promises[l.promiseId]?.kind == .mustDo && l.status == .done }.count
         let focusHours = all(FocusSession.self).map(\.minutes).reduce(0, +) / 60
         return [
-            ("100 kg lift", "dumbbell.fill", lifts.contains { $0 >= 100 }), ("10 books", "books.vertical.fill", books >= 10),
-            ("30 nights of 7 h", "moon.stars.fill", goodNights >= 30), ("100 must-dos", "checkmark.seal.fill", mustDos >= 100),
-            ("50 focus hours", "brain.head.profile", focusHours >= 50), ("First prep session", "frying.pan.fill", !all(Portion.self).isEmpty),
-            ("Level 10", "leaf.fill", level.level >= 10), ("A month of creatine", "pills.fill", mustDos >= 30),
+            ("100 kg levantados", "dumbbell.fill", lifts.contains { $0 >= 100 }), ("10 livros", "books.vertical.fill", books >= 10),
+            ("30 noites de 7 h", "moon.stars.fill", goodNights >= 30), ("100 obrigatórios", "checkmark.seal.fill", mustDos >= 100),
+            ("50 horas de foco", "brain.head.profile", focusHours >= 50), ("Primeira sessão de cozinha", "frying.pan.fill", !all(Portion.self).isEmpty),
+            ("Nível 10", "leaf.fill", level.level >= 10), ("Um mês de creatina", "pills.fill", mustDos >= 30),
         ]
     }
 
@@ -257,10 +257,10 @@ extension Store {
         let steps = (0..<30).compactMap { health[Day.add(-$0, to: Day.today)]?.steps }
         guard rhr != nil || vo2 != nil || !steps.isEmpty else { return nil }
         var parts: [(String, Double)] = []
-        if let rhr { parts.append(("Resting HR", max(-4, min(6, (rhr - 62) / 5)))) }
-        if let vo2 { let typical = (profile.male ? 48.0 : 40.0) - Double(max(0, profile.age - 25)) * 0.35; parts.append(("Cardio fitness", max(-6, min(6, (typical - vo2) / 3)))) }
-        if !steps.isEmpty { let s = steps.reduce(0, +) / Double(steps.count); parts.append(("Steps", s >= 10000 ? -2 : s >= 8000 ? -1 : s >= 6000 ? 0 : s >= 4000 ? 1.5 : 3)) }
-        if let sri = sleepRegularity(nights: 28) { parts.append(("Sleep regularity", sri >= 85 ? -1.5 : sri >= 75 ? 0 : sri >= 65 ? 1.5 : 3)) }
+        if let rhr { parts.append(("FC em repouso", max(-4, min(6, (rhr - 62) / 5)))) }
+        if let vo2 { let typical = (profile.male ? 48.0 : 40.0) - Double(max(0, profile.age - 25)) * 0.35; parts.append(("Condição cardiovascular", max(-6, min(6, (typical - vo2) / 3)))) }
+        if !steps.isEmpty { let s = steps.reduce(0, +) / Double(steps.count); parts.append(("Passos", s >= 10000 ? -2 : s >= 8000 ? -1 : s >= 6000 ? 0 : s >= 4000 ? 1.5 : 3)) }
+        if let sri = sleepRegularity(nights: 28) { parts.append(("Regularidade do sono", sri >= 85 ? -1.5 : sri >= 75 ? 0 : sri >= 65 ? 1.5 : 3)) }
         return (Double(profile.age) + parts.map(\.1).reduce(0, +), parts)
     }
 
@@ -276,7 +276,7 @@ extension Store {
             let hr = d.hr[String(m)], still = (d.steps[String(m)] ?? 0) < 5
             let kind = hr.map { $0 > high && still ? "high" : $0 < low && still ? "low" : "" } ?? ""
             if kind.isEmpty || run?.kind != kind {
-                if let r = run, m - r.start >= 10 { out.append("\(r.kind == "high" ? "High" : "Low") heart rate while still, \(clock(r.start))–\(clock(m))") }
+                if let r = run, m - r.start >= 10 { out.append("Frequência cardíaca \(r.kind == "high" ? "alta" : "baixa") sem movimento, \(clock(r.start))–\(clock(m))") }
                 run = kind.isEmpty ? nil : (m, kind)
             }
         }
@@ -338,7 +338,7 @@ extension Store {
         }
         guard free.count >= 3, work.count >= 5 else { return nil }
         let f = free.reduce(0, +) / free.count, w = work.reduce(0, +) / work.count
-        let label = f < 3 * 60 ? "Early bird" : f < 4 * 60 + 30 ? "In between" : "Night owl"
+        let label = f < 3 * 60 ? "Madrugador" : f < 4 * 60 + 30 ? "Intermédio" : "Noctívago"
         return (f, w, abs(f - w), label)
     }
 
