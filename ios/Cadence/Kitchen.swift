@@ -226,3 +226,25 @@ extension Store {
         if var p = all(PantryItem.self).first(where: { $0.name.lowercased() == line.name.lowercased() }) { p.qty += line.qty; save(p) }
     }
 }
+
+// MARK: - Adding from another area (phase 2.5)
+
+@MainActor
+extension Store {
+    /// «Adicionar às compras» from another area (a product in Higiene, a medicine running low) saves a real item on your
+    /// list, in the health aisle, unless the same product is already there: by name, ignoring case, accents and extra
+    /// spaces, in the list as shown or among your items not yet bought (isOnShoppingList, in Care.swift). The area it
+    /// came from leads the reason ("de Higiene: acaba em cerca de 3 semanas"). Returns the item saved, for Desfazer, or
+    /// nil when nothing was saved.
+    @discardableResult
+    func addToShopping(name: String, reason: String, source: String) -> ShoppingItem? {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canChange, !clean.isEmpty, !isOnShoppingList(clean) else { return nil }
+        let why = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        let from = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = from.isEmpty ? why : why.isEmpty ? "de \(from)" : "de \(from): \(why)"
+        let item = ShoppingItem(name: clean, aisle: "Health", reason: text.isEmpty ? "added by you" : text)
+        save(item)
+        return item
+    }
+}
