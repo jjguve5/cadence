@@ -22,9 +22,46 @@ final class CadenceUITests: XCTestCase {
         let a = XCUIApplication()
         a.launchEnvironment = ["CADENCE_UITEST": scenario, "CADENCE_UITEST_MINUTE": String(minute), "CADENCE_UITEST_RESET": reset ? "1" : "0"]
         a.launch()
-        XCTAssertTrue(a.tabBars.buttons["Today"].waitForExistence(timeout: 20), "Cadence didn't reach the Today tab")
+        // Today is recognised by an identifier on its screen, not by the tab's name, so translating it can't break this
+        XCTAssertTrue(a.descendants(matching: .any)[Tab.today.landmark].firstMatch.waitForExistence(timeout: 20), "Cadence didn't reach the Today tab")
         app = a
         return a
+    }
+
+    /// The tabs have no accessibility identifier yet, and adding one means changing the app (proposed for phase 2.1).
+    /// Until then a tab is tapped by its place in the tab bar and the test then requires an identifier that only its
+    /// screen has: a translated tab name can't break navigation, and a moved or missing tab fails instead of passing.
+    /// Plan and Life have no identifier on their screens yet, so no test opens them (phase 2.1 adds both).
+    private enum Tab: Int {
+        case today = 0, plan = 1, body = 2, hygiene = 3, life = 4
+        var landmark: String {
+            switch self {
+            case .today: return "capture.open"
+            case .body: return "body.training"
+            case .hygiene: return "shower.card"
+            case .plan, .life: return ""
+            }
+        }
+    }
+
+    private func open(_ tab: Tab, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertFalse(tab.landmark.isEmpty, "\(tab) has no identifier on its screen yet", file: file, line: line)
+        let button = app.tabBars.buttons.element(boundBy: tab.rawValue)
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "no tab at place \(tab.rawValue)", file: file, line: line)
+        button.tap()
+        XCTAssertTrue(el(tab.landmark).waitForExistence(timeout: 5), "tab \(tab.rawValue) didn't open \(tab) (\(tab.landmark) missing)", file: file, line: line)
+    }
+
+    /// Text the tests read back from the screen. It is English today and changes on purpose with the app's strings in
+    /// phase 2.3 (European Portuguese): these are the only lines to update then. Amounts, counts and times are checked
+    /// separately in the tests and stay the same in both languages.
+    private enum UIText {
+        static let staleSync = "3 days"       // stale data: days since the band last synced
+        static let groceries = "Groceries"    // the spending category quick capture picks for "groceries"
+        static let undone = "Undone"          // quick capture after Undo
+        static let logPrefix = "Log"          // quick capture summary for food
+        static let threeFoods = "3 foods"     // "2 eggs and a banana" saved
+        static let fourteenPairs = "14 pairs" // calibration sample size
     }
 
     private func shot(_ name: String, _ a: XCUIApplication) {
@@ -108,7 +145,7 @@ final class CadenceUITests: XCTestCase {
         launch("stale")
         let sync = el("rec.sync")
         XCTAssertTrue(sync.waitForExistence(timeout: 5))
-        XCTAssertTrue(sync.label.contains("3 days"), "label was: \(sync.label)")
+        XCTAssertTrue(sync.label.contains(UIText.staleSync), "label was: \(sync.label)")
         shot("stale", app)
     }
 
@@ -142,12 +179,12 @@ final class CadenceUITests: XCTestCase {
         field.typeText("Spent 12,50 € on groceries")
         XCTAssertTrue(el("capture.summary").waitForExistence(timeout: 3))
         XCTAssertTrue(el("capture.summary").label.contains("12,50"), "summary was: \(el("capture.summary").label)")
-        XCTAssertTrue(el("capture.summary").label.contains("Groceries"))
+        XCTAssertTrue(el("capture.summary").label.contains(UIText.groceries))
         shot("capture-spend", app)
         el("capture.confirm").tap()
         XCTAssertTrue(el("capture.done").waitForExistence(timeout: 3))
         el("capture.undo").tap()
-        XCTAssertTrue(el("capture.done").label.contains("Undone"))
+        XCTAssertTrue(el("capture.done").label.contains(UIText.undone))
     }
 
     func testQuickCaptureFoodAndUnknownFood() {
@@ -160,10 +197,10 @@ final class CadenceUITests: XCTestCase {
         XCTAssertTrue(el("capture.summary").waitForExistence(timeout: 3))
         XCTAssertFalse(el("capture.confirm").isEnabled, "nothing matched, so Confirm can't save")
         field.clearAndType("Ate 2 eggs and a banana")
-        XCTAssertTrue(el("capture.summary").label.hasPrefix("Log"), "summary was: \(el("capture.summary").label)")
+        XCTAssertTrue(el("capture.summary").label.hasPrefix(UIText.logPrefix), "summary was: \(el("capture.summary").label)")
         el("capture.confirm").tap()
         XCTAssertTrue(el("capture.done").waitForExistence(timeout: 3))
-        XCTAssertTrue(el("capture.done").label.contains("3 foods"), "two eggs and a banana: \(el("capture.done").label)")
+        XCTAssertTrue(el("capture.done").label.contains(UIText.threeFoods), "two eggs and a banana: \(el("capture.done").label)")
     }
 
     func testQuickCapturePortugueseAndCancel() {
@@ -198,7 +235,7 @@ final class CadenceUITests: XCTestCase {
         XCTAssertTrue(el("learned.screen").waitForExistence(timeout: 5))
         let pairs = el("calibration.pairs")
         XCTAssertTrue(pairs.waitForExistence(timeout: 3))
-        XCTAssertTrue(pairs.label.contains("14 pairs"), "label was: \(pairs.label)")
+        XCTAssertTrue(pairs.label.contains(UIText.fourteenPairs), "label was: \(pairs.label)")
         shot("calibration", app)
     }
 
@@ -206,7 +243,7 @@ final class CadenceUITests: XCTestCase {
 
     func testWorkoutFeedback() {
         launch("normal")
-        app.tabBars.buttons["Body"].tap()
+        open(.body)
         reveal("body.training").tap()
         reveal("training.start.Test session").tap()
         let feel = reveal("workout.feel.4")
