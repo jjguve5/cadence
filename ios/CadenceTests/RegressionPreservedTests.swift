@@ -386,3 +386,23 @@ final class RegressionJournalTests: RegressionCase {
         XCTAssertTrue(tooFew.journalEffects().isEmpty)
     }
 }
+
+// MARK: - Ring keys (phase 2.1)
+
+final class RegressionRingKeyTests: RegressionCase {
+    /// Each ring is found by its key, never by its name: the key is the ring's id, its accessibility identifier
+    /// (ring.<key>, which the UI tests read) and what Today, Body and Fuel look a ring up by. Translating or renaming
+    /// a ring changes `name` only, so these keys must stay exactly as they are.
+    @MainActor
+    func testRingKeysAreStable() throws {
+        let store = try makeStore { _ in }
+        let rings = store.ringStats()
+        XCTAssertEqual(rings.main.map(\.key), ["sleep", "recovery", "strain"])
+        XCTAssertEqual(rings.day.map(\.key), ["calories", "protein", "water", "move", "promises"])
+        let all = rings.main + rings.day
+        XCTAssertEqual(Set(all.map(\.key)).count, all.count, "no two rings share a key")
+        XCTAssertEqual(all.map(\.id), all.map(\.key), "a ring's id is its key")
+        let renamed = RingStat(key: "sleep", name: "Sono", value: 0, target: 1, pace: nil, area: .sleep, center: "–", goal: "")
+        XCTAssertEqual(renamed.id, "sleep", "a new name keeps the key")
+    }
+}

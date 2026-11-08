@@ -123,6 +123,24 @@ final class CadenceUITests: XCTestCase {
         shot("tabs", app)
     }
 
+    /// The Sleep and Recovery rings open their screens and Strain doesn't open anything, now that the rings are told
+    /// apart by key instead of by name. A fresh launch for each (launching ends the previous run), so nothing depends
+    /// on the system's Back button.
+    func testRingsKeepTheirDestinations() {
+        for (ring, opens) in [("sleep", true), ("recovery", true), ("strain", false)] {
+            launch("normal")
+            reveal("ring.\(ring)").tap()
+            let today = el(Tab.today.screen)
+            if opens {
+                waitGone(today)
+            } else {
+                let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: today)
+                XCTAssertEqual(XCTWaiter().wait(for: [gone], timeout: 3), .timedOut, "ring.\(ring) isn't meant to open a screen")
+            }
+            shot("ring-\(ring)", app)
+        }
+    }
+
     // MARK: Recommendations and the minimum viable day
 
     func testPoorSleepOffersMinimumDayAndActionTurnsItOn() {

@@ -3,6 +3,10 @@
 import SwiftUI
 
 struct RingStat: Identifiable {
+    /// Internal and stable: sleep, recovery, strain, calories, protein, water, move, promises. It's the ring's id, its
+    /// accessibility identifier (ring.<key>) and what code looks a ring up by. Never shown and never translated: when
+    /// `name` changes (a translation, or "Promises" becoming another word), the key stays the same.
+    var key: String
     var name: String
     var value: Double
     var target: Double
@@ -11,7 +15,7 @@ struct RingStat: Identifiable {
     var center: String
     var goal: String
     var now: String?
-    var id: String { name }
+    var id: String { key }
     var progress: Double { value / max(0.001, target) }
     var behind: Bool { pace.map { progress + 0.05 < $0 } ?? false }
 }
@@ -94,17 +98,17 @@ extension Store {
         func litres(_ v: Double) -> String { String(format: "%.1fL", v / 1000) }
         let main = [
             // sleep and recovery run on a fixed scale too, with the bar on what you need and what's usual for you
-            RingStat(name: "Sleep", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
-            RingStat(name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "usual \(usual)"),
+            RingStat(key: "sleep", name: "Sleep", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "need \(duration(p.sleepNeed))"),
+            RingStat(key: "recovery", name: "Recovery", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "usual \(usual)"),
             // strain runs on a fixed 0–100% scale, so the circle is the maximum and the bar is today's target on it
-            RingStat(name: "Strain", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "target \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
+            RingStat(key: "strain", name: "Strain", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "target \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
         ]
         let day = [
-            RingStat(name: "Calories", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "of \(k(p.kcal))", now: "now \(k(p.kcal * eat))"),
-            RingStat(name: "Protein", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "of \(Int(p.proteinTarget))g", now: "now \(Int(p.proteinTarget * eat))g"),
-            RingStat(name: "Water", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(goal * drink))"),
-            RingStat(name: "Move", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "of \(k(Double(p.stepGoal)))", now: "now \(k(Double(p.stepGoal) * walk))"),
-            RingStat(name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
+            RingStat(key: "calories", name: "Calories", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "of \(k(p.kcal))", now: "now \(k(p.kcal * eat))"),
+            RingStat(key: "protein", name: "Protein", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "of \(Int(p.proteinTarget))g", now: "now \(Int(p.proteinTarget * eat))g"),
+            RingStat(key: "water", name: "Water", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "of \(litres(goal))", now: "now \(litres(goal * drink))"),
+            RingStat(key: "move", name: "Move", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "of \(k(Double(p.stepGoal)))", now: "now \(k(Double(p.stepGoal) * walk))"),
+            RingStat(key: "promises", name: "Promises", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "of \(due.count)", now: "now \(dueNow)"),
         ]
         return (main, day)
     }
@@ -145,9 +149,9 @@ struct DayRings: View {
     }
 
     @ViewBuilder private func mainRing(_ s: RingStat) -> some View {
-        if s.name == "Sleep" {
+        if s.key == "sleep" {
             NavigationLink { SleepView() } label: { mainLabel(s) }.buttonStyle(.plain).frame(maxWidth: .infinity)
-        } else if s.name == "Recovery" {
+        } else if s.key == "recovery" {
             NavigationLink { ReadinessView() } label: { mainLabel(s) }.buttonStyle(.plain).frame(maxWidth: .infinity)
         } else {
             mainLabel(s).frame(maxWidth: .infinity)
@@ -164,7 +168,7 @@ struct DayRings: View {
             Text(s.name).font(.geist(13, .semibold))
             Text(s.goal).font(.geist(11)).foregroundStyle(Color.soft).lineLimit(1).minimumScaleFactor(0.8)
         }
-        .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(s.name.lowercased())")
+        .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(s.key)")
     }
 
     private func smallRing(_ s: RingStat) -> some View {
@@ -179,7 +183,7 @@ struct DayRings: View {
             if let now = s.now { Text(now).font(.geist(10, s.behind ? .semibold : .regular)).foregroundStyle(s.behind ? Color.warn : Color.faint).lineLimit(1).minimumScaleFactor(0.7) }
         }
         .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(s.name.lowercased())")
+        .accessibilityElement(children: .combine).accessibilityIdentifier("ring.\(s.key)")
     }
 }
 
