@@ -667,7 +667,7 @@ struct PlanView: View {
         let shades: [Double] = [0, 0.045, 0.09, 0.15]
         var label = PlanFormat.dayMonth(d)
         if isToday { label += ", hoje" }
-        if selected { label += ", escolhido" }
+        if selected { label += ", selecionado" }
         for m in info.marks { label += ", " + m.word }
         if !info.conflicts.isEmpty { label += ", conflito" }
         return Button { picked = d } label: {
