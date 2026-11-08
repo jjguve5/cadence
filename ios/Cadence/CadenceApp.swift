@@ -72,6 +72,7 @@ struct RootView: View {
                     LifeView().tabItem { Label("Vida", systemImage: "square.stack.3d.up") }.tag(4)
                 }
                 .tint(.mint)
+                .overlay(alignment: .bottom) { UndoBar() } // Desfazer for the last action, everywhere (design v17)
             } else {
                 SetupView()
             }

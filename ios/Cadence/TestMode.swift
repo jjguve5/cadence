@@ -80,5 +80,13 @@ enum TestSeed {
                 store.save(entry)
             }
         }
+        // Each area's own UI-test scenarios, on top of the normal history (one file per area, so phases don't collide)
+        TodaySeeds.apply(store, scenario: scenario)
+        CareSeeds.apply(store, scenario: scenario)
+        TrainingSeeds.apply(store, scenario: scenario)
+        FoodSeeds.apply(store, scenario: scenario)
+        PlanSeeds.apply(store, scenario: scenario)
+        NightSeeds.apply(store, scenario: scenario)
+        LifeSeeds.apply(store, scenario: scenario)
     }
 }
