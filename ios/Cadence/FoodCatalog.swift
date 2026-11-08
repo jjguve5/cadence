@@ -197,8 +197,13 @@ struct OFFResult: Identifiable, Hashable {
     var name: String
     var brand: String?
     var kcal100: Double
-    var protein100: Double
+    var protein100: Double? // nil when Open Food Facts doesn't have it: «Sem dados», never 0
     var serving: Double?
+
+    /// The list's line, per 100 g
+    var perHundred: String {
+        protein100.map { "\(Int(kcal100)) kcal · \(Int($0)) g /100 g" } ?? "\(Int(kcal100)) kcal /100 g · proteína: sem dados"
+    }
 }
 
 enum FoodSearch {
@@ -221,13 +226,16 @@ enum FoodSearch {
         guard let (data, _) = try? await URLSession.shared.data(for: req),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = root["products"] as? [[String: Any]] else { return [] }
-        return list.compactMap { p in
-            guard let name = p["product_name"] as? String, !name.isEmpty else { return nil }
-            let n = p["nutriments"] as? [String: Any] ?? [:]
-            func num(_ k: String) -> Double? { (n[k] as? Double) ?? (n[k] as? NSNumber)?.doubleValue ?? Double(n[k] as? String ?? "") }
-            guard let kcal = num("energy-kcal_100g") else { return nil }
-            let serving = (p["serving_quantity"] as? Double) ?? Double(p["serving_quantity"] as? String ?? "")
-            return OFFResult(id: p["code"] as? String ?? name, name: name, brand: (p["brands"] as? String)?.components(separatedBy: ",").first, kcal100: kcal, protein100: num("proteins_100g") ?? 0, serving: serving)
-        }
+        return list.compactMap { FoodSearch.result($0) }
+    }
+
+    /// One product of a search. A product with no kcal isn't listed; protein it doesn't have stays nil, never 0
+    static func result(_ p: [String: Any]) -> OFFResult? {
+        guard let name = p["product_name"] as? String, !name.isEmpty else { return nil }
+        let n = p["nutriments"] as? [String: Any] ?? [:]
+        func num(_ k: String) -> Double? { (n[k] as? Double) ?? (n[k] as? NSNumber)?.doubleValue ?? Double(n[k] as? String ?? "") }
+        guard let kcal = num("energy-kcal_100g") else { return nil }
+        let serving = (p["serving_quantity"] as? Double) ?? Double(p["serving_quantity"] as? String ?? "")
+        return OFFResult(id: p["code"] as? String ?? name, name: name, brand: (p["brands"] as? String)?.components(separatedBy: ",").first, kcal100: kcal, protein100: num("proteins_100g"), serving: serving)
     }
 }

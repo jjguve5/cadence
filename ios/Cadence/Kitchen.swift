@@ -191,7 +191,9 @@ extension Store {
         save(p)
         var entry: FoodEntry?
         if let r = record(Recipe.self, p.recipeId) {
-            let e = FoodEntry(name: r.name, kcal: r.kcal, protein: r.protein)
+            // the same name rule as any other food without a group of its own; one portion, an estimate like the others
+            let e = FoodEntry(name: r.name, kcal: r.kcal, protein: r.protein, group: FoodGoals.legacyGroup(name: r.name),
+                              quantity: 1, unit: FoodUnit.portion.rawValue, estimated: true)
             logFood(e)
             entry = e
         }
@@ -262,9 +264,9 @@ extension Store {
         return out.sorted { ($0.aisle, $0.name) < ($1.aisle, $1.name) }
     }
 
-    /// The same product, whatever the source: the name without case or surrounding spaces
+    /// The same product, whatever the source: the name without case, accents or extra spaces (around it or inside it)
     nonisolated static func productKey(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
+        name.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased().split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
     }
 
     /// One line for two sources of the same product: the first line's id, name and aisle; the larger quantity when

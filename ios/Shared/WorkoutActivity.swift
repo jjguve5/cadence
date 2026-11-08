@@ -58,7 +58,7 @@ enum WorkoutAction: String, AppEnum {
     case done, weightUp, weightDown, repUp, repDown, restUp, restDown, restSkip
     static var typeDisplayRepresentation: TypeDisplayRepresentation = "Ação do treino"
     static var caseDisplayRepresentations: [WorkoutAction: DisplayRepresentation] = [
-        .done: "Feito", .weightUp: "+2.5 kg", .weightDown: "−2.5 kg", .repUp: "+1 rep", .repDown: "−1 rep",
+        .done: "Série feita", .weightUp: "+2.5 kg", .weightDown: "−2.5 kg", .repUp: "+1 rep", .repDown: "−1 rep",
         .restUp: "+15 s", .restDown: "−15 s", .restSkip: "Saltar descanso",
     ]
 }

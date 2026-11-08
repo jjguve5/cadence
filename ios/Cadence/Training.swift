@@ -92,6 +92,25 @@ struct TemplateExercise: Codable, Equatable, Identifiable, Hashable {
     var repHigh = 10
     var rest = 120 // seconds
     var increment = 2.5
+    var userRest: Int? // the rest you changed in the editor; nil follows the rule (optional: older builds ignore it)
+}
+
+extension TemplateExercise {
+    /// The rest after a set of `reps`: the one you set in the template, if you set one, else the rule (D30 revised)
+    func restAfter(reps: Int, mechanic: ExerciseMechanic?) -> (seconds: Int, reason: String) {
+        TrainingRules.rest(mechanic, reps: reps, templateRest: rest, chosen: userRest)
+    }
+
+    /// What the template editor shows until you change it: the rule's rest for the top of the range, and why
+    func defaultRest(mechanic: ExerciseMechanic?) -> (seconds: Int, reason: String) {
+        TrainingRules.rest(mechanic, reps: repHigh, templateRest: rest)
+    }
+
+    /// You changed the rest in the editor: only then is a value yours. `rest` follows it, for older builds
+    mutating func setRest(_ seconds: Int) {
+        userRest = seconds
+        rest = seconds
+    }
 }
 
 struct WorkoutTemplate: Record, Equatable {
@@ -326,10 +345,12 @@ enum TrainingRules {
         return e.groups.count >= 2 || e.groups.union(e.secondaryGroups).count >= 3 ? .compound : .isolation
     }
 
-    /// The rest after a working set, from the exercise and the set just done: compound and heavy 2:30, compound with 8
-    /// or more reps 2:00, isolation and heavy (6 or fewer reps) 1:30, light isolation 1:15. An exercise that isn't
-    /// known keeps its template's rest.
-    static func rest(_ mechanic: ExerciseMechanic?, reps: Int, templateRest: Int) -> (seconds: Int, reason: String) {
+    /// The rest after a working set. One you set in the template (`chosen`) prevails for that exercise; otherwise it
+    /// comes from the exercise and the set just done: compound and heavy 2:30, compound with 8 or more reps 2:00,
+    /// isolation and heavy (6 or fewer reps) 1:30, light isolation 1:15. An exercise that isn't known keeps its
+    /// template's rest.
+    static func rest(_ mechanic: ExerciseMechanic?, reps: Int, templateRest: Int, chosen: Int? = nil) -> (seconds: Int, reason: String) {
+        if let chosen { return (chosen, "o descanso que definiste no modelo para este exercício.") }
         let r = reps == 1 ? "1 repetição" : "\(reps) repetições"
         switch mechanic {
         case .compound?: return reps >= 8 ? (120, "exercício composto, série de \(r).") : (150, "exercício composto e pesado, série de \(r).")
@@ -385,16 +406,27 @@ enum TrainingRules {
 
     static func isPartial(_ s: WorkoutSession, today: String) -> Bool { s.partial == true || isExpired(s, today: today) }
 
+    /// Over, for everything that reads past sessions (progression, goals, history): finished, or left open past 23:59,
+    /// which counts as partial. Worked out when it is read; nothing is written to the session (D23)
+    static func isEnded(_ s: WorkoutSession, today: String) -> Bool { s.end != nil || isExpired(s, today: today) }
+
     /// The last thing done in a session: its last registered set, or when it was paused, or its start
     static func lastActivity(_ s: WorkoutSession) -> Double {
         max(s.start, s.sets.compactMap { $0.done ? $0.at : nil }.max() ?? 0, s.pausedAt ?? 0)
     }
 
-    /// A target's record id: "next:" and the exercise id, only [A-Za-z0-9_.:-], up to 80 characters
+    /// A target's record id, for saving and for reading: "next:" and the exercise id, only [A-Za-z0-9_.:-], up to 80
+    /// characters. When cleaning or the length changed the exercise id, a hash of the original (FNV-1a, 8 hex digits, as
+    /// Store.boughtKey) goes at the end, so two exercises that clean to the same text never share a target.
     static func targetId(_ exerciseId: String) -> String {
         let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.:-")
-        let chars: [Character] = ("next:" + exerciseId).map { allowed.contains($0) ? $0 : "_" }
-        return String(chars.prefix(80))
+        let original = "next:" + exerciseId
+        let chars: [Character] = original.map { allowed.contains($0) ? $0 : "_" }
+        let plain = String(chars)
+        if plain == original && plain.count <= 80 { return plain }
+        var hash: UInt32 = 2166136261
+        for byte in exerciseId.utf8 { hash = (hash ^ UInt32(byte)) &* 16777619 }
+        return String(plain.prefix(80 - 9)) + "_" + String(format: "%08x", hash)
     }
 
     /// A reason as it reads after «Porquê»: first letter in lower case
@@ -458,10 +490,11 @@ extension WorkoutSession {
     func isLastWorking(_ index: Int) -> Bool {
         guard sets.indices.contains(index) else { return false }
         let set = sets[index]
-        guard set.kind != .warmup, !set.done else { return false }
-        // the last working set of its exercise in the session's order (spec: «só na última série de trabalho»), whether
-        // or not the earlier ones are registered yet
-        return sets.indices.last(where: { sets[$0].exerciseId == set.exerciseId && sets[$0].kind != .warmup }) == index
+        guard set.kind == .working, !set.done else { return false }
+        // the last set of kind .working of its exercise in the session's order, the sets the progression reads (spec:
+        // «só na última série de trabalho»), not a drop, failure or rest-pause set after it, whether or not the earlier
+        // ones are registered yet
+        return sets.indices.last(where: { sets[$0].exerciseId == set.exerciseId && sets[$0].kind == .working }) == index
     }
 
     /// Registers what you did: the values become the set's; its target stays as it was. Registering resumes a pause.
@@ -557,23 +590,23 @@ extension Store {
 
     var templates: [WorkoutTemplate] { all(WorkoutTemplate.self).sorted { $0.name < $1.name } }
 
-    /// Last finished working sets of an exercise
+    /// Last working sets of an exercise, from a session that's over (finished, or left open past 23:59: partial)
     func lastSets(_ exerciseId: String, before session: String? = nil) -> [SetLog] {
-        for s in sessions() where s.id != session && s.end != nil {
+        for s in sessions() where s.id != session && TrainingRules.isEnded(s, today: Day.today) {
             let sets = s.sets.filter { $0.exerciseId == exerciseId && $0.kind == .working && $0.done }
             if !sets.isEmpty { return sets }
         }
         return []
     }
 
-    /// The latest finished session with done working sets of an exercise (the one lastSets reads)
+    /// The latest session that's over with done working sets of an exercise (the one lastSets reads)
     func lastSession(with exerciseId: String, before session: String? = nil) -> WorkoutSession? {
-        sessions().first { s in s.id != session && s.end != nil && !TrainingRules.working(exerciseId, in: s).isEmpty }
+        sessions().first { s in s.id != session && TrainingRules.isEnded(s, today: Day.today) && !TrainingRules.working(exerciseId, in: s).isEmpty }
     }
 
-    /// Best estimated 1RM of the done working sets of each finished session, newest first
+    /// Best estimated 1RM of the done working sets of each session that's over, newest first
     func bestE1rms(_ exerciseId: String) -> [Double] {
-        sessions().filter { $0.end != nil }.compactMap { TrainingRules.bestE1rm(exerciseId, in: $0) }
+        sessions().filter { TrainingRules.isEnded($0, today: Day.today) }.compactMap { TrainingRules.bestE1rm(exerciseId, in: $0) }
     }
 
     /// The progression rules: all sets at the top of the range → add the increment (not when the last set had no
@@ -647,15 +680,15 @@ extension Store {
             guard seen.insert(ex.exerciseId).inserted else { return nil }
             let done = TrainingRules.working(ex.exerciseId, in: s)
             guard let base = TrainingRules.carry(done, repHigh: ex.repHigh), let best = TrainingRules.bestE1rm(ex.exerciseId, in: s) else { return nil }
-            let earlier = sessions().filter { $0.end != nil && $0.id != s.id && $0.start < s.start }.compactMap { TrainingRules.bestE1rm(ex.exerciseId, in: $0) }
+            let earlier = sessions().filter { TrainingRules.isEnded($0, today: Day.today) && $0.id != s.id && $0.start < s.start }.compactMap { TrainingRules.bestE1rm(ex.exerciseId, in: $0) }
             guard let p = TrainingRules.progression(ex, last: done, history: [best] + earlier) else { return nil }
             return NextProposal(exercise: ex, weight: p.weight, reps: ex.repHigh, reason: p.reason, changes: p.weight != base.weight)
         }
     }
 
-    /// The working sets of an exercise in the last finished session before this one (for «+2 kg», «igual»)
+    /// The working sets of an exercise in the last session that's over before this one (for «+2 kg», «igual»)
     func previousWorking(_ exerciseId: String, before s: WorkoutSession) -> [SetLog] {
-        let earlier = sessions().first { $0.end != nil && $0.id != s.id && $0.start < s.start && !TrainingRules.working(exerciseId, in: $0).isEmpty }
+        let earlier = sessions().first { TrainingRules.isEnded($0, today: Day.today) && $0.id != s.id && $0.start < s.start && !TrainingRules.working(exerciseId, in: $0).isEmpty }
         return earlier.map { TrainingRules.working(exerciseId, in: $0) } ?? []
     }
 
@@ -680,7 +713,7 @@ extension Store {
     /// the ones you've done before first, then the ones with weights
     func alternatives(to ex: TemplateExercise, in s: WorkoutSession) -> [CatalogExercise] {
         guard let info = Catalog.shared.exercise(ex.exerciseId) else { return [] }
-        let known = Set(sessions().filter { $0.end != nil }.flatMap { x in x.sets.filter { $0.done && $0.kind == .working }.map(\.exerciseId) })
+        let known = Set(sessions().filter { TrainingRules.isEnded($0, today: Day.today) }.flatMap { x in x.sets.filter { $0.done && $0.kind == .working }.map(\.exerciseId) })
         return TrainingRules.alternatives(to: info, from: Catalog.shared.exercises, excluding: Set(s.order.map(\.exerciseId)), known: known)
     }
 
@@ -733,7 +766,7 @@ extension Store {
     /// Days since each group was last trained
     func freshness() -> [String: Int] {
         var out: [String: Int] = [:]
-        for s in sessions() where s.end != nil {
+        for s in sessions() where TrainingRules.isEnded(s, today: Day.today) {
             for g in groups(of: s) where out[g] == nil { out[g] = Day.between(s.date, Day.today) }
         }
         return out
@@ -743,7 +776,7 @@ extension Store {
 
     /// For 48 hours after a session: is each trained muscle getting the protein and sleep to grow?
     func growthCheck() -> (session: WorkoutSession, status: [String: Growth], protein: (got: Double, need: Double), sleep: (got: Int, need: Int))? {
-        guard let s = sessions().first(where: { $0.end != nil && Day.between($0.date, Day.today) <= 2 }) else { return nil }
+        guard let s = sessions().first(where: { TrainingRules.isEnded($0, today: Day.today) && Day.between($0.date, Day.today) <= 2 }) else { return nil }
         let days = (0...Day.between(s.date, Day.today)).map { Day.add($0, to: s.date) }
         let protein = days.map { fuel(on: $0).protein }.reduce(0, +)
         let todayShare = days.last == Day.today ? min(1, Double(Day.minuteOfDay()) / 1260) : 1 // by 21:00 the full day counts

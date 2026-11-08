@@ -10,6 +10,12 @@ private func common(_ name: String) -> CommonFood {
     return f
 }
 
+/// A JSON object as Open Food Facts sends it
+private func json(_ text: String) -> [String: Any] {
+    guard let o = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else { fatalError("bad JSON: \(text)") }
+    return o
+}
+
 /// FoodEntry as the build of 2 November (dc04c07) reads it: none of the phase 2.7 fields
 private struct PreviousFoodEntry: Decodable {
     var id: String
@@ -316,6 +322,172 @@ final class FoodConfirmationTests: RegressionCase {
         XCTAssertNil(f.amountText)
         XCTAssertEqual(FoodItem.again(f).unit, .portion)
         XCTAssertEqual(FoodItem.again(f).totalKcal, 10, accuracy: 0.01)
+    }
+}
+
+/// Kcal or protein Open Food Facts doesn't have: never 0. «Sem dados», empty, and the meal waits until you copy the
+/// value from the label (rule «ausência ≠ zero»)
+final class FoodMissingValueTests: RegressionCase {
+    func testAMissingValueFromOpenFoodFactsIsNeverZero() {
+        let none = OFFProduct.parse(json(#"{"product_name":"Bolachas","nutriments":{"carbohydrates_100g":60}}"#), code: "1")
+        XCTAssertEqual(none.name, "Bolachas")
+        XCTAssertNil(none.kcal100, "not 0")
+        XCTAssertNil(none.protein100, "not 0")
+        XCTAssertEqual(none.carbs100, 60)
+        let full = OFFProduct.parse(json(#"{"product_name":"Skyr","nutriments":{"energy-kcal_100g":63,"proteins_100g":"11"},"serving_quantity":150}"#), code: "2")
+        XCTAssertEqual(full.kcal100, 63, "values present are used as before")
+        XCTAssertEqual(full.protein100, 11)
+        XCTAssertEqual(full.serving, 150)
+        let zero = OFFProduct.parse(json(#"{"nutriments":{"proteins_100g":0}}"#), code: "3")
+        XCTAssertEqual(zero.protein100, 0, "a real 0 on the label stays 0")
+        XCTAssertEqual(zero.name, "Produto 3")
+
+        let found = FoodSearch.result(json(#"{"product_name":"Barra","code":"9","nutriments":{"energy-kcal_100g":400}}"#))
+        XCTAssertNotNil(found)
+        XCTAssertNil(found?.protein100, "not 0")
+        XCTAssertEqual(found?.perHundred, "400 kcal /100 g · proteína: sem dados")
+        let both = FoodSearch.result(json(#"{"product_name":"Barra","code":"9","nutriments":{"energy-kcal_100g":400,"proteins_100g":20}}"#))
+        XCTAssertEqual(both?.perHundred, "400 kcal · 20 g /100 g")
+        XCTAssertNil(FoodSearch.result(json(#"{"product_name":"Barra","nutriments":{"proteins_100g":10}}"#)), "with no kcal it isn't listed")
+    }
+
+    func testAProductWithAValueMissingCantBeSavedUntilYouTypeIt() {
+        var item = FoodItem(product: OFFProduct(name: "Bolachas", kcal100: nil, protein100: 7.5, carbs100: 60, fat100: nil, serving: 50))
+        XCTAssertTrue(item.kcalMissing)
+        XCTAssertFalse(item.kcalKnown)
+        XCTAssertFalse(item.proteinMissing)
+        XCTAssertEqual(item.totalProtein, 3.75, accuracy: 0.001, "what it has is used as before")
+        XCTAssertEqual(item.labelLine, "O Open Food Facts não tem as calorias deste produto: copia-as do rótulo.")
+        XCTAssertFalse(FoodMeal.canSave([item]), "not until you type it")
+        XCTAssertTrue(FoodMeal.totals([item]).kcalNoData, "«Sem dados», never 0")
+        XCTAssertFalse(FoodMeal.totals([item]).proteinNoData)
+
+        item.copyLabel(kcal100: 480) // per 100 g, as the label gives it, for the 50 g serving
+        XCTAssertTrue(item.kcalKnown)
+        XCTAssertEqual(item.totalKcal, 240, accuracy: 0.001)
+        XCTAssertTrue(FoodMeal.canSave([item]))
+        XCTAssertEqual(item.entry(date: Fixed.monday, minute: 600).kcal, 240)
+        XCTAssertFalse(FoodMeal.totals([item]).kcalNoData)
+
+        item.copyLabel(kcal100: nil) // the field emptied again
+        XCTAssertFalse(item.kcalKnown)
+        XCTAssertFalse(FoodMeal.canSave([item]))
+        item.copyLabel(kcal100: 0)
+        XCTAssertTrue(item.kcalKnown, "the label can say 0: that is a value you typed")
+    }
+
+    func testTheMealSaysWhatIsStillMissing() {
+        let waiting = FoodItem(product: OFFProduct(name: "X", kcal100: nil, protein100: nil, carbs100: nil, fat100: nil, serving: nil))
+        let banana = FoodItem(common: common("Banana"))
+        let mixed = FoodMeal.totals([waiting, banana])
+        XCTAssertFalse(mixed.kcalNoData)
+        XCTAssertTrue(mixed.kcalPartial, "some foods don't have it yet")
+        XCTAssertTrue(mixed.proteinPartial)
+        XCTAssertEqual(mixed.kcal, banana.totalKcal, accuracy: 0.001)
+        let alone = FoodMeal.totals([waiting])
+        XCTAssertTrue(alone.kcalNoData)
+        XCTAssertTrue(alone.proteinNoData)
+        XCTAssertFalse(alone.kcalPartial)
+        XCTAssertEqual(waiting.labelLine, "O Open Food Facts não tem as calorias nem a proteína deste produto: copia-as do rótulo.")
+        XCTAssertNil(banana.labelLine)
+        XCTAssertFalse(FoodMeal.canSave([banana, waiting]), "one food waiting holds the meal")
+        XCTAssertTrue(FoodMeal.canSave([banana]))
+        XCTAssertFalse(FoodMeal.canSave([]))
+    }
+
+    @MainActor
+    func testAFoodWaitingForItsLabelIsNotSavedAsZero() throws {
+        let store = try makeStore()
+        var item = FoodItem(product: OFFProduct(name: "Bolachas", kcal100: nil, protein100: 7, carbs100: nil, fat100: nil, serving: nil))
+        let refused = store.saveMeal([item], date: Fixed.saturday, minute: 600)
+        XCTAssertTrue(refused.saved.isEmpty)
+        XCTAssertTrue(store.foods(on: Fixed.saturday).isEmpty, "never saved as 0")
+        item.copyLabel(kcal100: 450)
+        store.saveMeal([item], date: Fixed.saturday, minute: 600)
+        XCTAssertEqual(store.foods(on: Fixed.saturday).first?.kcal, 450)
+    }
+
+    func testWhatYouTypeInALabelField() {
+        XCTAssertEqual(FoodItem.labelValue("12,5"), 12.5)
+        XCTAssertEqual(FoodItem.labelValue(" 12.5 "), 12.5)
+        XCTAssertEqual(FoodItem.labelValue("0"), 0, "the label can say 0")
+        XCTAssertNil(FoodItem.labelValue(""), "empty is no value, not 0")
+        XCTAssertNil(FoodItem.labelValue("abc"))
+        XCTAssertNil(FoodItem.labelValue("-3"))
+    }
+}
+
+/// «Comer» in the kitchen: the portion leaves the fridge and one estimated entry is logged, with its group; Desfazer
+/// puts it all back
+final class KitchenEatTests: RegressionCase {
+    private let soup = Recipe(id: "R1", name: "Sopa de legumes", kcal: 90, protein: 3)
+    private let rice = Recipe(id: "R2", name: "Frango com arroz", kcal: 600, protein: 45)
+
+    private func portion(_ id: String, of r: Recipe) -> Portion {
+        Portion(id: id, recipeId: r.id, name: r.name, eatBy: Fixed.sunday)
+    }
+
+    @MainActor
+    func testComerSavesAGroupByTheNameRuleAndAnEstimate() throws {
+        let p = portion("P1", of: soup), q = portion("P2", of: rice)
+        let store = try makeStore { s in
+            s.add(self.soup)
+            s.add(self.rice)
+            s.add(p)
+            s.add(q)
+        }
+        _ = store.eat(p)
+        let soupEntry = try XCTUnwrap(store.foods().first { $0.name == "Sopa de legumes" })
+        XCTAssertEqual(soupEntry.kcal, 90)
+        XCTAssertEqual(soupEntry.protein, 3)
+        XCTAssertEqual(soupEntry.group, FoodGoals.legacyGroup(name: "Sopa de legumes"), "the rule other foods with no group of their own use")
+        XCTAssertEqual(soupEntry.group, FoodGoals.soup)
+        XCTAssertEqual(FoodGoals.count([soupEntry]).soup, 1)
+        XCTAssertEqual(soupEntry.estimated, true, "marked estimated, as the other estimates")
+        XCTAssertEqual(soupEntry.quantity, 1)
+        XCTAssertEqual(soupEntry.unit, FoodUnit.portion.rawValue)
+        XCTAssertEqual(store.record(Portion.self, "P1")?.eaten, Day.today)
+
+        _ = store.eat(q)
+        let riceEntry = try XCTUnwrap(store.foods().first { $0.name == "Frango com arroz" })
+        XCTAssertEqual(riceEntry.group, FoodGoals.noGroup, "a group is always saved, also when it counts for none")
+    }
+
+    @MainActor
+    func testDesfazerDeComerPutsThePortionBackAndRemovesTheEntry() throws {
+        let p = portion("P1", of: rice)
+        let store = try makeStore { s in
+            s.add(self.rice)
+            s.add(p)
+        }
+        let undo = store.eat(p)
+        XCTAssertTrue(store.fridge.isEmpty, "the portion left the fridge")
+        XCTAssertEqual(store.foods().count, 1, "and was logged")
+        undo()
+        XCTAssertEqual(store.fridge.map(\.id), ["P1"], "the portion is back")
+        XCTAssertEqual(store.record(Portion.self, "P1"), p, "exactly as it was")
+        XCTAssertTrue(store.foods().isEmpty, "and the entry is gone")
+    }
+}
+
+/// One product however it's written: the list and Higiene compare names the same way
+final class ProductKeyTests: RegressionCase {
+    func testAccentsCaseAndExtraSpacesDontCount() {
+        XCTAssertEqual(Store.productKey("  Maçã   Gala "), "maca gala")
+        XCTAssertEqual(Store.productKey("Bioderma  SÉBIUM\tgel"), "bioderma sebium gel")
+        XCTAssertEqual(Store.productKey("  Bioderma  SÉBIUM gel "), CareRules.productKey("  Bioderma  SÉBIUM gel "), "the comparison Higiene makes")
+        XCTAssertEqual(Store.productKey("Protetor Solar"), Store.productKey("protetor  solar"))
+        XCTAssertNotEqual(Store.productKey("Gel"), Store.productKey("Gel 2"))
+    }
+
+    @MainActor
+    func testTwoSpellingsOfOneProductAreOneLine() throws {
+        let a = ShoppingItem(id: "a", name: "Café  moído"), b = ShoppingItem(id: "b", name: "cafe moido")
+        let store = try makeStore { s in
+            s.add(a)
+            s.add(b)
+        }
+        XCTAssertEqual(store.shoppingList().filter { Store.productKey($0.name) == "cafe moido" }.count, 1)
     }
 }
 

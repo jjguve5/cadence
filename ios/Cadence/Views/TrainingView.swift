@@ -79,7 +79,7 @@ struct TrainingView: View {
             NavigationLink { ProgressListView() } label: {
                 Card {
                     HStack { Eyebrow(text: "Progresso e projeções", icon: "chart.line.uptrend.xyaxis"); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-                    let last = store.sessions().filter { $0.end != nil }.prefix(3)
+                    let last = store.sessions().filter { TrainingRules.isEnded($0, today: Day.today) }.prefix(3)
                     ForEach(Array(last)) { s in
                         HStack { Text(s.name).font(.geist(13.5)); Spacer(); Text("\(Day.date(s.date).formatted(.dateTime.day().month())) · \(Int(s.volume).formatted()) kg").font(.mono(12)).foregroundStyle(Color.soft) }
                     }
@@ -828,7 +828,7 @@ struct WorkoutView: View {
         }
         progressCard(s, done: done)
         if closing != nil { feelCard }
-        if closing != nil || store.sessions().first(where: { $0.end != nil })?.id == s.id { nextCard(s) }
+        if closing != nil || store.sessions().first(where: { TrainingRules.isEnded($0, today: Day.today) })?.id == s.id { nextCard(s) }
         if closing != nil {
             PrimaryButton(title: "Concluído", area: .mint) { close(s, at: endAt) }
                 .accessibilityIdentifier("workout.done")
@@ -1007,7 +1007,7 @@ struct WorkoutView: View {
         let saved = s
         let set = s.sets[index]
         if set.kind != .warmup && s.hasSetsLeft {
-            let r = TrainingRules.rest(catalog.exercise(ex.exerciseId).map { TrainingRules.mechanic($0) }, reps: set.reps, templateRest: ex.rest)
+            let r = ex.restAfter(reps: set.reps, mechanic: catalog.exercise(ex.exerciseId).map { TrainingRules.mechanic($0) })
             if r.seconds > 0 {
                 Task { await live.rest(Date().addingTimeInterval(Double(r.seconds)), total: Double(r.seconds), reason: r.reason, session: saved) }
                 return
@@ -1582,9 +1582,11 @@ struct ExercisePicker: View {
 
 struct TemplateEditor: View {
     @EnvironmentObject var store: Store
+    @ObservedObject var catalog = Catalog.shared
     @Environment(\.dismiss) private var dismiss
     @State var template: WorkoutTemplate
     @State private var picking = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         NavigationStack {
@@ -1596,17 +1598,22 @@ struct TemplateEditor: View {
                         Stepper("\(ex.sets) \(ex.sets == 1 ? "série" : "séries")", value: $ex.sets, in: 1...10)
                         Stepper("De \(ex.repLow) repetições", value: $ex.repLow, in: 1...30)
                         Stepper("Até \(ex.repHigh) repetições", value: $ex.repHigh, in: ex.repLow...40)
-                        Stepper("Descanso \(ex.rest) s", value: $ex.rest, in: 30...360, step: 15)
+                        restRow($ex)
                         Stepper("Subir \(kg(ex.increment)) kg quando conseguires", value: $ex.increment, in: 0.5...10, step: 0.5)
                         Button("Remover", role: .destructive) { template.exercises.removeAll { $0.id == ex.id } }
                     }
                 }
                 Button("Adicionar exercício") { picking = true }
                 if store.record(WorkoutTemplate.self, template.id) != nil {
-                    Button("Apagar modelo", role: .destructive) { store.remove(template); dismiss() }
+                    Button("Apagar modelo", role: .destructive) { confirmingDelete = true }
+                        .accessibilityIdentifier("training.template.delete")
                 }
             }
             .cadenceList()
+            .confirmationDialog("Apagar este modelo?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Apagar modelo", role: .destructive) { store.remove(template); dismiss() }
+                Button("Cancelar", role: .cancel) {}
+            }
             .navigationTitle(template.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -1615,6 +1622,16 @@ struct TemplateEditor: View {
             }
             .sheet(isPresented: $picking) { ExercisePicker { template.exercises.append(TemplateExercise(exerciseId: $0.id, name: $0.name)) } }
         }
+    }
+
+    /// Descanso: until you change it the exercise follows the rule, shown here with its reason; a value you change is
+    /// stored and prevails for this exercise (D30 revised)
+    @ViewBuilder private func restRow(_ ex: Binding<TemplateExercise>) -> some View {
+        let e = ex.wrappedValue
+        let rule = e.defaultRest(mechanic: catalog.exercise(e.exerciseId).map { TrainingRules.mechanic($0) })
+        let shown = e.userRest ?? rule.seconds
+        Stepper("Descanso \(shown) s", value: Binding<Int>(get: { shown }, set: { ex.wrappedValue.setRest($0) }), in: 30...360, step: 15)
+        WhyLine(text: e.userRest != nil ? "definido por ti neste modelo; prevalece sobre a regra." : rule.reason + " Se o mudares, vale o valor que escolheres.")
     }
 }
 
@@ -1637,7 +1654,7 @@ struct ProgressListView: View {
                 }
             }
             Section("Sessões") {
-                ForEach(store.sessions().filter { $0.end != nil }.prefix(30)) { s in
+                ForEach(store.sessions().filter { TrainingRules.isEnded($0, today: Day.today) }.prefix(30)) { s in
                     HStack {
                         Text(s.name)
                         if TrainingRules.isPartial(s, today: Day.today) { StateTag(state: .partial) } // ended before the plan was done

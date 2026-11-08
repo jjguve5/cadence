@@ -147,6 +147,39 @@ final class TrainingTests: RegressionCase {
         XCTAssertEqual([0, 1, 2].map { s.isLastWorking($0) }, [false, false, true])
     }
 
+    /// The question goes on the last set of kind .working of each exercise (the sets the progression reads), in the
+    /// session's order: each exercise has its own, and a drop, failure or rest-pause set after it doesn't take it
+    func testTheEffortQuestionIsOnTheLastSetOfKindWorkingOfEachExercise() {
+        func planned(_ exercise: String, _ kind: SetKind = .working) -> SetLog {
+            SetLog(exerciseId: exercise, kind: kind, weight: 0, reps: 0)
+        }
+        let a = TemplateExercise(exerciseId: "a", name: "A"), b = TemplateExercise(exerciseId: "b", name: "B")
+        let s = WorkoutSession(id: "W", date: Fixed.saturday, name: "Legs", order: [a, b], sets: [
+            planned("a", .warmup), planned("a"), planned("a"), planned("a", .drop),
+            planned("b"), planned("b", .failure), planned("b", .restPause), planned("b"),
+        ])
+        XCTAssertEqual(s.sets.indices.map { s.isLastWorking($0) }, [false, false, true, false, false, false, false, true])
+    }
+
+    /// With a drop set at the end, the answer given on the last working set still reaches the next suggestion
+    @MainActor
+    func testTheEffortAnswerBeforeADropSetFeedsTheSuggestion() throws {
+        var s = WorkoutSession(id: "S1", date: Fixed.saturday, name: "Legs", start: 1_000, order: [legExtension], sets: [
+            set(0, 0, done: false), set(0, 0, done: false), set(0, 0, done: false),
+            SetLog(exerciseId: "leg-extension", kind: .drop, weight: 0, reps: 0),
+        ])
+        XCTAssertTrue(s.isLastWorking(2), "the last working set is asked")
+        XCTAssertFalse(s.isLastWorking(3), "not the drop set after it")
+        s.register(0, weight: 18, reps: 12, rir: nil)
+        s.register(1, weight: 18, reps: 12, rir: nil)
+        s.register(2, weight: 18, reps: 12, rir: 0)
+        s.register(3, weight: 12, reps: 12, rir: nil)
+        s.finish(at: 2_000)
+        let done = s
+        let store = try makeStore { $0.add(done) }
+        XCTAssertEqual(store.suggestion(for: legExtension).weight, 18, "no reserve on the last working set: the load doesn't go up")
+    }
+
     // MARK: Warm-ups
 
     /// Only the first exercise of each muscle group new in the session; the others name the one that warmed it. An
@@ -194,6 +227,35 @@ final class TrainingTests: RegressionCase {
         XCTAssertEqual(TrainingRules.rest(.compound, reps: 10, templateRest: 90).reason, "exercício composto, série de 10 repetições.")
         XCTAssertEqual(TrainingRules.restClock(150), "2:30")
         XCTAssertEqual(TrainingRules.restClock(75), "1:15")
+    }
+
+    /// A rest you set in the template prevails for that exercise. A stored `rest` alone says nothing about who set it
+    /// (120 is the default, the seeded templates carry their own), so only a value changed in the editor counts as yours
+    func testARestYouSetPrevailsOverTheRule() {
+        var ex = TemplateExercise(exerciseId: "squat", name: "Squat", sets: 3, repLow: 6, repHigh: 8, rest: 180)
+        XCTAssertNil(ex.userRest)
+        XCTAssertEqual(ex.restAfter(reps: 5, mechanic: .compound).seconds, 150, "none of yours: the rule")
+        XCTAssertEqual(ex.restAfter(reps: 5, mechanic: nil).seconds, 180, "not in the catalogue: the template's")
+        XCTAssertEqual(ex.defaultRest(mechanic: .compound).seconds, 120, "what the editor shows until you change it: the rule at the top of the range")
+        XCTAssertEqual(ex.defaultRest(mechanic: .compound).reason, "exercício composto, série de 8 repetições.")
+
+        ex.setRest(200)
+        XCTAssertEqual(ex.userRest, 200)
+        XCTAssertEqual(ex.rest, 200, "older builds read `rest`")
+        let yours = ex.restAfter(reps: 5, mechanic: .compound)
+        XCTAssertEqual(yours.seconds, 200, "yours prevails over the rule")
+        XCTAssertEqual(yours.reason, "o descanso que definiste no modelo para este exercício.")
+        XCTAssertEqual(ex.restAfter(reps: 12, mechanic: .isolation).seconds, 200, "whatever the set")
+        XCTAssertEqual(ex.restAfter(reps: 5, mechanic: nil).seconds, 200)
+    }
+
+    /// The new field is optional: a template from an older build reads with none, and one without writes none
+    func testATemplateFromAnOlderBuildFollowsTheRule() throws {
+        let old = try JSONDecoder().decode(TemplateExercise.self, from: Data(#"{"id":"x","exerciseId":"a","name":"A","sets":3,"repLow":8,"repHigh":10,"rest":90,"increment":2.5}"#.utf8))
+        XCTAssertNil(old.userRest)
+        XCTAssertEqual(old.restAfter(reps: 10, mechanic: .compound).seconds, 120)
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as? [String: Any]).keys
+        XCTAssertFalse(keys.contains("userRest"))
     }
 
     func testCompoundOrIsolation() {
@@ -309,6 +371,40 @@ final class TrainingTests: RegressionCase {
         XCTAssertEqual(store.records(WorkoutSession.kind)["Y"], stored)
     }
 
+    /// A session left open past 23:59 counts as partial for progression and goals, worked out on read and never
+    /// written; a session still open today doesn't count
+    @MainActor
+    func testAnExpiredSessionCountsForProgressionAndGoalsWithoutBeingWritten() throws {
+        let yesterday = Day.add(-1, to: Day.today)
+        let expired = WorkoutSession(id: "Y", date: yesterday, name: "Legs", start: 5_000, order: [legExtension],
+                                     sets: [set(20, 12), set(20, 12), set(20, 12), set(0, 0, target: 20, done: false)])
+        let older = finished("F", start: 1_000, [set(18, 12), set(18, 12), set(18, 12)])
+        let openToday = WorkoutSession(id: "T", date: Day.today, name: "Legs", start: 9_000, order: [legExtension],
+                                       sets: [set(30, 12), set(30, 12), set(30, 12)])
+        let store = try makeStore { s in
+            s.add(expired)
+            s.add(older)
+            s.add(openToday)
+        }
+        let stored = store.records(WorkoutSession.kind)
+
+        XCTAssertTrue(TrainingRules.isEnded(expired, today: Day.today))
+        XCTAssertTrue(TrainingRules.isEnded(older, today: Day.today))
+        XCTAssertFalse(TrainingRules.isEnded(openToday, today: Day.today), "today's is still in progress")
+
+        XCTAssertEqual(store.lastSets("leg-extension").map(\.weight), [20, 20, 20], "the expired one is the latest, and only what was done")
+        XCTAssertEqual(store.lastSession(with: "leg-extension")?.id, "Y")
+        XCTAssertEqual(store.bestE1rms("leg-extension"), [e1rm(20, 12), e1rm(18, 12)], "today's open one isn't in the history")
+        XCTAssertEqual(store.suggestion(for: legExtension).weight, 22.5, "the progression reads it")
+        XCTAssertEqual(store.target(for: legExtension)?.weight, 20)
+        XCTAssertEqual(store.previousWorking("leg-extension", before: openToday).map(\.weight), [20, 20, 20])
+        XCTAssertEqual(store.growthCheck()?.session.id, "Y", "the goals read it too")
+
+        XCTAssertEqual(store.records(WorkoutSession.kind), stored, "reading writes nothing")
+        XCTAssertNil(store.record(WorkoutSession.self, "Y")?.end)
+        XCTAssertNil(store.record(WorkoutSession.self, "Y")?.partial)
+    }
+
     // MARK: Data
 
     /// The new fields are optional: an older session reads with none of them, a session without them writes none, and
@@ -332,10 +428,40 @@ final class TrainingTests: RegressionCase {
 
     /// The target's record id: only [A-Za-z0-9_.:-], up to 80 characters
     func testTargetIds() {
-        XCTAssertEqual(TrainingRules.targetId("leg-extension"), "next:leg-extension")
-        XCTAssertEqual(TrainingRules.targetId("a b/ç"), "next:a_b__")
+        XCTAssertEqual(TrainingRules.targetId("leg-extension"), "next:leg-extension", "already clean and short: the plain id")
+        // When cleaning or the cut changes the exercise id, a hash of the original (FNV-1a, as boughtKey) keeps ids apart
+        XCTAssertEqual(TrainingRules.targetId("a b/ç"), "next:a_b___f5697f51")
+        XCTAssertEqual(TrainingRules.targetId("a b"), "next:a_b_10a3f9f2")
+        XCTAssertNotEqual(TrainingRules.targetId("a b"), TrainingRules.targetId("a_b"), "two exercises that clean alike")
+        XCTAssertEqual(TrainingRules.targetId("a_b"), "next:a_b")
         let long = TrainingRules.targetId(String(repeating: "x", count: 200))
         XCTAssertEqual(long.count, 80)
+        XCTAssertTrue(long.hasSuffix("_b3e4b6e5"), long)
+        XCTAssertNotEqual(long, TrainingRules.targetId(String(repeating: "x", count: 199) + "y"), "cut at 80, still apart")
+        XCTAssertEqual(TrainingRules.targetId(String(repeating: "x", count: 75)).count, 80, "exactly 80: no hash needed")
+        XCTAssertFalse(TrainingRules.targetId(String(repeating: "x", count: 75)).contains("_"))
+        XCTAssertEqual(TrainingRules.targetId(String(repeating: "x", count: 76)).count, 80, "one more: cut, with the hash")
+        XCTAssertTrue(TrainingRules.targetId(String(repeating: "x", count: 76)).contains("_"))
+        let server = try! NSRegularExpression(pattern: "^[A-Za-z0-9_.:-]{1,80}$")
+        for id in ["a b/ç", "a b", String(repeating: "é", count: 90), "leg-extension"].map(TrainingRules.targetId) {
+            XCTAssertNotNil(server.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)), id)
+        }
+    }
+
+    /// Saving and reading a target go through the same id, also for an exercise whose id had to be cleaned
+    @MainActor
+    func testATargetIsReadUnderTheIdItWasSavedWith() throws {
+        let odd = TemplateExercise(exerciseId: "a b/ç", name: "Odd", sets: 1, repLow: 8, repHigh: 12)
+        let last = WorkoutSession(id: "S1", date: Fixed.saturday, name: "Legs", start: 1_000, end: 2_000, order: [odd], sets: [set(18, 12, exercise: "a b/ç")])
+        let store = try makeStore { $0.add(last) }
+        let proposal = try XCTUnwrap(store.proposals(after: last).first)
+        store.acceptTarget(proposal, from: last, at: 5_000)
+        XCTAssertNotNil(store.record(TrainingTarget.self, "next:a_b___f5697f51"), "saved under the id with the hash")
+        let target = try XCTUnwrap(store.target(for: odd))
+        XCTAssertEqual(target.weight, proposal.weight, "and read from it")
+        XCTAssertTrue(target.reason.hasPrefix("aceitaste no fim do último treino"))
+        store.restoreTarget("a b/ç", to: nil)
+        XCTAssertTrue(store.all(TrainingTarget.self).isEmpty, "Desfazer finds it too")
     }
 
     // MARK: Words

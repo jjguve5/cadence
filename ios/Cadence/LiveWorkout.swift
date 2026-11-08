@@ -90,7 +90,7 @@ final class LiveWorkout: ObservableObject {
                 s.register(i, weight: values.weight, reps: values.reps, rir: nil)
                 if s.sets[i].kind != .warmup && s.hasSetsLeft {
                     let mechanic = Catalog.shared.exercise(ex.exerciseId).map { TrainingRules.mechanic($0) }
-                    let r = TrainingRules.rest(mechanic, reps: values.reps, templateRest: ex.rest)
+                    let r = ex.restAfter(reps: values.reps, mechanic: mechanic)
                     if r.seconds > 0 {
                         rest = .some(Date().addingTimeInterval(Double(r.seconds)))
                         restSeconds = r.seconds

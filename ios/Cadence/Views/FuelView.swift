@@ -305,7 +305,7 @@ struct FoodLogSheet: View {
                                 HStack {
                                     VStack(alignment: .leading) { Text(r.name).foregroundStyle(Color.ink).lineLimit(1); if let b = r.brand { Text(b).font(.caption).foregroundStyle(Color.faint) } }
                                     Spacer()
-                                    Text("\(Int(r.kcal100)) kcal · \(Int(r.protein100)) g /100 g").font(.caption.monospaced()).foregroundStyle(Color.soft)
+                                    Text(r.perHundred).font(.caption.monospaced()).foregroundStyle(Color.soft)
                                 }
                             }
                         }
@@ -536,8 +536,8 @@ struct FoodConfirmView: View {
             Card {
                 HStack { Eyebrow(text: "Resumo"); Spacer(); Text("nutrientes de tabelas, estimados").font(.geist(11)).foregroundStyle(Color.faint) }
                 HStack(spacing: 6) {
-                    nutrient("kcal", "\(Int(totals.kcal.rounded()))", partial: false)
-                    nutrient("proteína", "\(Int(totals.protein.rounded())) g", partial: false)
+                    nutrient("kcal", totals.kcalNoData ? nil : "\(Int(totals.kcal.rounded()))", partial: totals.kcalPartial)
+                    nutrient("proteína", totals.proteinNoData ? nil : "\(Int(totals.protein.rounded())) g", partial: totals.proteinPartial)
                     nutrient("hidratos", totals.carbs.map { "\(Int($0.rounded())) g" }, partial: totals.carbsPartial)
                     nutrient("gordura", totals.fat.map { "\(Int($0.rounded())) g" }, partial: totals.fatPartial)
                 }
@@ -555,8 +555,8 @@ struct FoodConfirmView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 4) {
                 PrimaryButton(title: "Guardar refeição", area: .fuel) { save() }
-                    .disabled(items.isEmpty)
-                    .opacity(items.isEmpty ? 0.5 : 1)
+                    .disabled(!FoodMeal.canSave(items))
+                    .opacity(FoodMeal.canSave(items) ? 1 : 0.5)
                     .accessibilityIdentifier("food.confirm.save")
                 Button("Voltar") { back() }
                     .font(.geist(13.5, .semibold)).foregroundStyle(Color.soft).frame(minWidth: 88, minHeight: 44)
@@ -578,7 +578,11 @@ struct FoodConfirmView: View {
                 }
                 Spacer(minLength: 6)
                 VStack(alignment: .trailing, spacing: 4) {
-                    EstimatedText(value: "\(Int(item.totalKcal.rounded())) kcal").font(.geist(13)).foregroundStyle(Color.ink)
+                    if item.kcalKnown {
+                        EstimatedText(value: "\(Int(item.totalKcal.rounded())) kcal").font(.geist(13)).foregroundStyle(Color.ink)
+                    } else {
+                        Text("Sem dados").font(.geist(11.5, .semibold)).foregroundStyle(DataState.noData.color)
+                    }
                     StateTag(state: item.quantityConfirmed ? .confirmed : .estimated)
                 }
             }
@@ -588,7 +592,25 @@ struct FoodConfirmView: View {
         .buttonStyle(.plain)
         .accessibilityHint(isOpen ? "Fecha os ajustes" : "Ajusta a quantidade, a unidade e o grupo")
         .accessibilityIdentifier("food.item.\(item.id)")
+        if item.kcalMissing || item.proteinMissing { labelFields(item) }
         if isOpen { editor(item) }
+    }
+
+    /// A product Open Food Facts has no kcal or protein for: the empty field («Sem dados») to copy it from the label,
+    /// outside the collapsible editor, so it can't be missed. The meal isn't saved until it is typed.
+    private func labelFields(_ item: FoodItem) -> some View {
+        let id = item.id
+        return VStack(alignment: .leading, spacing: 4) {
+            if item.kcalMissing {
+                LabelValueField(label: "kcal por 100 g", identifier: "food.item.\(id).labelkcal", initial: item.labelKcal100) { v in update(id) { $0.copyLabel(kcal100: v) } }
+            }
+            if item.proteinMissing {
+                LabelValueField(label: "Proteína por 100 g", identifier: "food.item.\(id).labelprotein", initial: item.labelProtein100) { v in update(id) { $0.copyLabel(protein100: v) } }
+            }
+            if let line = item.labelLine {
+                Text(line).font(.geist(11.5)).foregroundStyle(Color.faint).fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     /// Amount (in the units this food allows), «Confirmar quantidade», «Não sei», the group and Remover
@@ -713,7 +735,7 @@ struct FoodConfirmView: View {
 
     /// «Guardar refeição»: the only thing that saves, all foods at once, then the summary and Desfazer
     private func save() {
-        guard !showingSummary, !items.isEmpty else { return }
+        guard !showingSummary, FoodMeal.canSave(items) else { return }
         let r = store.saveMeal(items, reopened: reopened)
         guard r.saved.allSatisfy({ store.record(FoodEntry.self, $0.id) != nil }) else { failed = true; return }
         failed = false
@@ -806,6 +828,37 @@ struct FoodConfirmView: View {
     }
 }
 
+/// One value copied from a product's label: empty («Sem dados») until you type it, and each change is read as you type
+private struct LabelValueField: View {
+    let label: String
+    let identifier: String
+    let changed: (Double?) -> Void
+    @State private var text: String
+
+    init(label: String, identifier: String, initial: Double?, changed: @escaping (Double?) -> Void) {
+        self.label = label
+        self.identifier = identifier
+        self.changed = changed
+        _text = State(initialValue: initial.map { FoodItem.number($0) } ?? "")
+    }
+
+    var body: some View {
+        HStack {
+            Text(label).font(.geist(13)).foregroundStyle(Color.soft)
+            Spacer(minLength: 8)
+            TextField("Sem dados", text: $text)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .font(.mono(14, .semibold))
+                .frame(width: 110)
+                .frame(minHeight: 44)
+                .accessibilityLabel(label)
+                .accessibilityIdentifier(identifier)
+                .onChange(of: text) { _, new in changed(FoodItem.labelValue(new)) }
+        }
+    }
+}
+
 /// A soft button at least 44 pt tall, for this phase's new controls
 private struct TallSoftButton: View {
     var title: String
@@ -833,8 +886,8 @@ private struct TallSoftButton: View {
 /// A product from Open Food Facts, per 100 g
 struct OFFProduct {
     var name: String
-    var kcal100: Double
-    var protein100: Double
+    var kcal100: Double? // nil when Open Food Facts doesn't say: «Sem dados», never 0 (you copy it from the label)
+    var protein100: Double?
     var carbs100: Double? // nil when Open Food Facts doesn't say: «Sem dados», never 0
     var fat100: Double?
     var serving: Double?
@@ -846,11 +899,15 @@ struct OFFProduct {
         guard let (data, _) = try? await URLSession.shared.data(for: req),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let p = root["product"] as? [String: Any] else { return nil }
+        return OFFProduct.parse(p, code: code)
+    }
+
+    /// A product as Open Food Facts describes it. What it doesn't give stays nil, never 0
+    static func parse(_ p: [String: Any], code: String) -> OFFProduct {
         let n = p["nutriments"] as? [String: Any] ?? [:]
         func known(_ k: String) -> Double? { (n[k] as? Double) ?? (n[k] as? NSNumber)?.doubleValue ?? (n[k] as? String).flatMap { Double($0) } }
-        func num(_ k: String) -> Double { known(k) ?? 0 }
         let serving = (p["serving_quantity"] as? Double) ?? Double(p["serving_quantity"] as? String ?? "")
-        return OFFProduct(name: p["product_name"] as? String ?? "Produto \(code)", kcal100: num("energy-kcal_100g"), protein100: num("proteins_100g"), carbs100: known("carbohydrates_100g"), fat100: known("fat_100g"), serving: serving)
+        return OFFProduct(name: p["product_name"] as? String ?? "Produto \(code)", kcal100: known("energy-kcal_100g"), protein100: known("proteins_100g"), carbs100: known("carbohydrates_100g"), fat100: known("fat_100g"), serving: serving)
     }
 }
 

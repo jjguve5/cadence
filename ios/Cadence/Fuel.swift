@@ -297,6 +297,12 @@ struct FoodItem: Identifiable, Equatable {
     var addOnId: String? // an add-on from the meal builder's list
     var date: String? // kept when a saved entry is reopened; a new meal takes the day and time it is saved
     var minute: Int?
+    // A product Open Food Facts has no kcal or protein for: «Sem dados», never 0, and the meal can't be saved until you
+    // copy the value from the label (per 100 g, as labels give it). Until then kcal or protein above is only a placeholder.
+    var kcalMissing = false
+    var proteinMissing = false
+    var labelKcal100: Double?
+    var labelProtein100: Double?
 
     init(name: String, kcal: Double, protein: Double, carbs: Double? = nil, fat: Double? = nil, caffeine: Double? = nil, group: String,
          portionText: String? = nil, portionGrams: Double? = nil, unitsPerPortion: Double? = nil, hasPortion: Bool = true) {
@@ -311,6 +317,39 @@ struct FoodItem: Identifiable, Equatable {
         self.portionGrams = portionGrams.flatMap { $0 > 0 ? $0 : nil }
         self.unitsPerPortion = unitsPerPortion.flatMap { $0 > 0 ? $0 : nil }
         self.hasPortion = hasPortion
+    }
+
+    var kcalKnown: Bool { !kcalMissing || labelKcal100 != nil }
+    var proteinKnown: Bool { !proteinMissing || labelProtein100 != nil }
+    var nutrientsKnown: Bool { kcalKnown && proteinKnown }
+
+    /// The line under the fields of a product with a value missing: what Open Food Facts doesn't have, and where to get it
+    var labelLine: String? {
+        switch (kcalMissing, proteinMissing) {
+        case (true, true): return "O Open Food Facts não tem as calorias nem a proteína deste produto: copia-as do rótulo."
+        case (true, false): return "O Open Food Facts não tem as calorias deste produto: copia-as do rótulo."
+        case (false, true): return "O Open Food Facts não tem a proteína deste produto: copia-a do rótulo."
+        case (false, false): return nil
+        }
+    }
+
+    /// The kcal per 100 g you copied from the label (nil: empty again, «Sem dados»). 0 is a value: the label can say 0
+    mutating func copyLabel(kcal100: Double?) {
+        labelKcal100 = kcal100.flatMap { $0 >= 0 ? $0 : nil }
+        kcal = (labelKcal100 ?? 0) * (portionGrams ?? 100) / 100
+    }
+
+    /// The protein per 100 g you copied from the label (nil: empty again, «Sem dados»)
+    mutating func copyLabel(protein100: Double?) {
+        labelProtein100 = protein100.flatMap { $0 >= 0 ? $0 : nil }
+        protein = (labelProtein100 ?? 0) * (portionGrams ?? 100) / 100
+    }
+
+    /// What you typed in a label field: "12,5" or "12.5"; nothing, or anything that isn't an amount, is no value
+    static func labelValue(_ text: String) -> Double? {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: ",", with: ".")
+        guard let v = Double(t), v.isFinite, v >= 0 else { return nil }
+        return v
     }
 
     /// The units this food can be measured in
@@ -419,12 +458,15 @@ extension FoodItem {
     }
 
     /// A packaged product, from its values per 100 g: one serving when it has one, else 100 g. It counts for no group
-    /// until you choose one (the group comes from the food, not from words in its name)
+    /// until you choose one (the group comes from the food, not from words in its name). Kcal or protein it doesn't
+    /// have stay missing until you copy them from the label
     init(product p: OFFProduct) {
         let serving = p.serving.flatMap { $0 > 0 ? $0 : nil }
         let g = serving ?? 100
-        self.init(name: p.name, kcal: p.kcal100 * g / 100, protein: p.protein100 * g / 100, carbs: p.carbs100.map { $0 * g / 100 }, fat: p.fat100.map { $0 * g / 100 },
+        self.init(name: p.name, kcal: (p.kcal100 ?? 0) * g / 100, protein: (p.protein100 ?? 0) * g / 100, carbs: p.carbs100.map { $0 * g / 100 }, fat: p.fat100.map { $0 * g / 100 },
                   group: FoodGoals.noGroup, portionText: serving.map { "\(FoodItem.number($0)) g" }, portionGrams: g, hasPortion: serving != nil)
+        kcalMissing = p.kcal100 == nil
+        proteinMissing = p.protein100 == nil
         unit = .gram
         quantity = Self.tidy(g)
         defaultUnit = .gram
@@ -506,7 +548,14 @@ enum FoodMeal {
         var fat: Double?
         var carbsPartial = false // some foods have it, some don't
         var fatPartial = false
+        var kcalNoData = false // no food in the meal has it yet (a product waiting for its label): «Sem dados», never 0
+        var proteinNoData = false
+        var kcalPartial = false // some foods don't have it yet
+        var proteinPartial = false
     }
+
+    /// «Guardar refeição» needs at least one food, and every value Open Food Facts didn't have copied from the label
+    static func canSave(_ items: [FoodItem]) -> Bool { !items.isEmpty && items.allSatisfy(\.nutrientsKnown) }
 
     static func totals(_ items: [FoodItem]) -> Totals {
         var t = Totals()
@@ -520,6 +569,12 @@ enum FoodMeal {
         }
         t.carbsPartial = t.carbs != nil && carbsKnown < items.count
         t.fatPartial = t.fat != nil && fatKnown < items.count
+        let kcalMissing = items.filter { !$0.kcalKnown }.count
+        let proteinMissing = items.filter { !$0.proteinKnown }.count
+        t.kcalNoData = !items.isEmpty && kcalMissing == items.count
+        t.proteinNoData = !items.isEmpty && proteinMissing == items.count
+        t.kcalPartial = kcalMissing > 0 && kcalMissing < items.count
+        t.proteinPartial = proteinMissing > 0 && proteinMissing < items.count
         return t
     }
 
@@ -534,6 +589,7 @@ extension Store {
     /// Returns what was saved and how to undo it (back to exactly what was there before).
     @discardableResult
     func saveMeal(_ items: [FoodItem], reopened: [FoodEntry] = [], date: String = Day.today, minute: Int = Day.minuteOfDay()) -> (saved: [FoodEntry], undo: () -> Void) {
+        guard items.allSatisfy(\.nutrientsKnown) else { return ([], {}) } // a missing value is never saved as 0
         let entries = items.map { $0.entry(date: date, minute: minute) }
         let ids = Set(entries.map(\.id))
         var touched = ids
