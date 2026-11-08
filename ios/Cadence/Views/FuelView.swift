@@ -191,7 +191,7 @@ struct WaterCard: View {
             }
             .accessibilityIdentifier("water.goal.stepper")
             HStack(spacing: 8) {
-                SoftButton(title: "Guardar meta", icon: "checkmark") { choose(adjustMl) }.accessibilityIdentifier("water.goal.save")
+                TallSoftButton(title: "Guardar meta", icon: "checkmark") { choose(adjustMl) }.accessibilityIdentifier("water.goal.save")
                 Button("Cancelar") { adjusting = false }.font(.geist(13, .semibold)).foregroundStyle(Color.soft).frame(minHeight: 44)
                 Spacer(minLength: 0)
             }
@@ -609,7 +609,7 @@ struct FoodConfirmView: View {
             }
             HStack(spacing: 8) {
                 if !item.quantityConfirmed {
-                    SoftButton(title: "Confirmar quantidade", icon: "checkmark") { update(id) { $0.quantityConfirmed = true } }
+                    TallSoftButton(title: "Confirmar quantidade", icon: "checkmark") { update(id) { $0.quantityConfirmed = true } }
                         .accessibilityIdentifier("food.item.\(id).confirm")
                 }
                 Button("Não sei") { update(id) { $0.dontKnow() } }
@@ -768,7 +768,7 @@ struct FoodConfirmView: View {
                     Text(FoodGoals.proteinHint(foods, target: p.proteinTarget)).font(.geist(13.5))
                     if !FoodGoals.missing(c).isEmpty { Text(FoodGoals.line(c, minute: Clock.minute())).font(.geist(13.5)) }
                     HStack(spacing: 8) {
-                        SoftButton(title: "Ok") { tipsOk = true }.accessibilityIdentifier("food.tips.ok")
+                        TallSoftButton(title: "Ok") { tipsOk = true }.accessibilityIdentifier("food.tips.ok")
                         Button("Não mostrar hoje") { tipsHiddenOn = Day.today }.font(.geist(13, .semibold)).foregroundStyle(Color.soft).frame(minHeight: 44)
                         Spacer(minLength: 0)
                     }
@@ -803,6 +803,30 @@ struct FoodConfirmView: View {
             Bar(progress: progress, area: area)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A soft button at least 44 pt tall, for this phase's new controls
+private struct TallSoftButton: View {
+    var title: String
+    var icon: String? = nil
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon) }
+                Text(title)
+            }
+            .font(.geist(13.5, .semibold)).foregroundStyle(Color.ink)
+            .padding(.horizontal, 13)
+            .frame(minHeight: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 13, style: .continuous).fill(.white.opacity(0.09))
+                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
+            )
+        }
+        .buttonStyle(Pressable())
     }
 }
 
