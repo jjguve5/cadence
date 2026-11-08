@@ -115,7 +115,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 for m in [15 * 60, 19 * 60] where store.fuel(on: day).water + 300 < store.waterGoal(on: day) * Double(m - store.profile.wakeMinute) / Double(max(60, store.sleepPlan().perform - 120 - store.profile.wakeMinute)) {
                     planned.append(Planned(id: "water|\(day)|\(m)", at: Day.at(m, on: day), title: "Água", body: "Abaixo do ritmo: um copo agora.", priority: 3, promise: false))
                 }
-                for (g, at) in store.records("laundry").compactMap({ k, v -> (String, Double)? in if case .number(let t) = v, k.hasPrefix(day) { return (String(k.dropFirst(11)), t) }; return nil }) {
+                for (g, at) in store.loadsInMachine(on: day) { // only while a piece of the group is still in the machine
                     planned.append(Planned(id: "dry|\(day)|\(g)", at: Date(timeIntervalSince1970: at / 1000 + 2 * 3600), title: "Lavagem concluída", body: "\(Self.washGroupText[g] ?? g.capitalized): estender ou pôr na máquina de secar.", priority: 2, promise: false))
                 }
             }

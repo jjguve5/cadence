@@ -438,14 +438,17 @@ final class RegressionWardrobeTests: RegressionCase {
     /// its limit the piece is suggested for washing, no longer moved there by itself; it still isn't offered in outfits
     @MainActor
     func testReachingTheWashLimitSuggestsWashing() throws {
-        let store = try makeStore { $0.add(Garment(id: "T2", name: "Training T-shirt", type: "gym", wearsBeforeWash: 2, wears: 1, state: "worn")) }
+        // A top, because outfits offer tops and never gym kit; worn on Wednesday, so by Saturday it has rested and only
+        // its limit can keep it out. The first assertion shows it would be offered otherwise
+        let store = try makeStore { $0.add(Garment(id: "T2", name: "Grey T-shirt", type: "top", wearsBeforeWash: 2, wears: 1, state: "worn")) }
+        XCTAssertTrue(store.outfit(for: Fixed.saturday).map(\.id).contains("T2"), "below its limit: offered")
         let shirt = try XCTUnwrap(store.record(Garment.self, "T2"))
-        store.wear([shirt], on: Fixed.saturday)
+        store.wear([shirt], on: Fixed.wednesday)
         let after = try XCTUnwrap(store.record(Garment.self, "T2"))
         XCTAssertEqual(after.state, "worn")
         XCTAssertEqual(after.wears, 2)
         XCTAssertEqual(after.stage, .suggested)
-        XCTAssertFalse(store.outfit(for: Fixed.sunday).map(\.id).contains("T2"), "at its limit, never offered")
+        XCTAssertFalse(store.outfit(for: Fixed.saturday).map(\.id).contains("T2"), "at its limit, never offered")
     }
 
     @MainActor

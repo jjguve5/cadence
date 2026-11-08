@@ -85,12 +85,14 @@ func lifeDayText(_ day: String, today: String = Day.today) -> String {
     }
 }
 
-/// The Lavandaria in one line: what waits, what's in the machine and what's drying
+/// The Lavandaria in one line: what's suggested for washing, what waits, what's in the machine and what's drying
 func laundrySummary(_ garments: [Garment]) -> String {
+    let suggested = garments.filter { $0.stage == .suggested }.count
     let toWash = garments.filter { $0.stage == .toWash }.count
     let washing = garments.filter { $0.stage == .washing }.count
     let drying = garments.filter { $0.stage == .drying }.count
     var parts: [String] = []
+    if suggested > 0 { parts.append(ptCount(suggested, "sugerida para lavar", "sugeridas para lavar")) }
     if toWash > 0 { parts.append("\(toWash) para lavar") }
     if washing > 0 { parts.append("\(washing) em lavagem") }
     if drying > 0 { parts.append("\(drying) a secar") }
@@ -122,10 +124,10 @@ enum WardrobeFilter: String, CaseIterable {
         }
     }
 
-    /// «Disponível» is everything not in the laundry, a piece suggested for washing included
+    /// «Disponível» is only the pieces whose stage is «Disponível»: a piece suggested for washing has its own filter
     func matches(_ g: Garment) -> Bool {
         switch self {
-        case .available: return g.stage == .available || g.stage == .suggested
+        case .available: return g.stage == .available
         case .suggested: return g.stage == .suggested
         case .toWash: return g.stage == .toWash
         case .washing: return g.stage == .washing
@@ -665,9 +667,10 @@ struct LaundryView: View {
     }
 }
 
-/// Planear lavagem (design N_LavarCarga): the pieces whose care is known go in; one whose wash group the app only
-/// guessed is marked «Desconhecido» and stays out unless you add it. Nothing changes until «Pôr a lavar agora» (with
-/// Desfazer), and nothing goes into the Plano until you add it at the time you choose
+/// Planear lavagem (design N_LavarCarga): the pieces for washing whose care is known go in; a piece of the group only
+/// suggested for washing is a candidate, and one whose wash group the app only guessed is marked «Desconhecido»: both
+/// stay out unless you add them. Nothing changes until «Pôr a lavar agora» (with Desfazer), and nothing goes into the
+/// Plano until you add it at the time you choose
 struct LaundryLoadView: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -682,15 +685,28 @@ struct LaundryLoadView: View {
 
     var body: some View {
         let plan = store.loadPlan(group)
-        let going = plan.known + plan.unknown.filter { joined.contains($0.id) }
+        let going = store.loadGoing(group, joined: joined)
         Screen(glow: .water) {
             Text("Lavandaria · carga sugerida").font(.geist(13)).foregroundStyle(Color.soft)
                 .accessibilityIdentifier("life.load.screen")
             Card(state: .suggested) {
                 HStack { Eyebrow(text: washGroupLabel(group), icon: "washer.fill", color: .water); Spacer(); StateTag(state: .suggested) }
-                if plan.known.isEmpty && plan.unknown.isEmpty { Text("Nada à espera de ser lavado neste grupo.").font(.geist(13)).foregroundStyle(Color.soft) }
+                if plan.known.isEmpty && plan.suggested.isEmpty && plan.unknown.isEmpty { Text("Nada à espera de ser lavado neste grupo.").font(.geist(13)).foregroundStyle(Color.soft) }
                 ForEach(plan.known) { g in
                     row(g, "lava com \(washGroupLabel(g.washGroup))") { EmptyView() }
+                }
+                ForEach(plan.suggested) { g in
+                    let isIn = joined.contains(g.id)
+                    row(g, "sugerida para lavar · \(usesText(g))") { StateTag(state: .suggested, text: "Sugerida") }
+                    HStack(spacing: 8) {
+                        LifeButton(title: "Juntar", icon: isIn ? "checkmark" : nil, look: isIn ? .soft : .line) { _ = joined.insert(g.id) }
+                            .accessibilityLabel("Juntar \(g.name) à carga")
+                            .accessibilityIdentifier("life.load.join.\(g.id)")
+                            .accessibilityAddTraits(isIn ? .isSelected : [])
+                        LifeButton(title: "Fica de fora", icon: isIn ? nil : "checkmark", look: isIn ? .line : .soft) { _ = joined.remove(g.id) }
+                            .accessibilityLabel("\(g.name) fica de fora")
+                            .accessibilityAddTraits(isIn ? [] : .isSelected)
+                    }
                 }
                 ForEach(plan.unknown) { g in
                     let isIn = joined.contains(g.id)

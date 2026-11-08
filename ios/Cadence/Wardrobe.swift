@@ -348,28 +348,47 @@ extension Store {
         Reminders.shared.reschedule()
     }
 
-    /// «Já lavei»: out of the machine, the pieces go to dry. Nothing is marked washed without this tap
+    /// «Já lavei»: out of the machine, the pieces go to dry. Nothing is marked washed without this tap. The load's
+    /// start stays as it was: the «Lavagem concluída» reminder goes by the pieces still in the machine (loadsInMachine),
+    /// so Desfazer, which puts the pieces back, brings the reminder back too
     func hangToDry(_ items: [Garment]) {
         for var g in items where g.state == "wash" {
             g.state = "drying"
             g.washing = nil
             save(g)
         }
-        // nothing of the group left in the machine: no «estender» reminder for it (a value the reminder ignores)
-        for group in Set(items.map(\.washGroup)) where !garments.contains(where: { $0.washGroup == group && $0.washing == true }) {
-            let id = "\(Day.today)-\(group)"
-            if case .number = records("laundry")[id] { put("laundry", id, .bool(false)) }
-        }
         Reminders.shared.reschedule()
     }
 
-    /// A load to plan (Planear lavagem): the group's pieces for washing whose care you set yourself, and the pieces
-    /// waiting to be washed whose wash group the app only guessed, which never go in by themselves («Desconhecido»)
-    func loadPlan(_ group: String) -> (known: [Garment], unknown: [Garment]) {
+    /// The loads the «Lavagem concluída» reminder is for: each group started that day (a «laundry» record holding a
+    /// start time; any other value is one the reminder ignores, as Desfazer of «Pôr a lavar agora» leaves) that still
+    /// has a piece in the machine
+    func loadsInMachine(on day: String = Day.today) -> [(group: String, at: Double)] {
+        let inMachine = Set(garments.filter { $0.washing == true }.map(\.washGroup))
+        return records("laundry").compactMap { id, value -> (group: String, at: Double)? in
+            guard case .number(let at) = value, id.hasPrefix(day) else { return nil }
+            let group = String(id.dropFirst(11)) // "yyyy-MM-dd-"
+            guard inMachine.contains(group) else { return nil }
+            return (group: group, at: at)
+        }
+    }
+
+    /// A load to plan (Planear lavagem): the group's pieces for washing whose care you set yourself; the group's pieces
+    /// suggested for washing (at or near their limit, still worn), which are only candidates; and the pieces waiting
+    /// to be washed whose wash group the app only guessed («Desconhecido»). Candidates never go in by themselves
+    func loadPlan(_ group: String) -> (known: [Garment], suggested: [Garment], unknown: [Garment]) {
         let waiting = garments.filter { $0.stage == .toWash || $0.stage == .suggested }
-        let known = waiting.filter { $0.stage == .toWash && $0.washGroup == group && !$0.isUnsure("washGroup") }
+        let ofGroup = waiting.filter { $0.washGroup == group && !$0.isUnsure("washGroup") }
+        let known = ofGroup.filter { $0.stage == .toWash }
+        let suggested = ofGroup.filter { $0.stage == .suggested }
         let unknown = waiting.filter { $0.isUnsure("washGroup") }
-        return (known.sorted { $0.name < $1.name }, unknown.sorted { $0.name < $1.name })
+        return (known.sorted { $0.name < $1.name }, suggested.sorted { $0.name < $1.name }, unknown.sorted { $0.name < $1.name })
+    }
+
+    /// What «Pôr a lavar agora» takes: the pieces for washing, and of the candidates only those you joined with a tap
+    func loadGoing(_ group: String, joined: Set<String>) -> [Garment] {
+        let plan = loadPlan(group)
+        return plan.known + (plan.suggested + plan.unknown).filter { joined.contains($0.id) }
     }
 
     /// Training days left this week (the day included) against the clean training kit. A need only when there is

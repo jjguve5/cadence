@@ -170,7 +170,7 @@ struct LifeView: View {
             if garments.isEmpty {
                 tile("Roupeiro", "sem peças", tag: (DataState.setup, DataState.setup.label), id: "wardrobe", WardrobeView())
             } else {
-                let free = garments.filter { $0.stage == .available || $0.stage == .suggested }.count
+                let free = garments.filter { WardrobeFilter.available.matches($0) }.count
                 tile("Roupeiro", "\(free) de \(garments.count) disponíveis", id: "wardrobe", WardrobeView())
             }
             tile("Lavandaria", garments.isEmpty ? "sem peças" : laundrySummary(garments), id: "laundry", LaundryView())

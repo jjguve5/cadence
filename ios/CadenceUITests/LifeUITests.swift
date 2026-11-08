@@ -19,8 +19,8 @@ final class LifeUITests: CadenceUITestCase {
         waitForLabel(uses, contains: "Ainda não usada")
     }
 
-    /// «Arrumada» returns a drying piece to the wardrobe and Desfazer puts it back to dry; «Pôr a lavar agora» moves
-    /// the load into «em lavagem»
+    /// «Arrumada» returns a drying piece to the wardrobe and Desfazer puts it back to dry; a piece at its limit reaches
+    /// «para lavar» only with your tap, and «Pôr a lavar agora» moves the load into «em lavagem»
     func testLaundryStepsAreExplicitAndCanBeUndone() {
         launch("life.laundry")
         open(.life)
@@ -32,11 +32,32 @@ final class LifeUITests: CadenceUITestCase {
         XCTAssertTrue(el("undo.bar").waitForExistence(timeout: 5))
         el("undo.action").tap()
         XCTAssertTrue(el("life.laundry.putaway.D1").waitForExistence(timeout: 5), "Desfazer puts it back to dry")
+        XCTAssertFalse(el("life.laundry.plan.gym30").exists, "at its limit it's only suggested: nothing to plan yet")
+        reveal("life.laundry.towash.W1").tap()
         reveal("life.laundry.plan.gym30").tap()
         XCTAssertTrue(el("life.load.screen").waitForExistence(timeout: 5))
         reveal("life.load.start").tap()
         XCTAssertTrue(el("life.laundry.washing.W1").waitForExistence(timeout: 5), "the piece is in the machine")
         shot("life-laundry-washing")
+    }
+
+    /// The need for the training kit opens a load where the pieces at their limit are candidates: nothing goes in by
+    /// itself, and once you join one, «Pôr a lavar agora» puts it in the machine
+    func testTheGymKitNeedLeadsToALoadYouCanStart() {
+        launch("life.need")
+        open(.life)
+        reveal("life.now.action").tap()
+        XCTAssertTrue(el("life.load.screen").waitForExistence(timeout: 5))
+        let join = reveal("life.load.join.K1")
+        XCTAssertFalse(el("life.load.start").isEnabled, "nothing goes in by itself")
+        shot("life-load-candidate")
+        join.tap()
+        let start = reveal("life.load.start")
+        XCTAssertTrue(start.isEnabled, "joined: part of the load")
+        start.tap()
+        XCTAssertTrue(el("undo.bar").waitForExistence(timeout: 5))
+        reveal("life.area.laundry").tap()
+        XCTAssertTrue(el("life.laundry.washing.K1").waitForExistence(timeout: 5), "the piece is in the machine")
     }
 
     /// The same product from the pantry and by hand is one line naming both; the circle marks it bought by you and

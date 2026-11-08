@@ -297,9 +297,16 @@ final class CareTests: RegressionCase {
             s.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30))
         }
         XCTAssertNil(store.addToShopping(name: "  sebium   GEL ", reason: "acaba em cerca de 3 semanas", source: "Higiene"), "already yours on the list")
-        XCTAssertNil(store.addToShopping(name: "WHEY", reason: "", source: "Higiene"), "already on the list, from the pantry")
         XCTAssertNil(store.addToShopping(name: "   ", reason: "x", source: "Higiene"))
         XCTAssertEqual(store.all(ShoppingItem.self).count, 2, "nothing saved")
+        // Changed by D27 (B4-N2): this pinned "already on the list, from the pantry", from when lines the app works out
+        // were on the list directly. They are suggestions now until you accept them, so «Adicionar» saves one real item,
+        // once, and it folds into the pantry's line: still one line per product
+        let whey = try XCTUnwrap(store.addToShopping(name: "WHEY", reason: "", source: "Higiene"), "only suggested from the pantry: not on your list yet")
+        XCTAssertNil(store.addToShopping(name: "whey", reason: "", source: "Higiene"), "and only once")
+        XCTAssertEqual(store.shoppingList().filter { Store.productKey($0.name) == "whey" }.count, 1, "one line per product")
+        store.remove(whey)
+        XCTAssertEqual(store.all(ShoppingItem.self).count, 2)
         let item = try XCTUnwrap(store.addToShopping(name: "Protetor solar", reason: "acaba em cerca de 3 semanas", source: "Higiene"), "a bought one is off the list")
         XCTAssertEqual(item.reason, "de Higiene: acaba em cerca de 3 semanas")
         XCTAssertEqual(item.aisle, "Health")
@@ -313,10 +320,30 @@ final class CareTests: RegressionCase {
         XCTAssertFalse(store.isOnShoppingList("Protetor solar"))
     }
 
+    /// B4-N2. A medicine's refill the app works out is a suggestion until you accept it (D27), so it isn't «on the list»
+    /// and «Adicionar às compras» stays on offer. Added here or accepted in Compras, it is on the list, in one line
+    @MainActor
+    func testASuggestedLineIsNotOnTheListUntilItIsYours() throws {
+        let store = try makeStore { $0.add(Medicine(id: "M1", name: "Ibuprofeno", stock: 3)) } // 3 doses left, refill at 7
+        let line = try XCTUnwrap(store.shoppingList().first { $0.id == "med-M1" })
+        XCTAssertFalse(line.mine, "worked out by the app alone: a suggestion")
+        XCTAssertFalse(store.isOnShoppingList("Ibuprofeno"), "a suggestion isn't on your list")
+        let item = try XCTUnwrap(store.addToShopping(name: "Ibuprofeno", reason: "restam 3 doses", source: "Medicamentos"), "so it can be added")
+        XCTAssertTrue(store.isOnShoppingList("IBUPROFENO"))
+        XCTAssertTrue(try XCTUnwrap(store.shoppingList().first { $0.id == "med-M1" }).mine, "it folds into the same line")
+        XCTAssertEqual(store.shoppingList().count, 1, "one line per product")
+        store.remove(item) // Desfazer
+        XCTAssertFalse(store.isOnShoppingList("Ibuprofeno"), "only a suggestion again")
+        // «Adicionar» on the suggestion in Compras saves your own item (KitchenView.accept)
+        store.save(ShoppingItem(name: line.name, qty: line.qty, unit: line.unit, aisle: line.aisle))
+        XCTAssertTrue(store.isOnShoppingList("Ibuprofeno"), "accepted: on your list")
+    }
+
     func testTheSameProductHoweverItIsWritten() {
         XCTAssertEqual(CareRules.productKey("  Bioderma  SÉBIUM gel "), "bioderma sebium gel")
         XCTAssertEqual(CareRules.productKey("Protetor Solar"), CareRules.productKey("protetor solar"))
         XCTAssertNotEqual(CareRules.productKey("Gel"), CareRules.productKey("Gel 2"))
+        XCTAssertEqual(CareRules.productKey("  Sébium  GEL "), Store.productKey("  Sébium  GEL "), "one key, shared with the shopping list")
     }
 
     // MARK: Data

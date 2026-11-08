@@ -120,6 +120,143 @@ final class LifeTests: RegressionCase {
         XCTAssertNil(nothingToWash.gymKitNeed(on: Fixed.friday), "nothing waiting to be washed: washing doesn't help")
     }
 
+    /// B4-N1. From «Vesti hoje» at the limit to the load: the piece is only suggested and stays worn; the need still
+    /// opens a load, and there the piece is a candidate that goes in only with your tap. No dead end, nothing moves by
+    /// itself (D31), and Desfazer leaves it as it was
+    @MainActor
+    func testTheNeedOpensALoadWhereAPieceAtItsLimitIsACandidate() throws {
+        let store = try makeStore { s in
+            s.add(WorkoutTemplate(id: "TPL", name: "Fim de semana", exercises: [], weekdays: [7, 1]))
+            s.add(Garment(id: "K1", name: "T-shirt treino", type: "gym", washGroup: "gym 30°", wearsBeforeWash: 1))
+            s.add(Garment(id: "D1", name: "Ganga", type: "bottom", washGroup: "darks 30°", wearsBeforeWash: 1, wears: 1, state: "worn"))
+            s.add(Garment(id: "H1", name: "Hoodie", type: "layer", washGroup: "gym 30°", wearsBeforeWash: 1, wears: 1, state: "worn", unsure: ["washGroup"]))
+        }
+        let k1 = try XCTUnwrap(store.record(Garment.self, "K1"))
+        store.wearPiece(k1, on: Fixed.friday)
+        let worn = try XCTUnwrap(store.record(Garment.self, "K1"))
+        XCTAssertEqual(worn.state, "worn", "at its limit it stays where it is")
+        XCTAssertEqual(worn.stage, .suggested)
+
+        let need = try XCTUnwrap(store.lifeNeeds(on: Fixed.friday).first { $0.id == "laundry.gym" })
+        guard case .load(let group) = need.go else { return XCTFail("the need opens the load to plan") }
+        XCTAssertEqual(group, "gym 30°")
+
+        let plan = store.loadPlan(group)
+        XCTAssertTrue(plan.known.isEmpty, "only suggested: not part of the load yet")
+        XCTAssertEqual(plan.suggested.map(\.id), ["K1"], "the group's candidate, so the need doesn't end in an empty load")
+        XCTAssertEqual(plan.unknown.map(\.id), ["H1"], "care not confirmed: apart, as before")
+        XCTAssertTrue(store.loadGoing(group, joined: []).isEmpty, "nothing goes in without your tap")
+        XCTAssertEqual(store.record(Garment.self, "K1"), worn, "opening the load changes nothing")
+
+        let going = store.loadGoing(group, joined: ["K1"]) // «Juntar»
+        XCTAssertEqual(going.map(\.id), ["K1"], "joined: part of the load")
+        let laundryBefore = store.startWashing(going) // «Pôr a lavar agora»
+        XCTAssertEqual(store.record(Garment.self, "K1")?.stage, .washing)
+        XCTAssertEqual(store.record(Garment.self, "D1")?.state, "worn", "another group's piece isn't touched")
+        store.undoStartWashing(going, laundryBefore: laundryBefore) // Desfazer
+        XCTAssertEqual(store.record(Garment.self, "K1"), worn, "back to only suggested")
+    }
+
+    /// B4-N12. «Para lavar» reached the way the app gets there: worn up to the limit, which only suggests it, then your
+    /// tap, and only then is the piece part of a load
+    @MainActor
+    func testAPieceReachesParaLavarByBeingWornToTheLimitAndThenSent() throws {
+        let store = try makeStore { $0.add(Garment(id: "T1", name: "T-shirt", type: "top", washGroup: "darks 30°", wearsBeforeWash: 1)) }
+        store.wearPiece(try XCTUnwrap(store.record(Garment.self, "T1")), on: Fixed.saturday)
+        let atLimit = try XCTUnwrap(store.record(Garment.self, "T1"))
+        XCTAssertEqual(atLimit.stage, .suggested, "the limit only suggests it")
+        XCTAssertTrue(store.laundryLoads().isEmpty, "nothing to wash yet")
+        XCTAssertTrue(store.loadPlan("darks 30°").known.isEmpty)
+        store.sendToWash(atLimit) // «Para lavar»
+        XCTAssertEqual(store.record(Garment.self, "T1")?.stage, .toWash)
+        XCTAssertEqual(store.laundryLoads().first?.items.map(\.id), ["T1"])
+        let plan = store.loadPlan("darks 30°")
+        XCTAssertEqual(plan.known.map(\.id), ["T1"], "now part of the load")
+        XCTAssertTrue(plan.suggested.isEmpty)
+        store.startWashing(plan.known)
+        XCTAssertEqual(store.record(Garment.self, "T1")?.stage, .washing)
+    }
+
+    /// B4-N5. A piece suggested for washing isn't «disponível»: not in that filter (the same rule as the panel's count)
+    /// and the Lavandaria's summary says so instead of «Nada por lavar»
+    func testSuggestedPiecesAreNotAvailableAndTheSummaryMentionsThem() {
+        let free = Garment(name: "Livre")
+        let worn = Garment(name: "Usada", wearsBeforeWash: 3, wears: 1, state: "worn")
+        let near = Garment(name: "Perto", wearsBeforeWash: 3, wears: 2, state: "worn")
+        let atLimit = Garment(name: "No limite", wearsBeforeWash: 1, wears: 1, state: "worn")
+        XCTAssertEqual([near.stage, atLimit.stage], [.suggested, .suggested])
+        XCTAssertTrue(WardrobeFilter.available.matches(free))
+        XCTAssertTrue(WardrobeFilter.available.matches(worn), "worn, still well below its limit")
+        XCTAssertFalse(WardrobeFilter.available.matches(near))
+        XCTAssertFalse(WardrobeFilter.available.matches(atLimit))
+        XCTAssertTrue(WardrobeFilter.suggested.matches(atLimit), "it has its own filter")
+        XCTAssertEqual(laundrySummary([free, worn]), "Nada por lavar")
+        XCTAssertEqual(laundrySummary([free, atLimit]), "1 sugerida para lavar")
+        XCTAssertEqual(laundrySummary([near, atLimit]), "2 sugeridas para lavar")
+        XCTAssertEqual(laundrySummary([atLimit, Garment(name: "A", state: "wash"), Garment(name: "B", state: "drying")]), "1 sugerida para lavar · 1 para lavar · 1 a secar")
+    }
+
+    /// B4-N6. «Já lavei» writes nothing over the load's start. The «Lavagem concluída» reminder goes by the pieces in the
+    /// machine: it stays while one is left, goes when none is, and Desfazer brings it back. Another day's record isn't
+    /// today's load
+    @MainActor
+    func testHangingToDryKeepsTheStartAndTheReminderFollowsThePiecesInTheMachine() throws {
+        let yesterday = Day.add(-1, to: Day.today)
+        let store = try makeStore { s in
+            s.put("laundry", "\(yesterday)-gym 30°", .number(1_000))
+            s.add(Garment(id: "K1", name: "T-shirt treino", type: "gym", washGroup: "gym 30°", state: "wash"))
+            s.add(Garment(id: "K2", name: "Calções", type: "gym", washGroup: "gym 30°", state: "wash"))
+        }
+        store.startWashing(store.garments)
+        let id = "\(Day.today)-gym 30°"
+        let started = try XCTUnwrap(store.records("laundry")[id])
+        guard case .number(let at) = started else { return XCTFail("the record holds the load's start") }
+        XCTAssertEqual(store.loadsInMachine().map(\.group), ["gym 30°"])
+        XCTAssertEqual(store.loadsInMachine().map(\.at), [at], "today's load, not yesterday's record")
+
+        let k1 = try XCTUnwrap(store.record(Garment.self, "K1"))
+        store.hangToDry([k1])
+        XCTAssertEqual(store.records("laundry")[id], started, "«Já lavei» writes nothing here")
+        XCTAssertEqual(store.loadsInMachine().map(\.group), ["gym 30°"], "one piece is still in the machine")
+
+        let k2 = try XCTUnwrap(store.record(Garment.self, "K2"))
+        store.hangToDry([k2])
+        XCTAssertEqual(store.records("laundry")[id], started, "«Já lavei» writes nothing here")
+        XCTAssertTrue(store.loadsInMachine().isEmpty, "none left: no «estender» reminder")
+
+        store.restoreGarments([k2]) // Desfazer of «Já lavei»
+        XCTAssertEqual(store.loadsInMachine().map(\.group), ["gym 30°"], "back in the machine: the reminder returns")
+    }
+
+    /// C-L2 · D25. Desfazer of «Pôr a lavar agora»: the pieces as they were and each laundry record as it was. A record
+    /// written just now gets a value the reminder ignores (a deletion of this id would never reach the server)
+    @MainActor
+    func testUndoingStartWashingPutsEachLaundryRecordBack() throws {
+        let id = "\(Day.today)-gym 30°"
+        let fresh = try makeStore { $0.add(Garment(id: "K1", name: "Calções", type: "gym", washGroup: "gym 30°", wears: 1, state: "wash")) }
+        let pieces = fresh.garments
+        let none = fresh.startWashing(pieces)
+        XCTAssertTrue(none.isEmpty, "no load started earlier today")
+        XCTAssertEqual(fresh.record(Garment.self, "K1")?.washing, true)
+        guard case .number? = fresh.records("laundry")[id] else { return XCTFail("the load's start is saved") }
+        fresh.undoStartWashing(pieces, laundryBefore: none)
+        XCTAssertEqual(fresh.garments, pieces, "the pieces as they were")
+        XCTAssertEqual(fresh.records("laundry")[id], .bool(false), "a value the reminder ignores, not a deletion")
+        XCTAssertTrue(fresh.loadsInMachine().isEmpty)
+
+        let earlier = JSONValue.number(1_000)
+        let again = try makeStore { s in
+            s.put("laundry", id, earlier)
+            s.add(Garment(id: "K1", name: "Calções", type: "gym", washGroup: "gym 30°", wears: 1, state: "wash"))
+        }
+        let load = again.garments
+        let before = again.startWashing(load)
+        XCTAssertEqual(before, [id: earlier], "what was there, for Desfazer")
+        XCTAssertNotEqual(again.records("laundry")[id], earlier, "the new start")
+        again.undoStartWashing(load, laundryBefore: before)
+        XCTAssertEqual(again.records("laundry")[id], earlier, "the earlier load keeps its start")
+    }
+
     // MARK: Roupeiro
 
     /// «Vesti hoje» on one piece: one use, counted as wear() counts it; a suggested outfit is left alone, a worn one

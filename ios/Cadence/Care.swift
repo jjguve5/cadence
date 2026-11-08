@@ -187,10 +187,9 @@ enum CareRules {
         return String(safe.prefix(max(0, 80 - 9 - 1 - day.count))) + "_" + String(format: "%08x", hash) + "_" + day
     }
 
-    /// The same product however it's written: case, accents and extra spaces don't count
-    static func productKey(_ name: String) -> String {
-        name.folding(options: .diacriticInsensitive, locale: nil).lowercased().split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-    }
+    /// The same product however it's written: the shopping list's own key (Store.productKey, in Kitchen.swift), so
+    /// Higiene and Compras can never disagree on what counts as the same product
+    static func productKey(_ name: String) -> String { Store.productKey(name) }
 
     /// "2 min", "45 s", "1 min 30 s"
     static func stepLength(_ seconds: Int) -> String {
@@ -709,13 +708,13 @@ extension Store {
         return before
     }
 
-    /// Whether the product is already on the shopping list, as the list shows it or as an item of yours not yet bought,
-    /// by name (case, accents and extra spaces don't count). addToShopping (Kitchen.swift) checks it, and the suggestion
-    /// to add hides while it's true.
+    /// Whether the product is really on your shopping list, by name (Store.productKey): an item of yours not yet
+    /// bought, which is also what a suggestion you accepted becomes. A line the app only works out (pantry, recipes,
+    /// medicines, the brush head) is a suggestion until you accept it (D27) and doesn't count, so «Adicionar às compras»
+    /// stays on offer. addToShopping (Kitchen.swift) checks it, and the suggestion to add hides while it's true.
     func isOnShoppingList(_ name: String) -> Bool {
-        let key = CareRules.productKey(name)
+        let key = Store.productKey(name)
         guard !key.isEmpty else { return false }
-        return all(ShoppingItem.self).contains { !$0.bought && CareRules.productKey($0.name) == key }
-            || shoppingList().contains { CareRules.productKey($0.name) == key }
+        return all(ShoppingItem.self).contains { !$0.bought && Store.productKey($0.name) == key }
     }
 }
