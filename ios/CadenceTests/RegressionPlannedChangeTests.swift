@@ -75,20 +75,11 @@ final class RegressionPlannedChangeTests: RegressionCase {
         XCTAssertNil(LogStatus(rawValue: "notConfirmed"))
         XCTAssertNil(LogStatus(rawValue: "notApplicable"))
     }
-
-    /// Phase 2.6 (Treino): the suggested target and what you did are kept apart. Update: a set can carry its target
-    /// (optional fields, so older sessions still read and older builds ignore them).
-    func testCurrentASetKeepsNoSeparateTarget() throws {
-        let data = try JSONEncoder().encode(SetLog(id: "X", exerciseId: "leg-extension", weight: 20, reps: 10, done: true))
-        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]).keys
-        XCTAssertEqual(Set(keys), ["id", "exerciseId", "kind", "weight", "reps", "done"])
-    }
 }
 
 // Changes the design v17 asks for that live in views only, so this phase can't test them without changing the app.
 // The phase that changes each one adds its test (a unit test of a new function, or a UI test with a stable identifier):
-// - 2.6 Treino: the suggested weight is written into the set (TrainingView); warm-ups go on every exercise above
-//   bar + 10 kg instead of the first exercise of each muscle group.
+// - 2.6 Treino: done in phase 2.6 (the target apart from the set, warm-ups by muscle group: TrainingTests).
 // - 2.7 Comida: several paths save on one tap with no confirmation (portion pick, recent foods, caffeine drinks).
 // - 2.3 PT-PT: tab names and the texts the UI tests read (UIText in CadenceUITests). Since phase 2.1 tab screens and
 //   rings have internal identifiers (<name>.screen, ring.<key>) that a translation doesn't change, and the UI tests

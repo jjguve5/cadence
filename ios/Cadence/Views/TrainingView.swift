@@ -1,5 +1,6 @@
-// Training: templates and sessions, the live workout with prefilled sets and the rest ring, exercise pictures from
-// RepDB, progress with projections, and the muscle maps (freshness and "are they growing?").
+// Training: templates and sessions, the workout one exercise at a time (the target apart from what you did, the rest
+// with its reason, changes of plan with confirmation, pause and the summary), exercise pictures from RepDB, progress
+// with projections, and the muscle maps (freshness and "are they growing?").
 import Charts
 import SwiftUI
 import UserNotifications
@@ -11,28 +12,42 @@ struct TrainingView: View {
     @State private var building = false
     @State private var selected = Set<String>()
     @State private var open: String?
+    @State private var previewing: WorkoutTemplate?
+    @State private var startAfterPreview: String?
 
     var body: some View {
         Screen(glow: .train) {
             if let s = store.activeSession {
                 Button { open = s.id } label: {
                     Card(tint: .train) {
-                        Eyebrow(text: "Em curso", icon: "flame.fill", color: .train)
+                        HStack {
+                            Eyebrow(text: "Em curso", icon: "flame.fill", color: .train)
+                            Spacer()
+                            if s.isPaused { StateTag(state: .pending, text: "Em pausa") }
+                        }
                         Text(s.name).font(.geist(18, .bold))
                         Text("\(s.sets.filter(\.done).count) \(s.sets.filter(\.done).count == 1 ? "série" : "séries") · \(Int(s.volume).formatted()) kg").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("training.active")
             }
             Card {
                 Eyebrow(text: "Começar uma sessão", icon: "play.fill")
                 ForEach(store.templates) { t in
                     HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t.name).font(.geist(15, .semibold))
-                            Text(t.exercises.map(\.name).prefix(3).joined(separator: " · ")).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
+                        // The template itself opens «antes de começar»; the play button starts it straight away
+                        Button { previewing = t } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t.name).font(.geist(15, .semibold)).foregroundStyle(Color.ink)
+                                Text(t.exercises.map(\.name).prefix(3).joined(separator: " · ")).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
-                        Spacer()
+                        .buttonStyle(.plain)
+                        .accessibilityHint("Mostra o treino antes de começar")
+                        .accessibilityIdentifier("training.template.\(t.name)")
                         Button { editing = t } label: { Image(systemName: "pencil").foregroundStyle(Color.soft) }.buttonStyle(.plain).padding(.trailing, 6)
                         Button { open = start(t) } label: {
                             Image(systemName: "play.fill").font(.geist(13, .bold)).foregroundStyle(Color(hex: 0x2A0610)).frame(width: 36, height: 36).background(Circle().fill(Area.train.gradient))
@@ -76,19 +91,31 @@ struct TrainingView: View {
         }
         .navigationTitle("Treino")
         .navigationBarTitleDisplayMode(.inline)
-        .task { store.seedTemplates(); await catalog.load() }
+        .task {
+            store.seedTemplates()
+            store.closeExpiredSessions() // a session left open past 23:59 is partial now (phase 2.6)
+            await catalog.load()
+        }
         .sheet(item: $editing) { TemplateEditor(template: $0) }
-        .navigationDestination(item: $open) { WorkoutView(sessionId: $0) }
+        .sheet(item: $previewing, onDismiss: {
+            // «Começar treino» in the preview: the workout opens once the preview is gone
+            if let id = startAfterPreview { startAfterPreview = nil; open = id }
+        }) { t in
+            TrainingPreview(template: t) { current in
+                startAfterPreview = start(current)
+                previewing = nil
+            }
+        }
+        .navigationDestination(item: $open) { WorkoutView(sessionId: $0, showsUndo: false) }
     }
 
+    /// Starts a session from a template, or goes back to the one in progress. The planned sets carry their targets
+    /// (none without history) and warm-ups only on the first exercise of each muscle group new in the session; the
+    /// suggested weight is never written in as if you had done it.
     private func start(_ t: WorkoutTemplate) -> String {
+        store.closeExpiredSessions()
         if let s = store.activeSession { return s.id }
-        var session = WorkoutSession(templateId: t.id, name: t.name, order: t.exercises)
-        for ex in t.exercises {
-            let sug = store.suggestion(for: ex)
-            for (w, r) in store.warmups(for: sug.weight) { session.sets.append(SetLog(exerciseId: ex.exerciseId, kind: .warmup, weight: w, reps: r)) }
-            for _ in 0..<sug.sets { session.sets.append(SetLog(exerciseId: ex.exerciseId, weight: sug.weight, reps: ex.repHigh)) }
-        }
+        let session = store.newSession(t, plan: store.plan(t))
         store.save(session)
         return session.id
     }
@@ -101,6 +128,142 @@ struct TrainingView: View {
         }
         selected = []
         return start(WorkoutTemplate(name: "Sessão pelo mapa corporal", exercises: picks))
+    }
+}
+
+/// Treino · antes de começar (design v17, N_Treino): the plan, what's suggested for today, which exercises get a
+/// warm-up and why the others don't, and the weights («escolhes tu» while there's no history)
+struct TrainingPreview: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    var template: WorkoutTemplate
+    var onStart: (WorkoutTemplate) -> Void
+    @State private var editing: WorkoutTemplate?
+
+    /// The template as saved now (the editor may have changed it)
+    private var current: WorkoutTemplate { store.record(WorkoutTemplate.self, template.id) ?? template }
+
+    var body: some View {
+        let t = current
+        let plan = store.plan(t)
+        let today = t.weekdays.contains(Day.weekday(Day.today))
+        NavigationStack {
+            Screen(glow: .train) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(today ? "Treino de hoje" : "Modelo de treino").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text(t.name).font(.geist(26, .bold))
+                }
+                .padding(.top, 4)
+                HStack(spacing: 8) {
+                    if today { StateTag(state: .pending, text: "Planeado") }
+                    Text("\(t.exercises.count) \(t.exercises.count == 1 ? "exercício" : "exercícios") · cerca de \(t.minutes) min").font(.geist(12)).foregroundStyle(Color.soft)
+                }
+                if let r = store.readiness(), r.score < 50 {
+                    Card(state: .suggested) {
+                        HStack { Eyebrow(text: "Para hoje"); Spacer(); StateTag(state: .suggested) }
+                        Text("Cargas moderadas e deixa o aquecimento decidir: se pesar, faz menos uma ou duas repetições por série.").font(.geist(14))
+                        WhyLine(text: "prontidão \(r.score) hoje, abaixo de 50.")
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("training.preview.today")
+                }
+                PrimaryButton(title: store.activeSession == nil ? "Começar treino" : "Continuar o treino em curso", area: .mint) { onStart(t) }
+                    .accessibilityIdentifier("training.preview.start")
+                exercises(plan)
+                weights(plan)
+                TrainingButton(title: "Editar o modelo", icon: "pencil") { editing = t }
+                    .accessibilityIdentifier("training.preview.edit")
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
+            .sheet(item: $editing) { TemplateEditor(template: $0) }
+        }
+    }
+
+    private func exercises(_ plan: [PlannedExercise]) -> some View {
+        Card {
+            HStack { Eyebrow(text: "Exercícios"); Spacer(); Text("AQ = série de aquecimento").font(.geist(11)).foregroundStyle(Color.faint) }
+            ForEach(Array(plan.enumerated()), id: \.offset) { i, p in
+                HStack(alignment: .top, spacing: 10) {
+                    Text("\(i + 1)").font(.mono(13)).foregroundStyle(Color.faint).frame(width: 18, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.exercise.name).font(.geist(14))
+                        let sub = subtitle(p)
+                        if !sub.isEmpty { Text(sub).font(.geist(12)).foregroundStyle(Color.soft) }
+                    }
+                    Spacer(minLength: 6)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(TrainingRules.planText(p.exercise)).font(.mono(12))
+                        Text(p.target.map { TrainingRules.setText($0.weight, $0.reps) } ?? "escolhes tu").font(.geist(11)).foregroundStyle(p.target == nil ? Color.faint : Color.soft)
+                        if !p.warmups.isEmpty { TrainingWarmupBadge(count: p.warmups.count) }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("training.preview.exercise.\(i)")
+            }
+        }
+    }
+
+    /// The muscle groups, and for an exercise without warm-ups, why: «isquiotibiais · já aquecidos no 2»
+    private func subtitle(_ p: PlannedExercise) -> String {
+        let groups = p.groups.isEmpty ? (Catalog.shared.exercise(p.exercise.exerciseId)?.groups ?? []) : p.groups
+        let names = TrainingRules.groupsText(groups)
+        guard let by = p.warmedBy, p.warmups.isEmpty else { return names }
+        return [names, "já aquecidos no \(by + 1)"].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    @ViewBuilder private func weights(_ plan: [PlannedExercise]) -> some View {
+        let without = plan.filter { $0.target == nil }.count
+        if without > 0 {
+            Card(state: .noData) {
+                HStack { Eyebrow(text: "Pesos"); Spacer(); StateTag(state: .noData, text: "Sem histórico") }
+                Text(without == plan.count
+                     ? "Ainda não há sessões registadas com estes exercícios. Hoje escolhes os pesos; a partir da próxima, a app sugere objetivos com base no que fizeste."
+                     : "\(without) \(without == 1 ? "exercício ainda sem histórico" : "exercícios ainda sem histórico"): aí escolhes tu o peso; a partir da próxima, a app sugere objetivos com base no que fizeste.")
+                    .font(.geist(13))
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("training.preview.nohistory")
+        }
+    }
+}
+
+/// «AQ +1 leve»: the warm-up mark (a word in a box, never colour alone)
+struct TrainingWarmupBadge: View {
+    var count: Int
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("AQ").font(.mono(10, .medium)).foregroundStyle(Color.soft).padding(.horizontal, 5).padding(.vertical, 2)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.25), lineWidth: 1))
+            Text(count == 1 ? "+1 leve" : "+\(count)").font(.geist(11)).foregroundStyle(Color.faint)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(count == 1 ? "uma série de aquecimento leve" : "\(count) séries de aquecimento")
+    }
+}
+
+/// A secondary action in the training screens: 44 pt tall at least; `prominent` for the one action of its card
+struct TrainingButton: View {
+    var title: String
+    var icon: String? = nil
+    var prominent = false
+    var wide = false
+    var action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                if let icon { Image(systemName: icon) }
+                Text(title).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .font(.geist(13.5, .semibold))
+            .foregroundStyle(prominent ? Color(hex: 0x05140F) : Color.ink)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: wide ? .infinity : nil, minHeight: 44)
+            .background(Capsule().fill(prominent ? AnyShapeStyle(Area.mint.gradient) : AnyShapeStyle(Color.white.opacity(0.08))))
+            .overlay(Capsule().stroke(Color.white.opacity(prominent ? 0 : 0.14), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(Pressable())
     }
 }
 
@@ -132,16 +295,28 @@ struct FlowChips: View {
 
 // MARK: - Live workout
 
+/// The workout (design v17: N_TreinoSerie, N_TreinoDescanso, N_TreinoPausa, N_TreinoResumo): one exercise at a time
+/// with the target and what you did side by side, the rest with its reason, pause, and the summary that «Concluído»
+/// closes. «Registar série» saves what the steppers show as done; the target is never written as done.
 struct WorkoutView: View {
     @EnvironmentObject var store: Store
     @ObservedObject var catalog = Catalog.shared
     @Environment(\.dismiss) private var dismiss
     var sessionId: String
+    var showsUndo = true // the tabs show Desfazer themselves; opened from the lock screen, this view shows its own
     @ObservedObject private var live = LiveWorkout.shared
     @State private var now = Date()
     @State private var picking = false
     @State private var feel: Int?
     @State private var guiding: TempoGuideRequest?
+    @State private var finishing: Double? // «Terminar»: the summary shows, and «Concluído» ends the session at this time
+    @State private var rir: Int? // the effort answer for the set `rirSet`, optional
+    @State private var rirSet: String?
+    @State private var typing: SetField?
+    @State private var changing: TemplateExercise? // «Trocar ou reordenar»
+    @State private var editingSets: TemplateExercise? // «Editar séries»
+    @State private var adjusting: NextProposal? // «Ajustar» on «Próxima vez»
+    @State private var ignored = Set<String>() // proposals ignored on this summary: no mark anywhere
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var session: WorkoutSession? { store.record(WorkoutSession.self, sessionId) }
@@ -149,53 +324,24 @@ struct WorkoutView: View {
     var body: some View {
         if let session {
             Screen(glow: .train) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(elapsed(session)) · \(Int(session.volume).formatted()) kg").font(.geist(13)).foregroundStyle(Color.soft)
-                        Text(session.name).font(.geist(26, .bold))
-                    }
-                    Spacer()
-                }
-                if let end = live.restEnd, end > now { restCard(end) }
-                ForEach(session.order) { ex in exerciseCard(ex, session) }
-                SoftButton(title: "Adicionar exercício", icon: "plus") { picking = true }
-                if session.end == nil {
-                    Card {
-                        Eyebrow(text: "Como correu?", icon: "bolt.heart")
-                        HStack(spacing: 6) {
-                            ForEach(1...5, id: \.self) { n in
-                                Button { feel = n } label: {
-                                    Text(["Péssimo", "Pesado", "OK", "Bom", "Ótimo"][n - 1]).font(.geist(12, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
-                                        .background(RoundedRectangle(cornerRadius: 10).fill(feel == n ? Color.train.opacity(0.5) : .white.opacity(0.07)))
-                                }
-                                .buttonStyle(.plain)
-                                .accessibilityAddTraits(feel == n ? .isSelected : []).accessibilityIdentifier("workout.feel.\(n)")
-                            }
-                        }
-                        Text("Serve para ver se a prontidão prevê as tuas sessões.").font(.geist(11)).foregroundStyle(Color.faint)
-                    }
-                    PrimaryButton(title: "Terminar sessão", area: .train) {
-                        var s = session
-                        s.feel = feel
-                        s.end = nowMs()
-                        s.sets.removeAll { !$0.done }
-                        store.save(s)
-                        Task { await LiveWorkout.shared.end() }
-                        dismiss()
-                    }
-                    .accessibilityIdentifier("workout.finish")
-                }
+                content(session)
             }
             .navigationBarTitleDisplayMode(.inline)
             .onReceive(timer) { now = $0 }
-            .sheet(isPresented: $picking) {
-                ExercisePicker { ex in
-                    var s = session
-                    let t = TemplateExercise(exerciseId: ex.id, name: ex.name)
-                    s.order.append(t)
-                    let sug = store.suggestion(for: t, session: s.id)
-                    for _ in 0..<sug.sets { s.sets.append(SetLog(exerciseId: ex.id, weight: sug.weight, reps: t.repHigh)) }
-                    store.save(s)
+            .overlay(alignment: .bottom) { if showsUndo { UndoBar() } }
+            .sheet(isPresented: $picking) { ExercisePicker { addExercise($0) } }
+            .sheet(item: $typing) { field in
+                if let s = self.session, let c = s.currentSet() {
+                    SetValueEntry(field: field, set: draft(s, c.index, c.exercise), change: { applySet($0) })
+                }
+            }
+            .sheet(item: $changing) { ex in
+                TrainingChangeSheet(sessionId: sessionId, exercise: ex) { finishing = nowMs() }
+            }
+            .sheet(item: $editingSets) { ex in TrainingEditSetsSheet(sessionId: sessionId, exercise: ex) }
+            .sheet(item: $adjusting) { p in
+                TrainingTargetSheet(proposal: p) { w, r in
+                    if let s = self.session { accept(p, s, weight: w, reps: r) }
                 }
             }
             .fullScreenCover(item: $guiding) { g in
@@ -204,6 +350,8 @@ struct WorkoutView: View {
                 }
             }
             .onAppear {
+                store.closeExpiredSessions() // left open past 23:59: partial now, so it opens as a summary
+                if feel == nil { feel = session.feel }
                 store.recordTrainingPrediction(session: session)
                 Task { await LiveWorkout.shared.update(session: session) }
             }
@@ -212,93 +360,989 @@ struct WorkoutView: View {
         }
     }
 
-    private func elapsed(_ s: WorkoutSession) -> String {
-        let end = s.end.map { Date(timeIntervalSince1970: $0 / 1000) } ?? now
-        let m = Int(end.timeIntervalSince(Date(timeIntervalSince1970: s.start / 1000)) / 60)
-        return duration(m)
+    @ViewBuilder private func content(_ s: WorkoutSession) -> some View {
+        if s.end != nil || TrainingRules.isExpired(s, today: Day.today) {
+            summary(s, closing: nil)
+        } else if let at = finishing {
+            summary(s, closing: at)
+        } else if s.isPaused {
+            paused(s)
+        } else {
+            inProgress(s)
+        }
     }
 
-    private func restCard(_ end: Date) -> some View {
-        let left = end.timeIntervalSince(now)
-        return Card(tint: .train) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Ring(progress: left / max(1, live.restTotal), area: .train, width: 7)
-                    Text(String(format: "%d:%02d", Int(left) / 60, Int(left) % 60)).font(.mono(16, .semibold))
+    // MARK: In progress (N_TreinoSerie)
+
+    @ViewBuilder private func inProgress(_ s: WorkoutSession) -> some View {
+        let current = s.currentSet()
+        header(s, current: current?.exercise)
+        Bar(progress: progress(s), area: .train)
+        if let end = live.restEnd, end > now, let current {
+            restCard(end, s, next: current.index)
+        } else if let current {
+            currentCard(current.exercise, index: current.index, s)
+        } else {
+            Card {
+                Text("Todas as séries registadas").font(.geist(16, .semibold))
+                Text("Quando quiseres, termina o treino para veres o resumo.").font(.geist(13)).foregroundStyle(Color.soft)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("workout.alldone")
+        }
+        exerciseList(s, current: current?.exercise.exerciseId)
+        SoftButton(title: "Adicionar exercício", icon: "plus") { picking = true }
+        feelCard
+        TrainingButton(title: "Terminar treino", wide: true) { finishTapped(s) }
+            .accessibilityIdentifier("workout.finish")
+    }
+
+    private func header(_ s: WorkoutSession, current: TemplateExercise?) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(s.name) · \(elapsed(s))").font(.geist(13)).foregroundStyle(Color.soft)
+                Text(position(s, current)).font(.geist(17, .semibold))
+            }
+            Spacer()
+            TrainingButton(title: "Pausa", icon: "pause.fill") { pause(s) }
+                .accessibilityIdentifier("workout.pause")
+        }
+    }
+
+    private func position(_ s: WorkoutSession, _ current: TemplateExercise?) -> String {
+        guard let current, let i = s.order.firstIndex(where: { $0.exerciseId == current.exerciseId }) else { return "Todas as séries registadas" }
+        return "Exercício \(i + 1) de \(s.order.count)"
+    }
+
+    private func currentCard(_ ex: TemplateExercise, index: Int, _ s: WorkoutSession) -> some View {
+        let info = catalog.exercise(ex.exerciseId)
+        let rows = s.sets.indices.filter { s.sets[$0].exerciseId == ex.exerciseId }
+        let values = s.startingValues(at: index, repHigh: ex.repHigh)
+        let setId = s.sets[index].id
+        return VStack(alignment: .leading, spacing: 12) {
+            Card {
+                HStack(alignment: .top, spacing: 10) {
+                    if let info { ExercisePicture(exercise: info).frame(width: 56, height: 56) }
+                    VStack(alignment: .leading, spacing: 3) {
+                        NavigationLink { ExerciseDetail(exerciseId: ex.exerciseId, name: ex.name) } label: {
+                            Text(ex.name).font(.geist(20, .bold)).foregroundStyle(Color.ink).multilineTextAlignment(.leading)
+                        }
+                        Text(exerciseLine(ex, s)).font(.geist(12)).foregroundStyle(Color.soft)
+                    }
                 }
-                .frame(width: 70, height: 70)
-                VStack(alignment: .leading, spacing: 6) {
-                    Eyebrow(text: "Descanso")
-                    HStack {
-                        SoftButton(title: "−15") { setRest(end.addingTimeInterval(-15)) }
-                        SoftButton(title: "+15") { setRest(end.addingTimeInterval(15)) }
-                        SoftButton(title: "Saltar") { setRest(nil) }
+                HStack(spacing: 6) {
+                    Color.clear.frame(width: 34, height: 1)
+                    StateTag(state: .suggested, text: "Objetivo").frame(maxWidth: .infinity, alignment: .leading)
+                    StateTag(state: .confirmed, text: "Feito").frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear.frame(width: 24, height: 1)
+                }
+                .padding(.horizontal, 6)
+                .accessibilityHidden(true)
+                ForEach(rows, id: \.self) { i in setLine(s, i, current: i == index) }
+                WhyLine(text: why(ex, s, index: index))
+                if values.weight > store.profile.barKg {
+                    Text("Discos por lado: " + store.plates(for: values.weight).map(kg).joined(separator: " + ")).font(.geist(11)).foregroundStyle(Color.faint)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workout.current")
+            HStack(spacing: 8) {
+                bigStepper("kg", kg(values.weight), field: .weight,
+                           minus: { adjust(index, ex) { $0.weight = max(0, $0.weight - 2.5) } },
+                           plus: { adjust(index, ex) { $0.weight += 2.5 } })
+                bigStepper("repetições", "\(values.reps)", field: .reps,
+                           minus: { adjust(index, ex) { $0.reps = max(1, $0.reps - 1) } },
+                           plus: { adjust(index, ex) { $0.reps += 1 } })
+            }
+            if s.isLastWorking(index) { rirCard(setId) }
+            PrimaryButton(title: "Registar série", area: .mint) { register(index, ex: ex) }
+                .accessibilityIdentifier("workout.log")
+            HStack(spacing: 8) {
+                TrainingButton(title: "Trocar ou reordenar") { changing = ex }
+                    .accessibilityIdentifier("workout.change")
+                TrainingButton(title: "Editar séries") { editingSets = ex }
+                    .accessibilityIdentifier("workout.edit")
+            }
+            .frame(maxWidth: .infinity)
+            TrainingButton(title: "Ritmo guiado", icon: "metronome.fill", wide: true) { startGuide(index, ex) }
+                .accessibilityIdentifier("workout.guide")
+        }
+    }
+
+    /// The muscle groups, the plan, and for an exercise with no warm-up of its own, why
+    private func exerciseLine(_ ex: TemplateExercise, _ s: WorkoutSession) -> String {
+        var parts = [TrainingRules.groupsText(catalog.exercise(ex.exerciseId)?.groups ?? []), TrainingRules.planText(ex)]
+        let hasWarmup = s.sets.contains { $0.exerciseId == ex.exerciseId && $0.kind == .warmup }
+        if !hasWarmup, let i = s.order.firstIndex(where: { $0.exerciseId == ex.exerciseId }) {
+            let warmed = TrainingRules.warmedBy(s.order.map { TrainingRules.warmupGroups(catalog.exercise($0.exerciseId)) })
+            if let by = warmed[i] { parts.append("já aquecidos no \(by + 1)") }
+        }
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// One set: its mark, the target, what you did and a check once registered
+    private func setLine(_ s: WorkoutSession, _ i: Int, current: Bool) -> some View {
+        let set = s.sets[i]
+        return HStack(spacing: 6) {
+            TrainingSetMark(text: set.kind == .working ? "\(workingNumber(s, i))" : set.kind.short, warmup: set.kind == .warmup)
+                .frame(width: 34, alignment: .leading)
+            Text(targetText(set)).font(.geist(13)).foregroundStyle(set.kind == .warmup ? Color.faint : Color.soft)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(doneText(set, current: current)).font(.geist(14, .semibold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "checkmark").font(.geist(12, .bold)).foregroundStyle(Color.good).opacity(set.done ? 1 : 0).frame(width: 24)
+        }
+        .frame(minHeight: 40)
+        .padding(.horizontal, 6)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(current ? Color.mint.opacity(0.1) : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(current ? Color.mint.opacity(0.4) : Color.clear, lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rowLabel(s, i, current: current))
+    }
+
+    private func workingNumber(_ s: WorkoutSession, _ i: Int) -> Int {
+        let set = s.sets[i]
+        return s.sets.indices.filter { $0 <= i && s.sets[$0].exerciseId == set.exerciseId && s.sets[$0].kind != .warmup }.count
+    }
+
+    private func setTitle(_ s: WorkoutSession, _ i: Int) -> String {
+        let set = s.sets[i]
+        if set.kind == .warmup { return "Aquecimento" }
+        let all = s.sets.filter { $0.exerciseId == set.exerciseId && $0.kind != .warmup }.count
+        return "Série \(workingNumber(s, i)) de \(all)"
+    }
+
+    /// The suggested target of a set, or what stands for it: «leve» for a warm-up you choose, «escolhes tu» with no history
+    private func targetText(_ set: SetLog) -> String {
+        if let w = set.targetWeight { return set.targetReps.map { TrainingRules.setText(w, $0) } ?? "\(kg(w)) kg" }
+        if set.kind == .warmup { return set.targetReps.map { "leve × \($0)" } ?? "leve" }
+        return "escolhes tu"
+    }
+
+    private func doneText(_ set: SetLog, current: Bool) -> String {
+        if set.done { return TrainingRules.setText(set.weight, set.reps) + (set.rir.map { " · RIR \($0 >= 4 ? "4+" : "\($0)")" } ?? "") }
+        return current ? "…" : ""
+    }
+
+    private func rowLabel(_ s: WorkoutSession, _ i: Int, current: Bool) -> String {
+        let set = s.sets[i]
+        let state = set.done ? "feito: \(TrainingRules.setText(set.weight, set.reps))" : current ? "agora" : "por fazer"
+        return "\(setTitle(s, i)), objetivo \(targetText(set)), \(state)"
+    }
+
+    /// «Porquê» for the current exercise: the warm-up, where the target came from, or the first time
+    private func why(_ ex: TemplateExercise, _ s: WorkoutSession, index: Int) -> String {
+        if s.sets[index].kind == .warmup {
+            let groups = TrainingRules.groupsText(TrainingRules.warmupGroups(catalog.exercise(ex.exerciseId)))
+            return groups.isEmpty ? "aquecimento leve antes das séries de trabalho." : "aquecimento leve: é o primeiro exercício de \(groups) neste treino."
+        }
+        guard let w = s.sets.first(where: { $0.exerciseId == ex.exerciseId && $0.kind != .warmup && $0.targetWeight != nil })?.targetWeight else {
+            return store.lastSession(with: ex.exerciseId, before: s.id) == nil
+                ? "primeira vez: escolhe um peso com que conseguirias fazer \(ex.repHigh + 2) repetições."
+                : "este treino começou sem objetivo para este exercício: escolhes tu."
+        }
+        if let t = store.target(for: ex, session: s.id), t.weight == w { return t.reason + "." }
+        return "o objetivo definido quando o treino começou."
+    }
+
+    private func bigStepper(_ label: String, _ value: String, field: SetField, minus: @escaping () -> Void, plus: @escaping () -> Void) -> some View {
+        VStack(spacing: 6) {
+            Text(label).font(.geist(11, .semibold)).foregroundStyle(Color.soft)
+            HStack(spacing: 4) {
+                Button(action: minus) {
+                    Image(systemName: "minus").font(.geist(15, .bold)).frame(width: 44, height: 44).background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                .accessibilityLabel("Menos \(label)")
+                Button { typing = field } label: {
+                    Text(value).font(.mono(24, .semibold)).lineLimit(1).minimumScaleFactor(0.6)
+                        .frame(maxWidth: .infinity, minHeight: 44).contentShape(Rectangle())
+                }
+                .accessibilityLabel("\(value) \(label)")
+                .accessibilityHint("Toca para escrever um valor")
+                .accessibilityIdentifier("workout.\(field.rawValue)")
+                Button(action: plus) {
+                    Image(systemName: "plus").font(.geist(15, .bold)).frame(width: 44, height: 44).background(Circle().fill(Color.white.opacity(0.08)))
+                }
+                .accessibilityLabel("Mais \(label)")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.ink)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.05)))
+    }
+
+    /// The effort question, only on the last working set of each exercise, optional: 0, 1, 2, 3 or 4 or more
+    private func rirCard(_ setId: String) -> some View {
+        Card {
+            Text("Na última série, quantas repetições ainda conseguias?").font(.geist(14))
+            HStack(spacing: 6) {
+                ForEach(0...4, id: \.self) { n in
+                    let on = rirSet == setId && rir == n
+                    Button {
+                        if on { rir = nil; rirSet = nil } else { rir = n; rirSet = setId }
+                    } label: {
+                        HStack(spacing: 3) {
+                            if on { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
+                            Text(n == 4 ? "4 ou mais" : "\(n)").lineLimit(1).minimumScaleFactor(0.6)
+                        }
+                        .font(.geist(13, .semibold)).foregroundStyle(Color.ink)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(on ? Color.train.opacity(0.5) : Color.white.opacity(0.07)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(n == 4 ? "4 ou mais" : "\(n)")
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityIdentifier("workout.rir.\(n)")
+                }
+            }
+            Text("Opcional. Só pergunto na última série de cada exercício, e fica guardado como resposta tua.").font(.geist(11)).foregroundStyle(Color.faint)
+        }
+    }
+
+    private func exerciseList(_ s: WorkoutSession, current: String?) -> some View {
+        Card {
+            Eyebrow(text: "Exercícios")
+            ForEach(Array(s.order.enumerated()), id: \.offset) { i, ex in
+                HStack(spacing: 10) {
+                    Text("\(i + 1)").font(.mono(12)).foregroundStyle(Color.faint).frame(width: 18, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ex.name).font(.geist(14, ex.exerciseId == current ? .semibold : .regular))
+                        let marks = marksText(s, ex)
+                        if !marks.isEmpty { Text(marks).font(.geist(11.5)).foregroundStyle(Color.soft) }
+                    }
+                    Spacer(minLength: 6)
+                    exerciseState(s, ex, current: current)
+                }
+                .frame(minHeight: 36)
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    @ViewBuilder private func exerciseState(_ s: WorkoutSession, _ ex: TemplateExercise, current: String?) -> some View {
+        let sets = s.sets.filter { $0.exerciseId == ex.exerciseId }
+        let done = sets.filter(\.done).count
+        if s.isSkipped(ex.exerciseId) {
+            StateTag(state: .ignored, text: "Saltado")
+        } else if !sets.isEmpty && done == sets.count {
+            StateTag(state: .confirmed, text: "Feito")
+        } else if ex.exerciseId == current {
+            StateTag(state: .pending, text: "Agora")
+        } else if done > 0 {
+            Text("\(done) de \(sets.count)").font(.mono(12)).foregroundStyle(Color.soft)
+        }
+    }
+
+    /// «trocado de ordem», «em vez de …», «saltado: pouco tempo»
+    private func marksText(_ s: WorkoutSession, _ ex: TemplateExercise) -> String {
+        marks(s, ex).joined(separator: " · ")
+    }
+
+    private func marks(_ s: WorkoutSession, _ ex: TemplateExercise) -> [String] {
+        var out: [String] = []
+        if s.reordered?.contains(ex.exerciseId) == true { out.append("trocado de ordem") }
+        if let old = s.swapped?[ex.exerciseId] {
+            let planned = store.sessions().lazy.flatMap(\.order).first { $0.exerciseId == old }
+            let name = Catalog.shared.exercise(old)?.name ?? planned?.name ?? old
+            out.append("em vez de \(name)")
+        }
+        if let why = s.skipped?[ex.exerciseId] {
+            out.append(ExerciseSkipReason(rawValue: why).map { "saltado: \($0.label.lowercased())" } ?? "saltado")
+        }
+        return out
+    }
+
+    private var feelCard: some View {
+        Card {
+            Eyebrow(text: "Como correu?", icon: "bolt.heart")
+            HStack(spacing: 6) {
+                ForEach(1...5, id: \.self) { n in
+                    Button { feel = n } label: {
+                        Text(["Péssimo", "Pesado", "OK", "Bom", "Ótimo"][n - 1]).font(.geist(12, .semibold)).frame(maxWidth: .infinity).padding(.vertical, 9)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(feel == n ? Color.train.opacity(0.5) : .white.opacity(0.07)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(feel == n ? .isSelected : []).accessibilityIdentifier("workout.feel.\(n)")
+                }
+            }
+            Text("Serve para ver se a prontidão prevê as tuas sessões.").font(.geist(11)).foregroundStyle(Color.faint)
+        }
+    }
+
+    // MARK: Rest (N_TreinoDescanso)
+
+    private func restCard(_ end: Date, _ s: WorkoutSession, next: Int) -> some View {
+        let left = max(0, end.timeIntervalSince(now))
+        let total = max(1, live.restTotal)
+        let last = s.sets.indices.filter { s.sets[$0].done }.max { (s.sets[$0].at ?? 0) < (s.sets[$1].at ?? 0) }
+        let nextExercise = s.order.first { $0.exerciseId == s.sets[next].exerciseId }
+        return VStack(alignment: .leading, spacing: 12) {
+            Card(tint: .water) {
+                Eyebrow(text: "Descanso", icon: "timer", color: .water)
+                ZStack {
+                    Ring(progress: left / total, area: .water, width: 12)
+                    VStack(spacing: 2) {
+                        Text(TrainingRules.restClock(left)).font(.mono(44, .semibold))
+                        Text("de \(TrainingRules.restClock(total))").font(.geist(13)).foregroundStyle(Color.soft)
+                    }
+                }
+                .frame(width: 200, height: 200)
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Descanso: faltam \(TrainingRules.restClock(left)) de \(TrainingRules.restClock(total))")
+                if let reason = live.restReason { WhyLine(text: reason, label: "Porque \(TrainingRules.restClock(total))") }
+                HStack(spacing: 8) {
+                    TrainingButton(title: "+30 s") { setRest(end.addingTimeInterval(30), total: total + 30) }
+                        .accessibilityIdentifier("workout.rest.more")
+                    Menu {
+                        ForEach([60, 75, 90, 120, 150, 180], id: \.self) { sec in
+                            Button(TrainingRules.restClock(Double(sec))) { adjustRest(to: sec, end: end, total: total) }
+                        }
+                    } label: {
+                        Text("Ajustar").font(.geist(13.5, .semibold)).foregroundStyle(Color.ink).padding(.horizontal, 14).frame(minHeight: 44)
+                            .background(Capsule().fill(Color.white.opacity(0.08))).overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1))
+                    }
+                    .accessibilityHint("Muda só este descanso")
+                    .accessibilityIdentifier("workout.rest.adjust")
+                    Spacer(minLength: 0)
+                    TrainingButton(title: "Saltar descanso", prominent: true) { setRest(nil) }
+                        .accessibilityIdentifier("workout.rest.skip")
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("workout.rest")
+            Card {
+                Eyebrow(text: "A seguir")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(setTitle(s, next) + (nextExercise.map { " · \($0.name)" } ?? "")).font(.geist(15))
+                    Text(s.sets[next].targetWeight == nil ? targetText(s.sets[next]) : "objetivo \(targetText(s.sets[next]))").font(.geist(12)).foregroundStyle(Color.soft)
+                }
+                if let last {
+                    Divider().overlay(Color.white.opacity(0.08))
+                    HStack(spacing: 8) {
+                        Text("\(setTitle(s, last)) · \(TrainingRules.setText(s.sets[last].weight, s.sets[last].reps))").font(.geist(13)).foregroundStyle(Color.soft)
+                        Spacer(minLength: 4)
+                        StateTag(state: .confirmed, text: "Registada")
+                        TrainingButton(title: "Editar") { editingSets = s.order.first { $0.exerciseId == s.sets[last].exerciseId } }
+                            .accessibilityIdentifier("workout.rest.edit")
                     }
                 }
             }
+            Text("Também no ecrã de bloqueio e na Dynamic Island.").font(.geist(12)).foregroundStyle(Color.faint).frame(maxWidth: .infinity)
         }
     }
 
-    private func setRest(_ end: Date?) {
-        if let s = session { Task { await live.rest(end, session: s) } }
+    private func setRest(_ end: Date?, total: Double? = nil, reason: String? = nil) {
+        if let s = session { Task { await live.rest(end, total: total, reason: reason, session: s) } }
     }
 
-    private func exerciseCard(_ ex: TemplateExercise, _ session: WorkoutSession) -> some View {
-        let sets = session.sets.enumerated().filter { $0.element.exerciseId == ex.exerciseId }
-        let info = catalog.exercise(ex.exerciseId)
-        let sug = store.suggestion(for: ex, session: session.id)
+    /// «Ajustar» changes this rest only: it lasts `seconds` from when it started; the template keeps its own
+    private func adjustRest(to seconds: Int, end: Date, total: Double) {
+        let started = end.addingTimeInterval(-total)
+        setRest(started.addingTimeInterval(Double(seconds)), total: Double(seconds), reason: "ajustado por ti, só neste descanso.")
+    }
+
+    // MARK: Pause (N_TreinoPausa)
+
+    @ViewBuilder private func paused(_ s: WorkoutSession) -> some View {
+        let done = s.exercisesDone
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Treino em pausa").font(.geist(26, .bold))
+            Text("\(s.name) · \(done.count) de \(s.order.count) exercícios · \(elapsed(s))").font(.geist(13)).foregroundStyle(Color.soft)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("workout.paused")
+        HStack(spacing: 8) {
+            StateTag(state: .partial)
+            Text("o que fizeste está guardado").font(.geist(12)).foregroundStyle(Color.soft)
+        }
+        doneCard(s)
+        PrimaryButton(title: "Retomar", area: .mint) { resume(s) }
+            .accessibilityIdentifier("workout.resume")
+        HStack(spacing: 8) {
+            TrainingButton(title: "Terminar aqui") { finishing = s.pausedAt ?? nowMs() }
+                .accessibilityIdentifier("workout.endhere")
+            TrainingButton(title: "Retomar mais tarde") { dismiss() }
+                .accessibilityIdentifier("workout.later")
+        }
+        Text(endHereText(done.count) + " Se retomares mais tarde, o treino fica aberto até às 23:59; depois passa a parcial.")
+            .font(.geist(12)).foregroundStyle(Color.faint)
+    }
+
+    private func endHereText(_ n: Int) -> String {
+        switch n {
+        case 0: return "Terminar aqui fecha o treino; não há séries de trabalho registadas."
+        case 1: return "Terminar aqui guarda o exercício feito como treino parcial. Nada é apagado."
+        default: return "Terminar aqui guarda os \(n) exercícios feitos como treino parcial. Nada é apagado."
+        }
+    }
+
+    private func doneCard(_ s: WorkoutSession) -> some View {
+        let done = s.exercisesDone
         return Card {
-            HStack(alignment: .top, spacing: 10) {
-                if let info { ExercisePicture(exercise: info).frame(width: 64, height: 64) }
-                VStack(alignment: .leading, spacing: 3) {
-                    NavigationLink { ExerciseDetail(exerciseId: ex.exerciseId, name: ex.name) } label: { Text(ex.name).font(.geist(16, .bold)).foregroundStyle(Color.ink).multilineTextAlignment(.leading) }
-                    Text("\(ex.repLow)–\(ex.repHigh) reps · descanso \(ex.rest / 60):\(String(format: "%02d", ex.rest % 60))").font(.geist(12)).foregroundStyle(Color.soft)
-                    Text(sug.reason).font(.geist(11.5)).foregroundStyle(Color.good)
+            HStack { Eyebrow(text: "Feito"); Spacer(); StateTag(state: .confirmed, text: "Registado") }
+            if done.isEmpty { Text("Ainda sem séries de trabalho registadas.").font(.geist(13)).foregroundStyle(Color.soft) }
+            ForEach(done) { ex in
+                HStack(alignment: .top, spacing: 8) {
+                    Text(ex.name).font(.geist(14))
+                    Spacer(minLength: 8)
+                    Text(([TrainingRules.setsText(TrainingRules.working(ex.exerciseId, in: s))] + marks(s, ex)).joined(separator: " · "))
+                        .font(.geist(12.5)).foregroundStyle(Color.soft).multilineTextAlignment(.trailing)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func pause(_ s: WorkoutSession) {
+        var p = s
+        p.pausedAt = nowMs()
+        store.save(p)
+        setRest(nil)
+    }
+
+    private func resume(_ s: WorkoutSession) {
+        var r = s
+        r.pausedAt = nil
+        store.save(r)
+        let saved = r
+        Task { await live.update(session: saved) }
+    }
+
+    // MARK: Summary (N_TreinoResumo)
+
+    /// `closing`: the time «Terminar» was tapped; nil for a session that has ended already (read only)
+    @ViewBuilder private func summary(_ s: WorkoutSession, closing: Double?) -> some View {
+        let endAt = closing ?? s.end ?? TrainingRules.lastActivity(s)
+        let partial = closing == nil ? TrainingRules.isPartial(s, today: Day.today) : s.hasSetsLeft
+        let done = s.exercisesDone
+        VStack(alignment: .leading, spacing: 2) {
+            Text(partial ? "Treino parcial" : "Treino terminado").font(.geist(26, .bold))
+            Text("\(s.name) · \(timeRange(s.start, endAt))").font(.geist(13)).foregroundStyle(Color.soft)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("workout.summary")
+        HStack(spacing: 8) {
+            StateTag(state: partial ? .partial : .confirmed, text: "\(done.count) de \(s.order.count)")
+            let skipped = skippedText(s)
+            if !skipped.isEmpty { Text(skipped).font(.geist(12)).foregroundStyle(Color.soft) }
+        }
+        progressCard(s, done: done)
+        if closing != nil { feelCard }
+        if closing != nil || store.sessions().first(where: { $0.end != nil })?.id == s.id { nextCard(s) }
+        if closing != nil {
+            PrimaryButton(title: "Concluído", area: .mint) { close(s, at: endAt) }
+                .accessibilityIdentifier("workout.done")
+            TrainingButton(title: "Voltar ao treino", wide: true) { finishing = nil }
+                .accessibilityIdentifier("workout.summary.back")
+        }
+        allSets(s)
+    }
+
+    private func timeRange(_ start: Double, _ end: Double) -> String {
+        let a = Day.minuteOfDay(Date(timeIntervalSince1970: start / 1000)), b = Day.minuteOfDay(Date(timeIntervalSince1970: end / 1000))
+        return "\(clock(a))–\(clock(b)) · \(duration(max(0, Int((end - start) / 60000))))"
+    }
+
+    private func skippedText(_ s: WorkoutSession) -> String {
+        s.order.filter { s.isSkipped($0.exerciseId) }.map { ex -> String in
+            let why = ExerciseSkipReason(rawValue: s.skipped?[ex.exerciseId] ?? "").map { ": \($0.label.lowercased())" } ?? ""
+            return "\(ex.name) saltado\(why)"
+        }
+        .joined(separator: " · ")
+    }
+
+    private func progressCard(_ s: WorkoutSession, done: [TemplateExercise]) -> some View {
+        Card {
+            HStack { Eyebrow(text: "Progresso"); Spacer(); StateTag(state: .confirmed, text: "Registado") }
+            if done.isEmpty { Text("Sem séries de trabalho registadas neste treino.").font(.geist(13)).foregroundStyle(Color.soft) }
+            ForEach(done) { ex in
+                let sets = TrainingRules.working(ex.exerciseId, in: s)
+                let change = TrainingRules.change(now: sets, before: store.previousWorking(ex.exerciseId, before: s))
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ex.name).font(.geist(14))
+                        Text(([TrainingRules.setsText(sets)] + [TrainingRules.belowTarget(sets)].compactMap { $0 } + marks(s, ex)).joined(separator: " · "))
+                            .font(.geist(12)).foregroundStyle(Color.soft)
+                    }
+                    Spacer(minLength: 8)
+                    Text(change).font(.geist(13, .semibold)).foregroundStyle(change.hasPrefix("+") ? Color.mint : Color.soft)
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    /// «Próxima vez»: what the progression rules propose. It changes the next session's target only if you accept it
+    /// (or adjust it); Ignorar leaves no mark.
+    @ViewBuilder private func nextCard(_ s: WorkoutSession) -> some View {
+        let all = store.proposals(after: s)
+        let changes = all.filter { $0.changes && !ignored.contains($0.id) }
+        let same = all.filter { !$0.changes }
+        if !changes.isEmpty || !same.isEmpty {
+            Card(state: changes.isEmpty ? .plain : .suggested) {
+                HStack { Eyebrow(text: "Próxima vez"); Spacer(); if !changes.isEmpty { StateTag(state: .suggested) } }
+                ForEach(changes) { p in proposalRow(p, s) }
+                ForEach(same) { p in
+                    Text("\(p.exercise.name) fica igual: \(TrainingRules.sentence(p.reason)).").font(.geist(12)).foregroundStyle(Color.soft)
+                }
+                Text("O objetivo da próxima sessão só muda se aceitares.").font(.geist(11)).foregroundStyle(Color.faint)
+            }
+        }
+    }
+
+    private func proposalRow(_ p: NextProposal, _ s: WorkoutSession) -> some View {
+        let accepted = store.record(TrainingTarget.self, TrainingRules.targetId(p.exercise.exerciseId)).flatMap { $0.session == s.id ? $0 : nil }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("\(p.exercise.name) a \(TrainingRules.setText(accepted?.weight ?? p.weight, accepted?.reps ?? p.reps))").font(.geist(15))
+            WhyLine(text: TrainingRules.sentence(p.reason))
+            if accepted != nil {
+                HStack(spacing: 8) {
+                    StateTag(state: .confirmed, text: "Aceite")
+                    Text("vale para a próxima sessão").font(.geist(11)).foregroundStyle(Color.faint)
+                }
+            } else {
+                DecisionButtons(onAccept: { accept(p, s) }, onAdjust: { adjusting = p }, onIgnore: { _ = ignored.insert(p.id) })
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("workout.next.\(p.exercise.exerciseId)")
+            }
+        }
+    }
+
+    private func accept(_ p: NextProposal, _ s: WorkoutSession, weight: Double? = nil, reps: Int? = nil) {
+        let before = store.acceptTarget(p, weight: weight, reps: reps, from: s)
+        let st = store
+        let exerciseId = p.exercise.exerciseId
+        UndoCenter.shared.show("Próxima vez: \(p.exercise.name) a \(TrainingRules.setText(weight ?? p.weight, reps ?? p.reps))") {
+            st.restoreTarget(exerciseId, to: before)
+        }
+    }
+
+    private func allSets(_ s: WorkoutSession) -> some View {
+        let done = s.sets.filter(\.done)
+        let warm = done.filter { $0.kind == .warmup }.count
+        let exercises = s.order.filter { ex in done.contains { $0.exerciseId == ex.exerciseId } }
+        return DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(exercises) { ex in
+                    HStack {
+                        Text(ex.name).font(.geist(13, .semibold))
+                        Spacer()
+                        TrainingButton(title: "Editar") { editingSets = ex }
+                    }
+                    ForEach(done.filter { $0.exerciseId == ex.exerciseId }) { set in
+                        HStack {
+                            Text(set.kind == .working ? "Série" : set.kind.label).foregroundStyle(set.kind == .warmup ? Color.faint : Color.soft)
+                            Spacer()
+                            Text(TrainingRules.setText(set.weight, set.reps) + (set.rir.map { " · RIR \($0 >= 4 ? "4+" : "\($0)")" } ?? ""))
+                        }
+                        .font(.geist(12.5))
+                    }
                 }
             }
-            ForEach(sets, id: \.element.id) { index, set in
-                setRow(set, number: sets.filter { $0.element.kind != .warmup && $0.offset <= index }.count, ex: ex, canGuide: session.end == nil)
-            }
-            HStack {
-                Button { var s = session; let last = sets.last?.element; s.sets.append(SetLog(exerciseId: ex.exerciseId, weight: last?.weight ?? 0, reps: last?.reps ?? ex.repHigh)); store.save(s) } label: { Label("Série", systemImage: "plus").font(.geist(12.5, .semibold)) }
-                Spacer()
-                if let w = sets.last?.element.weight, w > store.profile.barKg { Text("Discos por lado: " + store.plates(for: w).map(kg).joined(separator: " + ")).font(.geist(11)).foregroundStyle(Color.faint) }
-            }
-            .tint(.train)
+            .padding(.top, 6)
+        } label: {
+            Text("Todas as séries · \(done.count) \(done.count == 1 ? "série" : "séries")" + (warm > 0 ? " · \(warm) de aquecimento" : ""))
+                .font(.geist(13.5, .semibold)).foregroundStyle(Color.ink)
         }
+        .tint(Color.soft)
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.white.opacity(0.055)))
+        .accessibilityIdentifier("workout.allsets")
     }
 
-    private func setRow(_ set: SetLog, number: Int, ex: TemplateExercise, canGuide: Bool) -> some View {
-        var guide: (() -> Void)?
-        if canGuide && !set.done { guide = { startGuide(set, ex) } }
-        return SetRow(set: set, number: number, plates: store.plates(for: set.weight), change: { applySet($0, ex: ex) }, guide: guide)
+    // MARK: Actions
+
+    private func elapsed(_ s: WorkoutSession) -> String {
+        let endMs = s.end ?? s.pausedAt
+        let end = endMs.map { Date(timeIntervalSince1970: $0 / 1000) } ?? now
+        let m = Int(end.timeIntervalSince(Date(timeIntervalSince1970: s.start / 1000)) / 60)
+        return duration(max(0, m))
+    }
+
+    private func progress(_ s: WorkoutSession) -> Double {
+        let planned = s.sets.filter { $0.done || !s.isSkipped($0.exerciseId) }
+        guard !planned.isEmpty else { return 0 }
+        return Double(planned.filter(\.done).count) / Double(planned.count)
+    }
+
+    /// The set as the steppers show it: a set not yet registered gets its starting values (your own, else the target)
+    private func draft(_ s: WorkoutSession, _ index: Int, _ ex: TemplateExercise) -> SetLog {
+        var set = s.sets[index]
+        if !set.done {
+            let v = s.startingValues(at: index, repHigh: ex.repHigh)
+            set.weight = v.weight
+            set.reps = max(1, v.reps)
+        }
+        return set
+    }
+
+    /// Changes what you're about to register on the current set; both values are written, so the set keeps them
+    private func adjust(_ index: Int, _ ex: TemplateExercise, _ change: (inout SetLog) -> Void) {
+        guard let s = session, s.sets.indices.contains(index) else { return }
+        var set = draft(s, index, ex)
+        change(&set)
+        applySet(set)
     }
 
     /// The one path for changing a set: it starts from the session as saved now and finds the set by id, because the
     /// guide can run for minutes while the lock screen or a sync changes the session underneath it.
-    private func applySet(_ updated: SetLog, ex: TemplateExercise) {
+    private func applySet(_ updated: SetLog) {
         guard var s = session, let index = s.sets.firstIndex(where: { $0.id == updated.id }) else { return }
-        let wasDone = s.sets[index].done
         s.sets[index] = updated
         store.save(s)
         let saved = s
-        if updated.done && !wasDone && updated.kind != .warmup {
-            Task { await live.rest(Date().addingTimeInterval(Double(ex.rest)), total: Double(ex.rest), session: saved) }
-        } else {
-            Task { await live.update(session: saved) }
-        }
+        Task { await live.update(session: saved) }
     }
 
-    private func startGuide(_ set: SetLog, _ ex: TemplateExercise) {
+    /// «Registar série»: what the steppers show is saved as done (the target stays apart), with your effort answer if
+    /// you gave one, then the rest starts, as long as the exercise and the set just done ask for
+    private func register(_ index: Int, ex: TemplateExercise, reps: Int? = nil) {
+        guard var s = session, s.sets.indices.contains(index), !s.sets[index].done else { return }
+        let v = s.startingValues(at: index, repHigh: ex.repHigh)
+        let answer = rirSet == s.sets[index].id ? rir : nil
+        s.register(index, weight: v.weight, reps: reps ?? max(1, v.reps), rir: answer)
+        store.save(s)
+        rir = nil
+        rirSet = nil
+        let saved = s
+        let set = s.sets[index]
+        if set.kind != .warmup && s.hasSetsLeft {
+            let r = TrainingRules.rest(catalog.exercise(ex.exerciseId).map { TrainingRules.mechanic($0) }, reps: set.reps, templateRest: ex.rest)
+            if r.seconds > 0 {
+                Task { await live.rest(Date().addingTimeInterval(Double(r.seconds)), total: Double(r.seconds), reason: r.reason, session: saved) }
+                return
+            }
+        }
+        Task { await live.update(session: saved) }
+    }
+
+    private func startGuide(_ index: Int, _ ex: TemplateExercise) {
+        guard let s = session, s.sets.indices.contains(index) else { return }
         if live.restEnd != nil { setRest(nil) } // starting the set ends the rest, so its alert can't sound mid-set
-        guiding = TempoGuideRequest(id: set.id, exercise: ex, weight: set.weight, target: set.reps > 0 ? set.reps : ex.repHigh)
+        let v = s.startingValues(at: index, repHigh: ex.repHigh)
+        guiding = TempoGuideRequest(id: s.sets[index].id, exercise: ex, weight: v.weight, target: v.reps > 0 ? v.reps : ex.repHigh)
     }
 
     private func completeGuided(_ g: TempoGuideRequest, reps: Int) {
-        guard var updated = session?.sets.first(where: { $0.id == g.id }) else { return }
-        updated.reps = reps
-        if !updated.done { updated.done = true; updated.at = nowMs() }
-        applySet(updated, ex: g.exercise)
+        guard let s = session, let index = s.sets.firstIndex(where: { $0.id == g.id }) else { return }
+        if s.sets[index].done {
+            var set = s.sets[index]
+            set.reps = reps
+            applySet(set)
+        } else {
+            register(index, ex: g.exercise, reps: reps)
+        }
+    }
+
+    private func addExercise(_ info: CatalogExercise) {
+        guard var s = session else { return }
+        let t = TemplateExercise(exerciseId: info.id, name: info.name)
+        let groups = s.order.map { TrainingRules.warmupGroups(catalog.exercise($0.exerciseId)) } + [TrainingRules.warmupGroups(info)]
+        let decisions = TrainingRules.warmedBy(groups)
+        let warm = (decisions.last ?? nil) == nil && !TrainingRules.isConditioning(info)
+        let target = store.target(for: t, session: s.id)
+        s.order.append(t)
+        s.sets += TrainingRules.sets(for: PlannedExercise(exercise: t, target: target, warmups: warm ? store.warmupSets(for: target) : [], warmedBy: nil, groups: info.groups))
+        store.save(s)
+    }
+
+    /// «Terminar treino»: the summary, which «Concluído» closes. With nothing registered there's nothing to sum up,
+    /// so it closes as it always has.
+    private func finishTapped(_ s: WorkoutSession) {
+        if !s.sets.contains(where: { $0.done }) {
+            close(s, at: nowMs())
+            return
+        }
+        finishing = nowMs()
+    }
+
+    /// «Concluído» closes the training: every registered set stays, what wasn't done goes from the plan
+    private func close(_ s: WorkoutSession, at: Double) {
+        guard let current = session else { return }
+        var c = current
+        c.feel = feel
+        c.finish(at: at)
+        store.save(c)
+        finishing = nil
+        let saved = c
+        Task {
+            await live.rest(nil, session: saved)
+            await LiveWorkout.shared.end()
+        }
+        dismiss()
+    }
+}
+
+/// The set's mark: its number, or the kind in a box («AQ» for a warm-up), never colour alone
+struct TrainingSetMark: View {
+    var text: String
+    var warmup: Bool
+    var body: some View {
+        if warmup {
+            Text("AQ").font(.mono(10, .medium)).foregroundStyle(Color.soft).padding(.horizontal, 5).padding(.vertical, 2)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.white.opacity(0.25), lineWidth: 1))
+        } else {
+            Text(text).font(.mono(13, .semibold)).foregroundStyle(Color.ink)
+        }
+    }
+}
+
+/// «Trocar ou reordenar» (design v17, N_TreinoSubstituir): every change only once you confirm it, with Desfazer; with
+/// pain the app doesn't suggest carrying on. «Saltar exercício» marks it skipped, never failed.
+struct TrainingChangeSheet: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    var sessionId: String
+    var exercise: TemplateExercise
+    var endWorkout: () -> Void
+    @State private var reason: ExerciseSkipReason?
+
+    var body: some View {
+        NavigationStack {
+            Screen(glow: .train) {
+                if let s = store.record(WorkoutSession.self, sessionId) {
+                    Text([exercise.name, TrainingRules.groupsText(Catalog.shared.exercise(exercise.exerciseId)?.groups ?? [])].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.geist(13)).foregroundStyle(Color.soft)
+                    reasonCard
+                    if reason != .pain && reason != .time {
+                        if let next = s.next(after: exercise.exerciseId) { reorderCard(s, next) }
+                        if let alt = store.alternatives(to: exercise, in: s).first { replaceCard(s, alt) }
+                    }
+                    stopCard(s)
+                }
+            }
+            .navigationTitle("Trocar ou reordenar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
+        }
+    }
+
+    private var reasonCard: some View {
+        Card {
+            Eyebrow(text: "O que se passa")
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                ForEach(ExerciseSkipReason.allCases, id: \.self) { r in
+                    let on = reason == r
+                    Button { reason = on ? nil : r } label: {
+                        HStack(spacing: 4) {
+                            if on { Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)) }
+                            Text(r.label).lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                        .font(.geist(13, .semibold)).foregroundStyle(on ? Color(hex: 0x2A0610) : Color.ink)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Capsule().fill(on ? Color.train : Color.white.opacity(0.08)))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                    .accessibilityIdentifier("change.reason.\(r.rawValue)")
+                }
+            }
+        }
+    }
+
+    private func reorderCard(_ s: WorkoutSession, _ next: TemplateExercise) -> some View {
+        Card(state: .suggested) {
+            HStack { Eyebrow(text: "Melhor opção"); Spacer(); StateTag(state: .suggested) }
+            Text("Fazer já o \(next.name) e voltar ao \(exercise.name) a seguir").font(.geist(15))
+            WhyLine(text: reason == .busy ? "a máquina pode libertar-se; o treino fica igual, só muda a ordem." : "o treino fica igual, só muda a ordem.")
+            HStack {
+                TrainingButton(title: "Confirmar", prominent: true) { reorder(s, next) }
+                    .accessibilityIdentifier("change.reorder")
+                Spacer()
+            }
+        }
+    }
+
+    private func replaceCard(_ s: WorkoutSession, _ alt: CatalogExercise) -> some View {
+        let known = !store.lastSets(alt.id).isEmpty
+        return Card(state: .suggested) {
+            HStack { Eyebrow(text: "Outra opção"); Spacer(); StateTag(state: .suggested) }
+            Text("Trocar por \(alt.name)").font(.geist(15))
+            Text("mesmo grupo · \(TrainingRules.planText(exercise)) · \(known ? "já o fizeste antes" : "sem histórico: começa leve")").font(.geist(12)).foregroundStyle(Color.soft)
+            HStack {
+                TrainingButton(title: "Trocar") { replace(s, with: alt) }
+                    .accessibilityIdentifier("change.swap")
+                Spacer()
+            }
+        }
+    }
+
+    private func stopCard(_ s: WorkoutSession) -> some View {
+        Card(state: .pending) {
+            Eyebrow(text: reason == .pain ? "Com dor" : reason == .time ? "Com pouco tempo" : "Se for dor")
+            Text(reason == .time
+                 ? "Podes saltar este exercício ou terminar aqui. O que já fizeste fica guardado."
+                 : "Para este exercício. A app não sugere continuar a treinar com dor: podes saltá-lo ou terminar o treino. O que já fizeste fica guardado.")
+                .font(.geist(13))
+            HStack(spacing: 8) {
+                TrainingButton(title: "Saltar exercício") { skip(s) }
+                    .accessibilityIdentifier("change.skip")
+                TrainingButton(title: "Terminar treino") {
+                    dismiss()
+                    endWorkout()
+                }
+                .accessibilityIdentifier("change.end")
+            }
+        }
+    }
+
+    private func reorder(_ s: WorkoutSession, _ next: TemplateExercise) {
+        var c = s
+        c.moveUp(next.exerciseId, before: exercise.exerciseId)
+        store.save(c)
+        undoable("\(next.name) passa para agora", before: s)
+        dismiss()
+    }
+
+    private func replace(_ s: WorkoutSession, with alt: CatalogExercise) {
+        let new = TemplateExercise(exerciseId: alt.id, name: alt.name, sets: exercise.sets, repLow: exercise.repLow, repHigh: exercise.repHigh, rest: exercise.rest, increment: exercise.increment)
+        // The new exercise takes the old one's warm-up if that one hadn't done it yet
+        let warmupLeft = s.sets.contains { $0.exerciseId == exercise.exerciseId && $0.kind == .warmup && !$0.done }
+        let target = store.target(for: new, session: s.id)
+        let planned = TrainingRules.sets(for: PlannedExercise(exercise: new, target: target, warmups: warmupLeft ? store.warmupSets(for: target) : [], warmedBy: nil, groups: alt.groups))
+        var c = s
+        c.replace(exercise, with: new, sets: planned)
+        store.save(c)
+        undoable("Trocado por \(alt.name)", before: s)
+        dismiss()
+    }
+
+    private func skip(_ s: WorkoutSession) {
+        var c = s
+        c.skip(exercise.exerciseId, reason: reason?.rawValue ?? "")
+        store.save(c)
+        undoable("\(exercise.name) saltado", before: s)
+        dismiss()
+    }
+
+    /// Desfazer puts the plan back as it was, keeping any set registered since
+    private func undoable(_ text: String, before: WorkoutSession) {
+        let st = store
+        let id = sessionId
+        UndoCenter.shared.show(text) {
+            guard let now = st.record(WorkoutSession.self, id) else { return }
+            st.save(now.restoringPlan(from: before))
+        }
+    }
+}
+
+/// «Editar séries»: corrects what you did, set by set. The target of each set never changes here.
+struct TrainingEditSetsSheet: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    var sessionId: String
+    var exercise: TemplateExercise
+
+    var body: some View {
+        NavigationStack {
+            Screen(glow: .train) {
+                Text("Corrige o que fizeste. O objetivo de cada série não muda.").font(.geist(13)).foregroundStyle(Color.soft)
+                if let s = store.record(WorkoutSession.self, sessionId) {
+                    let rows = s.sets.indices.filter { s.sets[$0].exerciseId == exercise.exerciseId }
+                    if rows.isEmpty { Text("Sem séries deste exercício.").font(.geist(13)).foregroundStyle(Color.soft) }
+                    ForEach(rows, id: \.self) { i in
+                        let shown = shownSet(s, i)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(caption(s, i)).font(.geist(11.5)).foregroundStyle(Color.faint)
+                            SetRow(set: shown, number: number(s, i), plates: store.plates(for: shown.weight), change: { apply($0) })
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+                    }
+                    if s.end == nil {
+                        TrainingButton(title: "Adicionar série", icon: "plus") { addSet(s) }
+                            .accessibilityIdentifier("workout.edit.add")
+                    }
+                }
+            }
+            .navigationTitle("Editar séries")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fechar") { dismiss() } } }
+        }
+    }
+
+    /// A set not yet registered shows where its steppers start (your values, else the target)
+    private func shownSet(_ s: WorkoutSession, _ i: Int) -> SetLog {
+        var set = s.sets[i]
+        if !set.done {
+            let v = s.startingValues(at: i, repHigh: exercise.repHigh)
+            set.weight = v.weight
+            set.reps = max(1, v.reps)
+        }
+        return set
+    }
+
+    private func number(_ s: WorkoutSession, _ i: Int) -> Int {
+        s.sets.indices.filter { $0 <= i && s.sets[$0].exerciseId == exercise.exerciseId && s.sets[$0].kind != .warmup }.count
+    }
+
+    private func caption(_ s: WorkoutSession, _ i: Int) -> String {
+        let set = s.sets[i]
+        let target = set.targetWeight.map { w in "objetivo " + (set.targetReps.map { TrainingRules.setText(w, $0) } ?? "\(kg(w)) kg") }
+            ?? (set.kind == .warmup ? "aquecimento leve" : "sem objetivo: escolhes tu")
+        return (set.done ? "Registada" : "Por fazer") + " · " + target
+    }
+
+    private func apply(_ updated: SetLog) {
+        guard var s = store.record(WorkoutSession.self, sessionId), let i = s.sets.firstIndex(where: { $0.id == updated.id }) else { return }
+        s.sets[i] = updated
+        store.save(s)
+        let saved = s
+        Task { await LiveWorkout.shared.update(session: saved) }
+    }
+
+    /// One more working set, with the same target as the last one (nothing in weight or reps until you set it)
+    private func addSet(_ s: WorkoutSession) {
+        var c = s
+        let last = s.sets.last { $0.exerciseId == exercise.exerciseId && $0.kind != .warmup }
+        c.sets.append(SetLog(exerciseId: exercise.exerciseId, weight: 0, reps: 0, targetWeight: last?.targetWeight, targetReps: last?.targetReps))
+        store.save(c)
+    }
+}
+
+/// «Ajustar» on «Próxima vez»: the target for next time, set by you; it applies once you save it
+struct TrainingTargetSheet: View {
+    var proposal: NextProposal
+    var save: (Double, Int) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var weight: Double
+    @State private var reps: Int
+
+    init(proposal: NextProposal, save: @escaping (Double, Int) -> Void) {
+        self.proposal = proposal
+        self.save = save
+        _weight = State(initialValue: proposal.weight)
+        _reps = State(initialValue: proposal.reps)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Stepper("\(kg(weight)) kg", value: $weight, in: 0...500, step: proposal.exercise.increment > 0 ? proposal.exercise.increment : 2.5)
+                    Stepper("\(reps) repetições", value: $reps, in: 1...50)
+                } footer: {
+                    Text("Vale só para a próxima sessão de \(proposal.exercise.name).")
+                }
+            }
+            .cadenceList()
+            .navigationTitle("Próxima vez")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar") {
+                        save(weight, reps)
+                        dismiss()
+                    }
+                    .accessibilityIdentifier("workout.next.save")
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
@@ -597,8 +1641,13 @@ struct ProgressListView: View {
             }
             Section("Sessões") {
                 ForEach(store.sessions().filter { $0.end != nil }.prefix(30)) { s in
-                    HStack { Text(s.name); Spacer(); Text("\(Day.date(s.date).formatted(.dateTime.day().month())) · \(Int(s.volume).formatted()) kg").font(.caption.monospaced()).foregroundStyle(Color.soft) }
-                        .swipeActions { Button("Apagar", role: .destructive) { store.remove(s) } }
+                    HStack {
+                        Text(s.name)
+                        if TrainingRules.isPartial(s, today: Day.today) { StateTag(state: .partial) } // ended before the plan was done
+                        Spacer()
+                        Text("\(Day.date(s.date).formatted(.dateTime.day().month())) · \(Int(s.volume).formatted()) kg").font(.caption.monospaced()).foregroundStyle(Color.soft)
+                    }
+                    .swipeActions { Button("Apagar", role: .destructive) { store.remove(s) } }
                 }
             }
         }

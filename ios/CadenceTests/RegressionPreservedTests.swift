@@ -108,7 +108,8 @@ final class RegressionTrainingTests: RegressionCase {
         XCTAssertEqual(store.lastSets("leg-extension").map(\.weight), [17.5, 17.5], "unfinished sessions and warm-up-only sessions don't count")
     }
 
-    /// The percentages stay; which exercises get warm-ups (today: every one above bar + 10 kg) changes in phase 2.6
+    /// The percentages stay. Which exercises get warm-ups changed in phase 2.6: only the first of each muscle group new
+    /// in the session (TrainingTests); these sets are still the ones it gets.
     @MainActor
     func testWarmUpsAreFortySixtyEightyPercentAboveBarPlusTen() throws {
         let store = try makeStore { $0.profile.barKg = 20 }
@@ -137,6 +138,25 @@ final class RegressionTrainingTests: RegressionCase {
             SetLog(exerciseId: "x", weight: 20, reps: 10, done: false),
         ])
         XCTAssertEqual(s.volume, 200, "only done working sets count")
+    }
+
+    /// Phase 2.6 (was RegressionPlannedChangeTests.testCurrentASetKeepsNoSeparateTarget): the suggested target and what
+    /// you did are kept apart. A set can carry its target in optional fields: a set without one writes exactly the keys
+    /// it always did (older builds read it), and an older set reads with no target.
+    func testASetKeepsItsTargetApartFromWhatYouDid() throws {
+        let plain = try JSONEncoder().encode(SetLog(id: "X", exerciseId: "leg-extension", weight: 20, reps: 10, done: true))
+        let plainKeys = try XCTUnwrap(JSONSerialization.jsonObject(with: plain) as? [String: Any]).keys
+        XCTAssertEqual(Set(plainKeys), ["id", "exerciseId", "kind", "weight", "reps", "done"])
+        let withTarget = SetLog(id: "X", exerciseId: "leg-extension", weight: 20, reps: 11, done: true, targetWeight: 20, targetReps: 10)
+        let data = try JSONEncoder().encode(withTarget)
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any]).keys
+        XCTAssertEqual(Set(keys), ["id", "exerciseId", "kind", "weight", "reps", "done", "targetWeight", "targetReps"])
+        let back = try JSONDecoder().decode(SetLog.self, from: data)
+        XCTAssertEqual(back.reps, 11, "what you did")
+        XCTAssertEqual(back.targetReps, 10, "what was suggested")
+        let older = try JSONDecoder().decode(SetLog.self, from: Data(#"{"id":"Y","exerciseId":"x","kind":"working","weight":20,"reps":10,"done":true}"#.utf8))
+        XCTAssertNil(older.targetWeight)
+        XCTAssertNil(older.targetReps)
     }
 }
 
