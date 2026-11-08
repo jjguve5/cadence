@@ -28,6 +28,22 @@ fixture = {
         "gymBag": {"2026-11-02": True},
         # a bought mark as phase 2.2 saves it (id the server takes, object value)
         "bought": {"2026-11-02_whey": {"at": 1793610000000}},
+        # every record type phase 2 adds, as the app writes it: older builds keep them untouched (validator C, L1)
+        "routinelog": {"R1_2026-11-01": {"id": "R1_2026-11-01", "routineId": "R1", "date": "2026-11-01", "steps": {"s1": 1793600000000}}},
+        "careproduct": {"P9": {"id": "P9", "name": "Gel", "size": 200, "unit": "ml", "perUse": 2}},
+        "watergoal": {"2026-11-01": {"date": "2026-11-01", "ml": 2800, "at": 1793600000000}},
+        "nowDismiss": {"2026-11-01_ev1": {"id": "2026-11-01_ev1", "date": "2026-11-01", "event": "ev1", "action": "snooze", "until": 900, "at": 1793600000000}},
+        "trainingTarget": {"next:leg-extension": {"id": "next:leg-extension", "exerciseId": "leg-extension", "weight": 30, "reps": 10,
+                                                  "reason": "Fizeste todas as repetições.", "session": "S1", "at": 1793600000000}},
+        "leaveItem": {"keys": {"id": "keys", "title": "Chaves e carteira", "when": "always", "at": 1793600000000}},
+        "leaveDay": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "seen": ["keys"], "ready": 1793600000000, "at": 1793600000000}},
+        "gymBagPacked": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "items": ["towel"], "done": True, "at": 1793600000000}},
+        "nightPrep": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "dismissed": True, "at": 1793600000000}},
+        "sleepIntent": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "minute": 1400, "at": 1793600000000}},
+        "readingPlan": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "minutes": 20, "start": 1340, "until": 1360, "at": 1793600000000}},
+        "sleepManual": {"2026-11-01": {"id": "2026-11-01", "date": "2026-11-01", "bed": 1400, "wake": 435, "source": "you", "at": 1793600000000}},
+        # a laundry mark undone (D25): a plain value the reminder ignores
+        "laundry": {"2026-11-01-gym 30°": False},
         "session": {"S1": {"id": "S1", "date": "2026-11-02", "name": "Pernas", "start": 1793600000000, "end": 1793604000000,
                            "order": [], "sets": [], "notes": []}},
     },
