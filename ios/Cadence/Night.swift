@@ -271,10 +271,10 @@ enum NightRules {
     static func bagSlot(_ g: Garment) -> BagSlot {
         let name = g.name.folding(options: .diacriticInsensitive, locale: nil).lowercased()
         func has(_ words: [String]) -> Bool { words.contains { name.contains($0) } }
+        if has(["calcoes", "calcao", "short", "bermuda"]) { return .shorts }
+        if g.type == "bottom" || has(["calca", "legging", "licra", "jogger", "pants"]) { return .trousers }
         if g.type == "outer" || has(["casaco", "hoodie", "sweat", "corta-vento", "corta vento", "impermeavel", "jacket", "kispo"]) { return .jacket }
-        if has(["calcoes", "short"]) { return .shorts }
-        if g.type == "bottom" || has(["calcas", "legging", "jogger", "pants"]) { return .trousers }
-        if g.type == "top" || has(["t-shirt", "tshirt", "camisola", "camiseta", "camisa", "top"]) { return .shirt }
+        if g.type == "top" || has(["t-shirt", "tshirt", "camisola", "camiseta", "camisa", "top", "regata", "polo"]) { return .shirt }
         return .other
     }
 
@@ -368,10 +368,10 @@ enum NightRules {
     }
 
     /// «Agora» at night follows the night's steps, except for a departure, a workout in progress or Antes de sair,
-    /// which keep their place (decision D3)
+    /// which keep their place (decision D3). A Higiene reminder doesn't take the night's place: it shows above it (D40)
     static func takesAgora(_ step: NowStep?) -> Bool {
         switch step {
-        case nil, .habit?, .routine?: return true
+        case nil, .habit?, .routine?, .care?: return true
         default: return false
         }
     }

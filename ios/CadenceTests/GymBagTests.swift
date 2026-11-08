@@ -56,6 +56,14 @@ final class GymBagTests: XCTestCase {
         XCTAssertEqual(slot("Sweatshirt"), .jacket, "not a t-shirt")
         XCTAssertEqual(slot("Tshirt branca"), .shirt)
         XCTAssertEqual(slot("Toalha de treino"), .other, "a fixed item, not one from the wardrobe")
+        XCTAssertEqual(slot("Calças de sweat"), .trousers, "not a jacket")
+        XCTAssertEqual(slot("Calções impermeáveis"), .shorts)
+        XCTAssertEqual(slot("Calça preta"), .trousers)
+        XCTAssertEqual(slot("Calção"), .shorts)
+        XCTAssertEqual(slot("Bermudas"), .shorts)
+        XCTAssertEqual(slot("Licras"), .trousers)
+        XCTAssertEqual(slot("Regata"), .shirt)
+        XCTAssertEqual(slot("Polo azul"), .shirt)
         XCTAssertEqual(slot("Preto", "bottom"), .trousers, "a piece of a known type goes by its type")
     }
 }

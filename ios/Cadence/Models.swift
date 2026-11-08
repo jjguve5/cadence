@@ -277,9 +277,16 @@ struct SleepRecord: Codable, Equatable {
 struct Nap: Codable, Equatable { var start: String; var end: String; var asleep: Int }
 
 extension HealthDay {
+    private static func instant(_ text: String) -> Date? {
+        if let date = ISO8601DateFormatter().date(from: text) { return date }
+        let fractions = ISO8601DateFormatter()
+        fractions.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractions.date(from: text)
+    }
+
     /// A sleep this short that starts in the daytime is a nap, whatever mark it came with (decision D39)
     static func isDaytimeNap(start: String, asleep: Int) -> Bool {
-        guard asleep < 180, let date = ISO8601DateFormatter().date(from: start) else { return false }
+        guard asleep < 180, let date = instant(start) else { return false }
         return (9 * 60..<20 * 60).contains(Day.minuteOfDay(date))
     }
 
@@ -291,7 +298,7 @@ extension HealthDay {
         let others = naps ?? []
         let mainIsNap = sleep.map { HealthDay.isDaytimeNap(start: $0.start, asleep: $0.asleep) } ?? false
         let current = mainIsNap ? nil : sleep
-        let longer = others.filter { !HealthDay.isDaytimeNap(start: $0.start, asleep: $0.asleep) && $0.asleep > (current?.asleep ?? 0) }
+        let longer = others.filter { $0.asleep >= 180 && $0.asleep > (current?.asleep ?? 0) } // listed as a nap: only three hours or more can be the night
             .max { $0.asleep < $1.asleep }
         guard mainIsNap || longer != nil else { return self }
         var day = self

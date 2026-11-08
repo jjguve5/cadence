@@ -59,6 +59,7 @@ struct TodayView: View {
                     // «Agora» where "A seguir" was, so the cards above it keep their place. At night it follows the
                     // night's sequence instead (unless a departure, a workout or Antes de sair comes first)
                     if night {
+                        if case .care(let c)? = step { TodayNowCard(step: .care(c), minute: minute, later: [], showLater: false) } // above the night's sequence (D40)
                         TodayNightCard(minute: minute, open: { nightPage = $0 }, read: { startReading($0) })
                     } else if !urgent, let step {
                         TodayNowCard(step: step, minute: minute, later: later, openLater: { showHabits(proxy) }, openLeave: { leaving = true }, play: { playing = $0 })
@@ -516,6 +517,7 @@ struct TodayNowCard: View {
             Text(c.title).font(.geist(16, .bold)).fixedSize(horizontal: false, vertical: true)
             WhyLine(text: c.why)
             DecisionButtons(accept: "Feito", adjust: nil, ignore: "Hoje não", onAccept: { store.finishNowCare(c) }, onIgnore: { store.skipNowCare(c) })
+            laterRow
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("now.care")

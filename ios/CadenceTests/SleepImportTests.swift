@@ -54,6 +54,20 @@ final class SleepImportTests: XCTestCase {
         XCTAssertEqual(dayShift.mainSleepFirst(), dayShift)
     }
 
+    /// A short sleep listed as a nap never becomes the night, even in the evening (B6-R1)
+    func testAShortEveningNapListedAsANapStaysANap() {
+        let fixed = HealthDay(date: day, sleep: nil, naps: [nap(from: 20 * 60 + 30, asleep: 40)]).mainSleepFirst()
+        XCTAssertNil(fixed.sleep)
+        XCTAssertEqual(fixed.naps?.map(\.asleep), [40])
+    }
+
+    /// Google can send fractions of a second (B6-H1)
+    func testAStartWithFractionsOfASecondIsRead() {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        XCTAssertTrue(HealthDay.isDaytimeNap(start: f.string(from: Day.at(15 * 60, on: day)), asleep: 60))
+    }
+
     func testWhatCountsAsADaytimeNap() {
         XCTAssertFalse(HealthDay.isDaytimeNap(start: iso(9 * 60 - 1, on: day), asleep: 60), "before 9:00")
         XCTAssertTrue(HealthDay.isDaytimeNap(start: iso(9 * 60, on: day), asleep: 60))

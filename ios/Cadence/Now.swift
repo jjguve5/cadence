@@ -109,6 +109,10 @@ enum NowRule {
     /// passed reads as about five minutes away
     static func showerIsDue(at planned: Int, minute: Int) -> Bool { planned <= minute + 6 }
 
+    /// The days whose shower can be asked now: last night's can be planned for this morning, but from noon a shower counts
+    /// for today (ShowerRules.covered), so only today's is left
+    static func showerDays(day: String, minute: Int) -> [String] { minute < 12 * 60 ? [Day.add(-1, to: day), day] : [day] }
+
     /// The step to show, or nil for no card
     static func pick(_ i: NowInputs) -> NowStep? {
         if let d = urgent(i.departures, minute: i.minute, dismissals: i.dismissals) { return .leave(d) }
@@ -230,7 +234,7 @@ extension Store {
         let open = { (key: String) -> Bool in self.record(NowDismiss.self, NowRule.dismissKey(day: day, event: key)) == nil }
         // the plan reads the real clock, so it only means something for the real minute
         if !TestMode.active, abs(minute - Day.minuteOfDay()) <= 1, open("shower"), !showerTimes.isEmpty {
-            for d in [Day.add(-1, to: day), day] { // last night's shower can be planned for this morning
+            for d in NowRule.showerDays(day: day, minute: minute) {
                 if let s = showerPlan(for: d), Day.key(s.at) == day, NowRule.showerIsDue(at: Day.minuteOfDay(s.at), minute: minute) {
                     return (.care(NowCare(key: "shower", title: "Tomar duche", why: s.why, groomingId: nil)), nil)
                 }
@@ -239,7 +243,7 @@ extension Store {
         let overdue = all(GroomingItem.self).filter { $0.last != nil && $0.isDue(on: day) && open("groom." + $0.id) }.sorted { $0.freshness < $1.freshness }
         guard let g = overdue.first else { return (nil, nil) }
         let since = g.last.map { Day.between($0, day) } ?? 0
-        let step = NowStep.care(NowCare(key: "groom." + g.id, title: g.title, why: "há \(ptCount(since, "dia", "dias")) desde a última vez; o ritmo é a cada \(g.rhythm).", groomingId: g.id))
+        let step = NowStep.care(NowCare(key: "groom." + g.id, title: g.title, why: "há \(ptCount(since, "dia", "dias")) desde a última vez; o ritmo é a cada \(ptCount(g.rhythm, "dia", "dias")).", groomingId: g.id))
         if minute >= NowRule.careFrom { return (step, nil) }
         return (nil, step)
     }

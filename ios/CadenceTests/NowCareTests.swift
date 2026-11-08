@@ -26,7 +26,7 @@ final class NowCareTests: RegressionCase {
         var care = store.nowCare(minute: NowRule.careFrom)
         guard case .care(let c)? = care.now else { return XCTFail("from 19:30, before the next habit") }
         XCTAssertEqual(c.title, "Aparar a barba")
-        XCTAssertEqual(c.why, "há 10 dias desde a última vez; o ritmo é a cada 7.")
+        XCTAssertEqual(c.why, "há 10 dias desde a última vez; o ritmo é a cada 7 dias.")
         XCTAssertNil(care.whenFree)
         care = store.nowCare(minute: NowRule.careFrom - 1)
         XCTAssertNil(care.now, "earlier it doesn't jump ahead of the habits")
@@ -54,6 +54,9 @@ final class NowCareTests: RegressionCase {
         store.finishNowCare(c)
         XCTAssertEqual(store.record(GroomingItem.self, "G1")?.last, Day.today)
         XCTAssertNil(store.nowCare(minute: NowRule.careFrom).now, "done: not asked again")
+        UndoCenter.shared.undo()
+        XCTAssertEqual(store.record(GroomingItem.self, "G1"), item, "Desfazer puts it back")
+        XCTAssertNotNil(store.nowCare(minute: NowRule.careFrom).now)
     }
 
     @MainActor
@@ -65,6 +68,25 @@ final class NowCareTests: RegressionCase {
         XCTAssertNil(store.nowCare(minute: NowRule.careFrom).now)
         XCTAssertEqual(store.record(GroomingItem.self, "G1"), item, "no wash, no date: the item is as it was")
         XCTAssertNotNil(store.nowCare(minute: NowRule.careFrom, day: Day.add(1, to: Day.today)).now, "tomorrow it's asked again")
+        UndoCenter.shared.undo()
+        XCTAssertNotNil(store.nowCare(minute: NowRule.careFrom).now, "Desfazer: asked again today")
+    }
+
+    /// At night the night's sequence stays, with the reminder above it (B6-E1); a departure or a workout keep their place
+    func testAtNightTheReminderDoesNotTakeTheNightsPlace() {
+        XCTAssertTrue(NightRules.takesAgora(careStep))
+        XCTAssertFalse(NightRules.takesAgora(.beforeLeaving))
+    }
+
+    /// A shower planned for this morning stops being asked at noon: from then a shower counts for today (B6-E2)
+    func testLastNightsShowerIsOnlyAskedInTheMorning() {
+        XCTAssertEqual(NowRule.showerDays(day: "2026-11-08", minute: 12 * 60 - 1), ["2026-11-07", "2026-11-08"])
+        XCTAssertEqual(NowRule.showerDays(day: "2026-11-08", minute: 12 * 60), ["2026-11-08"])
+    }
+
+    func testTheGroomingReminderSaysSinceWhenOnlyWhenItKnows() {
+        XCTAssertEqual(Reminders.groomingText(beard(lastDone: 10)), "Há 10 dias desde a última vez; o ritmo é a cada 7 dias.")
+        XCTAssertEqual(Reminders.groomingText(beard(lastDone: nil)), "Ainda sem registo. O ritmo é a cada 7 dias.")
     }
 
     func testTheShowerIsDueFromItsPlannedMinute() {

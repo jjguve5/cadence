@@ -41,7 +41,7 @@ final class PipNudge {
         }
         let plan = store.sleepPlan()
         if now >= plan.windDown && now < plan.perform && awake("wind") {
-            return Nudge(message: Pip.stable(.windDown, store: store, lead: "Luzes às \(clock(plan.perform)).", maxLength: Self.messageLength), short: "Desacelerar", promiseId: nil, icon: "moon.fill")
+            return Nudge(message: Pip.stable(.windDown, store: store, lead: "Luzes \(PlanFormat.at(plan.perform)).", maxLength: Self.messageLength), short: "Desacelerar", promiseId: nil, icon: "moon.fill")
         }
         let f = store.fuel()
         if store.profile.on("fuel") {

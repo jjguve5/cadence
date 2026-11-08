@@ -103,7 +103,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             }
             // Grooming that's due, in the evening
             if offset == 0 || offset == 1, let g = store.groomingDue.first {
-                planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: "Há \(g.daysSince ?? 0) dias desde a última vez; costumas fazê-lo a cada \(g.rhythm) dias.", priority: 2, promise: false))
+                planned.append(Planned(id: "groom|\(day)", at: Day.at(19 * 60 + 30, on: day), title: g.title, body: Self.groomingText(g), priority: 2, promise: false))
             }
             // Life admin, each within the budget
             if offset == 0 {
@@ -168,7 +168,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             }
             // Wind-down: holds until must-dos are answered
             let open = store.openMustDos(on: day)
-            var body = open.isEmpty ? "Apagar as luzes até às \(clock(plan.perform)). A seguir, tempo de leitura." : "Primeiro: \(open.map(\.title).joined(separator: ", ")). Depois, ecrãs de lado."
+            var body = open.isEmpty ? "Apagar as luzes até \(PlanFormat.at(plan.perform)). A seguir, tempo de leitura." : "Primeiro: \(open.map(\.title).joined(separator: ", ")). Depois, ecrãs de lado."
             if let a = plan.after { body = "De volta de \(a.title): " + body.prefix(1).lowercased() + String(body.dropFirst()) }
             planned.append(Planned(id: "wind|\(day)", at: wind, title: "Desacelerar", body: body, priority: open.isEmpty ? 1 : 0, promise: false))
             // after a late trip, closing the day waits until you're in the door
@@ -230,6 +230,13 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
         let ids = (0...2).map { "p|\(promise)|\(day)|\($0)" } + ["s|\(promise)|\(day)"]
         center.removePendingNotificationRequests(withIdentifiers: ids)
         center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+
+    /// The body of a grooming reminder. Never done has no «há N dias»
+    static func groomingText(_ g: GroomingItem) -> String {
+        let rhythm = ptCount(g.rhythm, "dia", "dias")
+        guard let since = g.daysSince else { return "Ainda sem registo. O ritmo é a cada \(rhythm)." }
+        return "Há \(ptCount(since, "dia", "dias")) desde a última vez; o ritmo é a cada \(rhythm)."
     }
 
     // MARK: Answers from the lock screen
