@@ -334,14 +334,14 @@ struct FoodItem: Identifiable, Equatable {
         }
     }
 
-    /// The amount, in reference amounts
-    var portions: Double { quantity * (portions(per: unit) ?? 1) }
+    /// The amount, in reference amounts: what the reference nutrients are multiplied by
+    var scale: Double { quantity * (portions(per: unit) ?? 1) }
 
-    var totalKcal: Double { kcal * portions }
-    var totalProtein: Double { protein * portions }
-    var totalCarbs: Double? { carbs.map { $0 * portions } }
-    var totalFat: Double? { fat.map { $0 * portions } }
-    var totalCaffeine: Double? { caffeine.map { $0 * portions } }
+    var totalKcal: Double { kcal * scale }
+    var totalProtein: Double { protein * scale }
+    var totalCarbs: Double? { carbs.map { $0 * scale } }
+    var totalFat: Double? { fat.map { $0 * scale } }
+    var totalCaffeine: Double? { caffeine.map { $0 * scale } }
 
     /// "1 porção · 1 média", "0,7 porção · normal: 1 média", "150 g"
     var amountText: String {
@@ -355,7 +355,7 @@ struct FoodItem: Identifiable, Equatable {
         guard new != unit, let per = portions(per: new), per > 0 else { return self }
         var c = self
         c.unit = new
-        c.quantity = Self.tidy(max(new.step, (portions / per / new.step).rounded() * new.step))
+        c.quantity = Self.tidy(max(new.step, (scale / per / new.step).rounded() * new.step))
         return c
     }
 
@@ -377,7 +377,7 @@ struct FoodItem: Identifiable, Equatable {
     /// What «Guardar refeição» saves for this food. The group is always saved; the quantity is marked estimated until
     /// you confirm it (nutrients always are estimates)
     func entry(date: String = Day.today, minute: Int = Day.minuteOfDay()) -> FoodEntry {
-        let p = portions
+        let p = scale
         return FoodEntry(id: id, date: self.date ?? date, minute: self.minute ?? minute, name: name, kcal: (kcal * p).rounded(), protein: Self.tenth(protein * p),
                          carbs: carbs.map { Self.tenth($0 * p) }, fat: fat.map { Self.tenth($0 * p) }, grams: portionGrams.map { ($0 * p).rounded() },
                          caffeine: caffeine.map { Self.tenth($0 * p) }, mealId: mealId, promiseId: promiseId,
@@ -472,7 +472,7 @@ extension FoodItem {
             item.quantity = q
         }
         // the nutrients as they were saved: the same amount gives the same numbers
-        let p = item.portions
+        let p = item.scale
         if p > 0 {
             item.kcal = e.kcal / p
             item.protein = e.protein / p
