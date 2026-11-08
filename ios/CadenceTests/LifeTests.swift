@@ -295,7 +295,7 @@ final class LifeTests: RegressionCase {
     @MainActor
     func testANewItemAfterBuyingIsListedAgain() throws {
         let store = try makeStore { $0.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30)) }
-        store.buy(try XCTUnwrap(store.shoppingList().first))
+        _ = store.buy(try XCTUnwrap(store.shoppingList().first)) // the Desfazer closure it returns isn't needed here
         store.save(ShoppingItem(id: "S9", name: "Whey"))
         XCTAssertEqual(store.shoppingList().map(\.id), ["s-S9"])
     }
