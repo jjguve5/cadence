@@ -52,8 +52,8 @@ struct WeightEntry: Record, Equatable {
 
 /// Common caffeine sources, since there's no coffee to track
 let caffeineDrinks: [(name: String, mg: Double, kcal: Double)] = [
-    ("Cola 330 ml", 34, 139), ("Cola zero 330 ml", 34, 1), ("Iced tea 330 ml", 25, 60), ("Energy drink 250 ml", 80, 112),
-    ("Green tea", 30, 0), ("Black tea", 45, 0), ("Dark chocolate 30 g", 24, 170),
+    ("Cola 330 ml", 34, 139), ("Cola zero 330 ml", 34, 1), ("Ice tea 330 ml", 25, 60), ("Bebida energética 250 ml", 80, 112),
+    ("Chá verde", 30, 0), ("Chá preto", 45, 0), ("Chocolate negro 30 g", 24, 170),
 ]
 
 struct FuelDay {

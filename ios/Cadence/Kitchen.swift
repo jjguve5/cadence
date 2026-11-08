@@ -75,6 +75,18 @@ struct ShoppingItem: Record, Equatable {
 
 let aisles = ["Fruit and veg", "Meat and fish", "Dairy", "Bakery", "Pantry", "Frozen", "Drinks", "Household", "Health", "Other"]
 
+/// An aisle as shown; the English aisle is what's saved on each item and what the list is sorted and grouped by
+func shoppingAisleLabel(_ aisle: String) -> String {
+    let labels: [String: String] = ["Fruit and veg": "Fruta e legumes", "Meat and fish": "Carne e peixe", "Dairy": "Laticínios", "Bakery": "Padaria", "Pantry": "Mercearia",
+                                    "Frozen": "Congelados", "Drinks": "Bebidas", "Household": "Casa", "Health": "Saúde", "Other": "Outros"]
+    return labels[aisle] ?? aisle
+}
+
+/// A list line's reason as shown; "added by you" stays the saved default of items you add by hand
+func shoppingReasonLabel(_ reason: String) -> String {
+    reason == "added by you" ? "adicionado por ti" : reason
+}
+
 struct ListLine: Identifiable {
     var id: String
     var name: String
@@ -139,9 +151,12 @@ extension Store {
         var perDay = p.usePerDay
         let name = p.name.lowercased()
         if perDay == 0 {
-            for promise in activePromises where promise.title.lowercased().contains(name) || (name.contains("whey") && promise.title.lowercased().contains("shake")) || (name.contains("creatine") && promise.title.lowercased().contains("creatine")) {
+            // The Portuguese words count alongside the English ones (a pantry item or routine named in Portuguese)
+            let isCreatine = name.contains("creatine") || name.contains("creatina")
+            for promise in activePromises where promise.title.lowercased().contains(name) || (name.contains("whey") && (promise.title.lowercased().contains("shake") || promise.title.lowercased().contains("batido")))
+                || (isCreatine && (promise.title.lowercased().contains("creatine") || promise.title.lowercased().contains("creatina"))) {
                 let perWeek = Double(promise.schedule.dueInWeek(of: Day.today))
-                perDay += perWeek / 7 * (name.contains("creatine") ? 5 : name.contains("whey") ? 30 : 1)
+                perDay += perWeek / 7 * (isCreatine ? 5 : name.contains("whey") ? 30 : 1)
             }
         }
         guard perDay > 0 else { return nil }
@@ -168,13 +183,13 @@ extension Store {
         }
         for p in pantry {
             let key = p.name.lowercased()
-            if let days = runOut(p), days <= 10, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: "\(days) days left", price: p.price) }
-            else if p.lowAt > 0, p.qty <= p.lowAt, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: "running low", price: p.price) }
+            if let days = runOut(p), days <= 10, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: days == 1 ? "acaba em 1 dia" : "acaba em \(days) dias", price: p.price) }
+            else if p.lowAt > 0, p.qty <= p.lowAt, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: "a acabar", price: p.price) }
         }
         for m in all(Medicine.self) {
-            if let left = dosesLeft(m), Double(left.doses) <= m.refillAt { lines["med-" + m.id] = ListLine(id: "med-" + m.id, name: m.name, qty: 1, unit: "", aisle: "Health", reason: "\(left.doses) doses left") }
+            if let left = dosesLeft(m), Double(left.doses) <= m.refillAt { lines["med-" + m.id] = ListLine(id: "med-" + m.id, name: m.name, qty: 1, unit: "", aisle: "Health", reason: left.doses == 1 ? "resta 1 dose" : "restam \(left.doses) doses") }
         }
-        if brushHeadDue { lines["brush"] = ListLine(id: "brush", name: "Toothbrush heads", qty: 1, unit: "", aisle: "Health", reason: "3 months") }
+        if brushHeadDue { lines["brush"] = ListLine(id: "brush", name: "Cabeças de escova de dentes", qty: 1, unit: "", aisle: "Health", reason: "3 meses de uso") }
         for s in all(ShoppingItem.self) where !s.bought {
             lines["s-" + s.id] = ListLine(id: "s-" + s.id, name: s.name, qty: s.qty, unit: s.unit, aisle: s.aisle, reason: s.reason, price: prices[s.name.lowercased()], manual: s)
         }

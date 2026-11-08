@@ -21,13 +21,13 @@ enum CookMethod: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
-        case .grilled: return "Grilled"
-        case .baked: return "Roast"
-        case .stewed: return "Stewed"
-        case .boiled: return "Boiled"
-        case .fried: return "Fried"
-        case .breaded: return "Breaded"
-        case .scrambled: return "Scrambled"
+        case .grilled: return "Grelhado"
+        case .baked: return "Assado"
+        case .stewed: return "Estufado"
+        case .boiled: return "Cozido"
+        case .fried: return "Frito"
+        case .breaded: return "Panado"
+        case .scrambled: return "Mexidos"
         }
     }
 
@@ -126,21 +126,21 @@ enum MealBuilder {
     // MARK: Foods
 
     static let bases: [FoodPart] = [
-        FoodPart("rice", "Rice", 180, 130, 2.7, 28, 0.3, note: "arroz"),
-        FoodPart("rice-brown", "Brown rice", 180, 123, 2.7, 25.6, 1, note: "arroz integral"),
-        FoodPart("rice-tomato", "Arroz de tomate", 200, 140, 2.5, 26, 3, note: "tomato rice"),
-        FoodPart("rice-beans", "Arroz de feijão", 200, 150, 5, 27, 2.5, note: "rice and beans"),
-        FoodPart("pasta", "Pasta", 200, 158, 5.8, 31, 0.9, note: "massa, esparguete"),
-        FoodPart("pasta-whole", "Wholewheat pasta", 200, 150, 6, 30, 1.7, note: "massa integral"),
-        FoodPart("pure", "Puré", 200, 105, 2, 15.5, 4.2, note: "mashed potato"),
-        FoodPart("potato-boiled", "Boiled potatoes", 220, 87, 1.9, 20, 0.1, note: "batata cozida"),
-        FoodPart("potato-roast", "Roast potatoes", 200, 150, 2.5, 24, 5, note: "batata assada"),
-        FoodPart("potato-murro", "Batata a murro", 200, 130, 2.5, 22, 4, note: "punched, with oil"),
-        FoodPart("potato-fried", "Fries", 150, 300, 3.5, 38, 15, note: "batata frita"),
-        FoodPart("sweet-potato", "Sweet potato", 200, 90, 2, 21, 0.1, note: "batata doce"),
-        FoodPart("couscous", "Couscous", 180, 110, 3.8, 23, 0.2),
-        FoodPart("bread", "Bread", 80, 265, 9, 49, 3.2, note: "pão"),
-        FoodPart("broa", "Broa", 80, 240, 6, 48, 3, note: "corn bread"),
+        FoodPart("rice", "Arroz", 180, 130, 2.7, 28, 0.3),
+        FoodPart("rice-brown", "Arroz integral", 180, 123, 2.7, 25.6, 1),
+        FoodPart("rice-tomato", "Arroz de tomate", 200, 140, 2.5, 26, 3),
+        FoodPart("rice-beans", "Arroz de feijão", 200, 150, 5, 27, 2.5),
+        FoodPart("pasta", "Massa", 200, 158, 5.8, 31, 0.9, note: "esparguete"),
+        FoodPart("pasta-whole", "Massa integral", 200, 150, 6, 30, 1.7),
+        FoodPart("pure", "Puré", 200, 105, 2, 15.5, 4.2, note: "de batata"),
+        FoodPart("potato-boiled", "Batata cozida", 220, 87, 1.9, 20, 0.1),
+        FoodPart("potato-roast", "Batata assada", 200, 150, 2.5, 24, 5),
+        FoodPart("potato-murro", "Batata a murro", 200, 130, 2.5, 22, 4, note: "com azeite"),
+        FoodPart("potato-fried", "Batata frita", 150, 300, 3.5, 38, 15),
+        FoodPart("sweet-potato", "Batata-doce", 200, 90, 2, 21, 0.1),
+        FoodPart("couscous", "Cuscuz", 180, 110, 3.8, 23, 0.2),
+        FoodPart("bread", "Pão", 80, 265, 9, 49, 3.2),
+        FoodPart("broa", "Broa", 80, 240, 6, 48, 3, note: "de milho"),
     ]
 
     private static let lean: [CookMethod] = [.grilled, .baked, .stewed, .fried, .breaded]
@@ -148,105 +148,117 @@ enum MealBuilder {
 
     static let proteinGroups = ["Meat", "Fish", "Eggs, veggie"]
 
+    /// A protein group as shown; the English name stays (it's the Picker's tag and each protein's group)
+    static func proteinGroupLabel(_ group: String) -> String {
+        let labels: [String: String] = ["Meat": "Carne", "Fish": "Peixe", "Eggs, veggie": "Vegetariano"]
+        return labels[group] ?? group
+    }
+
     static let proteins: [FoodPart] = [
         // Meat, cooked without added fat
-        FoodPart("chicken-breast", "Chicken breast", 150, 165, 31, 0, 3.6, note: "peito de frango", group: "Meat", methods: lean),
-        FoodPart("chicken-thigh", "Chicken thigh", 150, 200, 25, 0, 11, note: "frango, perna", group: "Meat", methods: [.grilled, .baked, .stewed, .fried]),
-        FoodPart("turkey", "Turkey", 150, 150, 30, 0, 2.5, note: "bife de peru", group: "Meat", methods: lean),
-        FoodPart("beef-steak", "Beef steak", 150, 200, 27, 0, 10, note: "bife de vaca", group: "Meat", methods: [.grilled, .fried, .stewed]),
-        FoodPart("beef-mince", "Minced beef", 130, 240, 24, 0, 16, note: "carne picada", group: "Meat"),
-        FoodPart("burger", "Burger patty", 120, 250, 25, 0, 16.5, note: "hambúrguer", group: "Meat", methods: [.grilled, .fried]),
-        FoodPart("pork-loin", "Pork loin", 150, 180, 28, 0, 7.5, note: "lombo", group: "Meat", methods: [.grilled, .baked, .stewed, .fried]),
-        FoodPart("bifana", "Bifanas", 120, 195, 26, 1, 10, note: "pork in garlic and wine", group: "Meat"),
-        FoodPart("febras", "Febras", 150, 210, 26, 0, 11.5, note: "pork steaks", group: "Meat", methods: [.grilled, .fried]),
-        FoodPart("entrecosto", "Entrecosto", 180, 290, 24, 0, 21, note: "pork ribs", group: "Meat", methods: [.grilled, .baked]),
-        FoodPart("entremeada", "Entremeada", 100, 380, 20, 0, 33, note: "pork belly", group: "Meat", methods: [.grilled, .fried]),
-        FoodPart("sausages", "Sausages", 120, 300, 13, 2, 26, note: "salsichas", group: "Meat", methods: [.grilled, .fried]),
-        FoodPart("alheira", "Alheira", 120, 260, 13, 18, 15, note: "1 whole", group: "Meat", methods: [.grilled, .fried]),
-        FoodPart("duck", "Duck", 150, 200, 24, 0, 11, note: "pato", group: "Meat", methods: [.baked, .stewed]),
-        FoodPart("lamb", "Lamb", 150, 250, 25, 0, 16.5, note: "borrego", group: "Meat", methods: [.grilled, .baked, .stewed]),
-        FoodPart("kid", "Cabrito", 180, 160, 25, 0, 6.5, note: "roast kid", group: "Meat", methods: [.baked, .stewed]),
+        FoodPart("chicken-breast", "Peito de frango", 150, 165, 31, 0, 3.6, group: "Meat", methods: lean),
+        FoodPart("chicken-thigh", "Perna de frango", 150, 200, 25, 0, 11, group: "Meat", methods: [.grilled, .baked, .stewed, .fried]),
+        FoodPart("turkey", "Bife de peru", 150, 150, 30, 0, 2.5, group: "Meat", methods: lean),
+        FoodPart("beef-steak", "Bife de vaca", 150, 200, 27, 0, 10, group: "Meat", methods: [.grilled, .fried, .stewed]),
+        FoodPart("beef-mince", "Carne picada", 130, 240, 24, 0, 16, note: "de vaca", group: "Meat"),
+        FoodPart("burger", "Hambúrguer", 120, 250, 25, 0, 16.5, note: "só a carne", group: "Meat", methods: [.grilled, .fried]),
+        FoodPart("pork-loin", "Lombo de porco", 150, 180, 28, 0, 7.5, group: "Meat", methods: [.grilled, .baked, .stewed, .fried]),
+        FoodPart("bifana", "Bifanas", 120, 195, 26, 1, 10, note: "porco, alho e vinho", group: "Meat"),
+        FoodPart("febras", "Febras", 150, 210, 26, 0, 11.5, note: "de porco", group: "Meat", methods: [.grilled, .fried]),
+        FoodPart("entrecosto", "Entrecosto", 180, 290, 24, 0, 21, note: "costelas de porco", group: "Meat", methods: [.grilled, .baked]),
+        FoodPart("entremeada", "Entremeada", 100, 380, 20, 0, 33, note: "barriga de porco", group: "Meat", methods: [.grilled, .fried]),
+        FoodPart("sausages", "Salsichas", 120, 300, 13, 2, 26, group: "Meat", methods: [.grilled, .fried]),
+        FoodPart("alheira", "Alheira", 120, 260, 13, 18, 15, note: "1 inteira", group: "Meat", methods: [.grilled, .fried]),
+        FoodPart("duck", "Pato", 150, 200, 24, 0, 11, group: "Meat", methods: [.baked, .stewed]),
+        FoodPart("lamb", "Borrego", 150, 250, 25, 0, 16.5, group: "Meat", methods: [.grilled, .baked, .stewed]),
+        FoodPart("kid", "Cabrito", 180, 160, 25, 0, 6.5, group: "Meat", methods: [.baked, .stewed]),
         // Fish
-        FoodPart("salmon", "Salmon", 150, 206, 22, 0, 13, note: "salmão", group: "Fish", methods: [.grilled, .baked, .fried]),
-        FoodPart("cod", "Bacalhau", 170, 105, 23, 0, 0.9, note: "cod", group: "Fish", methods: [.boiled, .baked, .grilled, .fried, .stewed]),
-        FoodPart("tuna-fresh", "Fresh tuna", 120, 132, 28, 0, 1.3, note: "atum", group: "Fish", methods: [.grilled, .stewed]),
-        FoodPart("tuna-tin", "Tinned tuna", 80, 190, 26, 0, 9.5, note: "atum em lata", group: "Fish"),
-        FoodPart("hake", "Pescada", 170, 90, 18, 0, 1.5, note: "hake", group: "Fish", methods: [.boiled, .grilled, .fried, .breaded]),
-        FoodPart("sardines", "Sardines", 150, 190, 24, 0, 10.5, note: "sardinhas", group: "Fish", methods: [.grilled, .fried]),
-        FoodPart("sea-bream", "Dourada", 170, 130, 23, 0, 4, note: "sea bream", group: "Fish", methods: fishWays),
-        FoodPart("sea-bass", "Robalo", 170, 125, 23, 0, 3.5, note: "sea bass", group: "Fish", methods: fishWays),
-        FoodPart("carapau", "Carapau", 150, 135, 22, 0, 5, note: "horse mackerel", group: "Fish", methods: [.grilled, .fried]),
-        FoodPart("mackerel", "Cavala", 130, 205, 22, 0, 13, note: "mackerel", group: "Fish", methods: [.grilled, .baked]),
-        FoodPart("octopus", "Polvo", 170, 130, 25, 3, 1.5, note: "octopus", group: "Fish", methods: [.boiled, .baked, .grilled, .fried]),
-        FoodPart("squid", "Lulas", 170, 110, 20, 3, 1.8, note: "squid", group: "Fish", methods: [.grilled, .stewed, .fried]),
-        FoodPart("prawns", "Camarão", 120, 100, 22, 0, 1, note: "prawns", group: "Fish", methods: [.boiled, .grilled, .fried]),
+        FoodPart("salmon", "Salmão", 150, 206, 22, 0, 13, group: "Fish", methods: [.grilled, .baked, .fried]),
+        FoodPart("cod", "Bacalhau", 170, 105, 23, 0, 0.9, group: "Fish", methods: [.boiled, .baked, .grilled, .fried, .stewed]),
+        FoodPart("tuna-fresh", "Atum fresco", 120, 132, 28, 0, 1.3, group: "Fish", methods: [.grilled, .stewed]),
+        FoodPart("tuna-tin", "Atum em lata", 80, 190, 26, 0, 9.5, group: "Fish"),
+        FoodPart("hake", "Pescada", 170, 90, 18, 0, 1.5, group: "Fish", methods: [.boiled, .grilled, .fried, .breaded]),
+        FoodPart("sardines", "Sardinhas", 150, 190, 24, 0, 10.5, group: "Fish", methods: [.grilled, .fried]),
+        FoodPart("sea-bream", "Dourada", 170, 130, 23, 0, 4, group: "Fish", methods: fishWays),
+        FoodPart("sea-bass", "Robalo", 170, 125, 23, 0, 3.5, group: "Fish", methods: fishWays),
+        FoodPart("carapau", "Carapau", 150, 135, 22, 0, 5, group: "Fish", methods: [.grilled, .fried]),
+        FoodPart("mackerel", "Cavala", 130, 205, 22, 0, 13, group: "Fish", methods: [.grilled, .baked]),
+        FoodPart("octopus", "Polvo", 170, 130, 25, 3, 1.5, group: "Fish", methods: [.boiled, .baked, .grilled, .fried]),
+        FoodPart("squid", "Lulas", 170, 110, 20, 3, 1.8, group: "Fish", methods: [.grilled, .stewed, .fried]),
+        FoodPart("prawns", "Camarão", 120, 100, 22, 0, 1, group: "Fish", methods: [.boiled, .grilled, .fried]),
         // Eggs and plants
-        FoodPart("eggs", "Eggs", 100, 155, 13, 1, 11, note: "2 ovos", group: "Eggs, veggie", methods: [.boiled, .fried, .scrambled]),
+        FoodPart("eggs", "Ovos", 100, 155, 13, 1, 11, note: "2 ovos", group: "Eggs, veggie", methods: [.boiled, .fried, .scrambled]),
         FoodPart("tofu", "Tofu", 150, 145, 15, 3, 8, group: "Eggs, veggie", methods: [.grilled, .fried, .stewed]),
-        FoodPart("beans", "Beans", 180, 127, 8.5, 22, 0.5, note: "feijão", group: "Eggs, veggie"),
-        FoodPart("chickpeas", "Chickpeas", 180, 164, 8.9, 27, 2.6, note: "grão", group: "Eggs, veggie"),
-        FoodPart("lentils", "Lentils", 180, 116, 9, 20, 0.4, note: "lentilhas", group: "Eggs, veggie"),
+        FoodPart("beans", "Feijão", 180, 127, 8.5, 22, 0.5, group: "Eggs, veggie"),
+        FoodPart("chickpeas", "Grão-de-bico", 180, 164, 8.9, 27, 2.6, group: "Eggs, veggie"),
+        FoodPart("lentils", "Lentilhas", 180, 116, 9, 20, 0.4, group: "Eggs, veggie"),
     ]
 
     static let vegetables: [FoodPart] = [
-        FoodPart("salad-mixed", "Mixed salad", 120, 20, 1, 3.5, 0.2, note: "alface, tomate"),
-        FoodPart("salad-tomato", "Tomato and onion", 150, 25, 1, 4.5, 0.2, note: "salada de tomate"),
-        FoodPart("veg-boiled", "Boiled vegetables", 150, 40, 2.5, 7, 0.4, note: "brócolos, cenoura"),
-        FoodPart("veg-roast", "Roast vegetables", 150, 80, 2, 10, 3.5, note: "legumes assados"),
-        FoodPart("green-beans", "Green beans", 150, 35, 2, 7, 0.2, note: "feijão verde"),
-        FoodPart("grelos", "Grelos", 120, 70, 3, 5, 4, note: "sautéed greens"),
-        FoodPart("spinach", "Spinach", 120, 60, 3, 3.5, 3.5, note: "espinafres salteados"),
+        FoodPart("salad-mixed", "Salada mista", 120, 20, 1, 3.5, 0.2, note: "alface, tomate"),
+        FoodPart("salad-tomato", "Tomate e cebola", 150, 25, 1, 4.5, 0.2, note: "em salada"),
+        FoodPart("veg-boiled", "Legumes cozidos", 150, 40, 2.5, 7, 0.4, note: "brócolos, cenoura"),
+        FoodPart("veg-roast", "Legumes assados", 150, 80, 2, 10, 3.5),
+        FoodPart("green-beans", "Feijão-verde", 150, 35, 2, 7, 0.2),
+        FoodPart("grelos", "Grelos", 120, 70, 3, 5, 4, note: "salteados"),
+        FoodPart("spinach", "Espinafres", 120, 60, 3, 3.5, 3.5, note: "salteados"),
     ]
 
     static let sauces: [FoodPart] = [
-        FoodPart("olive-oil", "Olive oil", 12, 884, 0, 0, 100, note: "1 tbsp, azeite"),
-        FoodPart("butter", "Butter", 10, 717, 0.9, 0.1, 81, note: "manteiga"),
-        FoodPart("mayo", "Mayonnaise", 15, 680, 1, 1, 75, note: "maionese"),
+        FoodPart("olive-oil", "Azeite", 12, 884, 0, 0, 100, note: "1 colher de sopa"),
+        FoodPart("butter", "Manteiga", 10, 717, 0.9, 0.1, 81),
+        FoodPart("mayo", "Maionese", 15, 680, 1, 1, 75),
         FoodPart("ketchup", "Ketchup", 15, 110, 1.2, 25, 0.2),
-        FoodPart("tomato-sauce", "Tomato sauce", 80, 60, 1.5, 9, 2, note: "molho de tomate"),
-        FoodPart("cream-sauce", "Cream sauce", 50, 200, 2, 5, 19, note: "molho de natas"),
-        FoodPart("gravy", "Roast gravy", 40, 90, 2, 5, 7, note: "molho do assado"),
+        FoodPart("tomato-sauce", "Molho de tomate", 80, 60, 1.5, 9, 2),
+        FoodPart("cream-sauce", "Molho de natas", 50, 200, 2, 5, 19),
+        FoodPart("gravy", "Molho do assado", 40, 90, 2, 5, 7),
         FoodPart("piri-piri", "Piri-piri", 10, 120, 1, 5, 11),
-        FoodPart("cheese", "Grated cheese", 20, 400, 25, 1.5, 33, note: "queijo ralado"),
-        FoodPart("egg-top", "Fried egg", 50, 196, 13.6, 0.8, 15, note: "ovo a cavalo"),
-        FoodPart("chourico", "Chouriço", 50, 400, 24, 2, 33, note: "a few slices"),
+        FoodPart("cheese", "Queijo ralado", 20, 400, 25, 1.5, 33),
+        FoodPart("egg-top", "Ovo estrelado", 50, 196, 13.6, 0.8, 15, note: "a cavalo"),
+        FoodPart("chourico", "Chouriço", 50, 400, 24, 2, 33, note: "umas rodelas"),
     ]
 
     // MARK: Add-ons and goal defaults
 
-    static let pieceOfFruit = AddOn("fruit", "Piece of fruit", "Fruit", "1 medium", 80, 0.8, 19, 0.3, group: FoodGoals.fruit)
-    static let mugOfSoup = AddOn("soup-veg", "Sopa de legumes", "Soup", "1 mug", 90, 3, 12, 3, group: FoodGoals.soup)
-    static let vegPortion = AddOn("veg", "Portion of vegetables", "Salad", "1 side", 45, 2.5, 7.5, 0.4, group: FoodGoals.veg)
+    static let pieceOfFruit = AddOn("fruit", "Peça de fruta", "Fruit", "1 média", 80, 0.8, 19, 0.3, group: FoodGoals.fruit)
+    static let mugOfSoup = AddOn("soup-veg", "Sopa de legumes", "Soup", "1 malga", 90, 3, 12, 3, group: FoodGoals.soup)
+    static let vegPortion = AddOn("veg", "Porção de legumes", "Salad", "1 acompanhamento", 45, 2.5, 7.5, 0.4, group: FoodGoals.veg)
 
     static let addOnCategories = ["Fruit", "Soup", "Salad", "Bread", "Dessert", "Drink"]
 
+    /// A category as shown; the English name stays (add-ons are grouped and filtered by it)
+    static func categoryLabel(_ category: String) -> String {
+        let labels: [String: String] = ["Fruit": "Fruta", "Soup": "Sopa", "Salad": "Salada", "Bread": "Pão", "Dessert": "Sobremesa", "Drink": "Bebida"]
+        return labels[category] ?? category
+    }
+
     static let addOns: [AddOn] = [
         pieceOfFruit,
-        AddOn("banana", "Banana", "Fruit", "1 medium", 105, 1.3, 27, 0.4, group: FoodGoals.fruit),
-        AddOn("apple", "Maçã", "Fruit", "1 medium", 95, 0.5, 25, 0.3, group: FoodGoals.fruit),
-        AddOn("orange", "Laranja", "Fruit", "1 medium", 62, 1.2, 15, 0.2, group: FoodGoals.fruit),
-        AddOn("fruit-salad", "Salada de fruta", "Fruit", "1 bowl", 90, 1, 22, 0.3, group: FoodGoals.fruit),
+        AddOn("banana", "Banana", "Fruit", "1 média", 105, 1.3, 27, 0.4, group: FoodGoals.fruit),
+        AddOn("apple", "Maçã", "Fruit", "1 média", 95, 0.5, 25, 0.3, group: FoodGoals.fruit),
+        AddOn("orange", "Laranja", "Fruit", "1 média", 62, 1.2, 15, 0.2, group: FoodGoals.fruit),
+        AddOn("fruit-salad", "Salada de fruta", "Fruit", "1 taça", 90, 1, 22, 0.3, group: FoodGoals.fruit),
         mugOfSoup,
-        AddOn("caldo-verde", "Caldo verde", "Soup", "1 mug", 110, 4, 11, 5.5, group: FoodGoals.soup),
-        AddOn("soup-cream", "Creme de legumes", "Soup", "1 mug", 120, 3, 14, 6, group: FoodGoals.soup),
-        AddOn("canja", "Canja", "Soup", "1 mug", 100, 7, 12, 2.5, group: FoodGoals.soup),
-        AddOn("salad-side", "Salada mista", "Salad", "1 side, with oil", 70, 1.2, 4, 5.5, group: FoodGoals.veg),
-        AddOn("salad-tomato-side", "Salada de tomate", "Salad", "1 side, with oil", 50, 1.2, 6, 2.5, group: FoodGoals.veg),
+        AddOn("caldo-verde", "Caldo verde", "Soup", "1 malga", 110, 4, 11, 5.5, group: FoodGoals.soup),
+        AddOn("soup-cream", "Creme de legumes", "Soup", "1 malga", 120, 3, 14, 6, group: FoodGoals.soup),
+        AddOn("canja", "Canja", "Soup", "1 malga", 100, 7, 12, 2.5, group: FoodGoals.soup),
+        AddOn("salad-side", "Salada mista", "Salad", "1 acompanhamento, com azeite", 70, 1.2, 4, 5.5, group: FoodGoals.veg),
+        AddOn("salad-tomato-side", "Salada de tomate", "Salad", "1 acompanhamento, com azeite", 50, 1.2, 6, 2.5, group: FoodGoals.veg),
         vegPortion,
-        AddOn("bread-roll", "Pão", "Bread", "1 roll", 135, 4.5, 25, 1.5, group: "bread"),
-        AddOn("broa-slice", "Broa", "Bread", "1 slice", 145, 3.5, 29, 1.8, group: "bread"),
-        AddOn("bread-butter", "Pão with butter", "Bread", "1 roll", 205, 5, 25, 9.5, group: "bread"),
-        AddOn("olives", "Azeitonas", "Bread", "a small dish", 50, 0.3, 1, 5, group: "bread"),
-        AddOn("arroz-doce", "Arroz doce", "Dessert", "1 dish", 240, 5, 42, 5.5, group: "dessert"),
-        AddOn("pudim", "Pudim flan", "Dessert", "1 slice", 170, 4.5, 28, 4.5, group: "dessert"),
-        AddOn("mousse", "Mousse de chocolate", "Dessert", "1 pot", 230, 5, 23, 13, group: "dessert"),
+        AddOn("bread-roll", "Pão", "Bread", "1 pão", 135, 4.5, 25, 1.5, group: "bread"),
+        AddOn("broa-slice", "Broa", "Bread", "1 fatia", 145, 3.5, 29, 1.8, group: "bread"),
+        AddOn("bread-butter", "Pão com manteiga", "Bread", "1 pão", 205, 5, 25, 9.5, group: "bread"),
+        AddOn("olives", "Azeitonas", "Bread", "1 pires", 50, 0.3, 1, 5, group: "bread"),
+        AddOn("arroz-doce", "Arroz doce", "Dessert", "1 taça", 240, 5, 42, 5.5, group: "dessert"),
+        AddOn("pudim", "Pudim flan", "Dessert", "1 fatia", 170, 4.5, 28, 4.5, group: "dessert"),
+        AddOn("mousse", "Mousse de chocolate", "Dessert", "1 taça", 230, 5, 23, 13, group: "dessert"),
         AddOn("nata", "Pastel de nata", "Dessert", "1", 220, 3.5, 26, 11, group: "dessert"),
-        AddOn("gelatine", "Gelatina", "Dessert", "1 pot", 70, 1.5, 16, 0, group: "dessert"),
-        AddOn("ice-cream", "Gelado", "Dessert", "2 scoops", 270, 5, 32, 14, group: "dessert"),
-        AddOn("cake", "Fatia de bolo", "Dessert", "1 slice", 300, 4, 42, 13, group: "dessert"),
-        AddOn("wine", "Wine", "Drink", "1 glass", 125, 0, 4, 0, group: "drink"),
-        AddOn("beer", "Beer", "Drink", "1 imperial", 85, 0.6, 6.5, 0, group: "drink"),
-        AddOn("juice", "Sumo de laranja", "Drink", "1 glass", 110, 2, 25, 0.5, group: "drink"),
+        AddOn("gelatine", "Gelatina", "Dessert", "1 taça", 70, 1.5, 16, 0, group: "dessert"),
+        AddOn("ice-cream", "Gelado", "Dessert", "2 bolas", 270, 5, 32, 14, group: "dessert"),
+        AddOn("cake", "Fatia de bolo", "Dessert", "1 fatia", 300, 4, 42, 13, group: "dessert"),
+        AddOn("wine", "Vinho", "Drink", "1 copo", 125, 0, 4, 0, group: "drink"),
+        AddOn("beer", "Cerveja", "Drink", "1 imperial", 85, 0.6, 6.5, 0, group: "drink"),
+        AddOn("juice", "Sumo de laranja", "Drink", "1 copo", 110, 2, 25, 0.5, group: "drink"),
         AddOn("cola", "Cola", "Drink", "330 ml", 139, 0, 35, 0, group: "drink", caffeine: 34),
         AddOn("cola-zero", "Cola zero", "Drink", "330 ml", 1, 0, 0, 0, group: "drink", caffeine: 34),
     ]
@@ -334,7 +346,7 @@ enum MealBuilder {
             for v in vegetables where d.vegetables.contains(v.id) { parts.append(v.name) }
             if parts.isEmpty { for s in sauces where d.sauces.contains(s.id) { parts.append(s.name) } }
             let later = parts.dropFirst().map { $0.lowercased() }
-            text = parts.isEmpty ? "Custom meal" : ([parts[0]] + later).joined(separator: ", ")
+            text = parts.isEmpty ? "Refeição personalizada" : ([parts[0]] + later).joined(separator: ", ")
         }
         if abs(d.factor - 1) > 0.001 { text += " (\(Int((d.factor * 100).rounded()))%)" }
         return text
@@ -455,27 +467,27 @@ enum FoodGoals {
         (c.fruit >= fruitTarget ? 1 : 0) + (c.soup >= soupTarget ? 1 : 0) + (c.veg >= vegTarget ? 1 : 0)
     }
 
-    /// What's left, in words: ["1 piece of fruit", "1 mug of soup", "2 portions of veg"]
+    /// What's left, in words: ["1 peça de fruta", "1 sopa", "2 porções de legumes"]
     static func missing(_ c: FoodGoalCounts) -> [String] {
         var out: [String] = []
         let f = fruitTarget - c.fruit, s = soupTarget - c.soup, v = vegTarget - c.veg
-        if f > 0 { out.append(f == 1 ? "1 piece of fruit" : "\(f) pieces of fruit") }
-        if s > 0 { out.append(s == 1 ? "1 mug of soup" : "\(s) mugs of soup") }
-        if v > 0 { out.append(v == 1 ? "1 portion of veg" : "\(v) portions of veg") }
+        if f > 0 { out.append(f == 1 ? "1 peça de fruta" : "\(f) peças de fruta") }
+        if s > 0 { out.append(s == 1 ? "1 sopa" : "\(s) sopas") }
+        if v > 0 { out.append(v == 1 ? "1 porção de legumes" : "\(v) porções de legumes") }
         return out
     }
 
     static func line(_ c: FoodGoalCounts, minute: Int) -> String {
         let left = missing(c)
-        if left.isEmpty { return "All done today. This is what a good week is made of." }
-        if c == FoodGoalCounts() { return minute < 17 * 60 ? "Today, aim for at least 2 pieces of fruit, 1 mug of soup and 2 portions of veg." : "Still time: a mug of soup and some veg with dinner gets you going." }
-        if minute >= 17 * 60, c.soup < soupTarget { return "A mug of soup with dinner ticks one off. Left: " + joined(left) + "." }
-        return "Good going. Left: " + joined(left) + "."
+        if left.isEmpty { return "Tudo feito hoje. É assim que se faz uma boa semana." }
+        if c == FoodGoalCounts() { return minute < 17 * 60 ? "Hoje, tenta comer pelo menos 2 peças de fruta, 1 sopa e 2 porções de legumes." : "Ainda vais a tempo: uma sopa e alguns legumes ao jantar já são um começo." }
+        if minute >= 17 * 60, c.soup < soupTarget { return "Uma sopa ao jantar cumpre uma das metas. Falta: " + joined(left) + "." }
+        return "Vais bem. Falta: " + joined(left) + "."
     }
 
     private static func joined(_ items: [String]) -> String {
         guard items.count > 1, let last = items.last else { return items.first ?? "" }
-        return items.dropLast().joined(separator: ", ") + " and " + last
+        return items.dropLast().joined(separator: ", ") + " e " + last
     }
 
     /// Protein per eating occasion: foods within an hour of the occasion's start are one sitting
@@ -497,11 +509,11 @@ enum FoodGoals {
     static func proteinHint(_ foods: [FoodEntry], target: Double) -> String {
         let got = foods.map(\.protein).reduce(0, +)
         let strong = proteinSittings(foods).filter { $0 >= proteinMealGrams }.count
-        if target > 0, got >= target { return "Protein done: \(Int(got)) g today." }
-        if foods.isEmpty || strong == 0 && got == 0 { return "Protein: spread it, about \(fives(target / 4)) g at each of 3 to 4 meals." }
+        if target > 0, got >= target { return "Meta de proteína cumprida: \(Int(got)) g hoje." }
+        if foods.isEmpty || strong == 0 && got == 0 { return "Proteína: distribui-a, cerca de \(fives(target / 4)) g em cada uma de 3 a 4 refeições." }
         let mealsLeft = max(1, proteinMeals - strong)
         let next = fives(min(60, max(proteinMealGrams, (target - got) / Double(mealsLeft))))
-        return "Protein: \(strong) of \(proteinMeals) meals at \(Int(proteinMealGrams)) g+. Aim for about \(next) g next."
+        return "Proteína: \(strong) de \(proteinMeals) refeições com \(Int(proteinMealGrams)) g ou mais. Na próxima, cerca de \(next) g."
     }
 
     private static func fives(_ x: Double) -> Int { Int((x / 5).rounded()) * 5 }

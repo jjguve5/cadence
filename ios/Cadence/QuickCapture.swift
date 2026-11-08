@@ -23,17 +23,31 @@ enum CaptureIntent: Equatable {
     var summary: String {
         switch self {
         case .food(let foods, let rest):
-            if foods.isEmpty { return "Not found in the common foods: " + rest.joined(separator: ", ") + ". Nothing will be saved; use Log food to search products." }
-            let names = foods.map { "\($0.name) (\(Int($0.kcal)) kcal, \(Int($0.protein)) g protein)" }
-            return "Log " + names.joined(separator: " and ") + (rest.isEmpty ? "" : ". Not saved: " + rest.joined(separator: ", "))
-        case .spend(let a, let c, let m): return "Spending \(euro(a, decimals: true)) · \(c)" + (m.isEmpty ? "" : " · \(m)")
+            if foods.isEmpty { return "Não encontrei nos alimentos comuns: " + rest.joined(separator: ", ") + ". Nada vai ser guardado; usa Registar comida para procurar produtos." }
+            let names = foods.map { "\($0.name) (\(Int($0.kcal)) kcal, \(Int($0.protein)) g de proteína)" }
+            return "Registar " + names.joined(separator: " e ") + (rest.isEmpty ? "" : ". Não vai ser guardado: " + rest.joined(separator: ", "))
+        case .spend(let a, let c, let m): return "Despesa \(euro(a, decimals: true)) · \(Self.categoryLabel(c))" + (m.isEmpty ? "" : " · \(m)")
         case .reminder(let t, let d, let m):
             let day = Day.date(d).formatted(.dateTime.weekday(.wide))
-            return m.map { "Reminder: \(t) · \(day) at \(clock($0))" } ?? "Task for \(day): \(t) (no time given, so no notification)"
-        case .move(let k, let d): return "Move “\(k)” to \(Day.date(d).formatted(.dateTime.weekday(.wide).day().month()))"
-        case .feeling(let w, _, _): return "Feeling: \(w.lowercased())"
-        case .task(let t): return "New task: \(t)"
+            return m.map { "Lembrete: \(t) · \(day) às \(clock($0))" } ?? "Tarefa para \(day): \(t) (sem hora, por isso sem notificação)"
+        case .move(let k, let d): return "Passar «\(k)» para \(Day.date(d).formatted(.dateTime.weekday(.wide).day().month()))"
+        case .feeling(let w, _, _): return "Como te sentes: \(Self.feelingLabel(w).lowercased())"
+        case .task(let t): return "Nova tarefa: \(t)"
         }
+    }
+
+    /// A spending category as shown; the English category is what's saved (and what Money adds up by)
+    private static func categoryLabel(_ category: String) -> String {
+        let labels: [String: String] = ["Groceries": "Supermercado", "Eating out": "Restaurantes", "Delivery": "Entregas", "Transport": "Transportes", "Clothes": "Roupa",
+                                        "Health": "Saúde", "Gym": "Ginásio", "Fun": "Lazer", "Other": "Outros"]
+        return labels[category] ?? category
+    }
+
+    /// A feeling as shown; the English word is what's saved in the mood entry
+    private static func feelingLabel(_ word: String) -> String {
+        let labels: [String: String] = ["Drained": "Esgotado", "Tired": "Cansado", "Stressed": "Stressado", "Tense": "Tenso", "Energized": "Enérgico",
+                                        "Content": "Satisfeito", "Calm": "Calmo", "Motivated": "Motivado", "Low": "Em baixo"]
+        return labels[word] ?? word
     }
 }
 
@@ -145,41 +159,41 @@ extension Store {
         case .food(let foods, _):
             let entries = foods.map { FoodEntry(name: $0.name, kcal: $0.kcal, protein: $0.protein) }
             entries.forEach(logFood)
-            return ("Logged \(foods.count) food\(foods.count == 1 ? "" : "s")", { entries.forEach { self.remove($0) } })
+            return ("\(foods.count) \(foods.count == 1 ? "alimento registado" : "alimentos registados")", { entries.forEach { self.remove($0) } })
         case .spend(let a, let c, let m):
             let t = Transaction(amount: -a, merchant: m.isEmpty ? c : m.capitalized, category: c, reviewed: true)
             save(t)
-            return ("Spending saved", { self.remove(t) })
+            return ("Despesa guardada", { self.remove(t) })
         case .reminder(let t, let d, let m):
             if let m {
                 let p = PromiseItem(title: t, icon: "bell", schedule: Schedule(rule: .everyNDays, every: 9999, start: d, minute: m))
                 save(p)
-                return ("Reminder set", { self.delete(p) })
+                return ("Lembrete criado", { self.delete(p) })
             }
             let task = TaskItem(title: t, due: d)
             save(task)
-            return ("Added to tasks", { self.remove(task) })
+            return ("Adicionado às tarefas", { self.remove(task) })
         case .move(let k, let d):
             let key = k.lowercased()
             if let b = all(PlanBlock.self).filter({ $0.date >= Day.today && $0.title.lowercased().contains(key) }).min(by: { $0.date < $1.date }) {
                 var moved = b; moved.date = d; save(moved)
-                return ("Moved \(b.title)", { self.save(b) })
+                return ("Passou para esse dia: \(b.title)", { self.save(b) })
             }
             if let t = all(TaskItem.self).first(where: { !$0.done && $0.title.lowercased().contains(key) }) {
                 var moved = t; moved.due = d; save(moved)
-                return ("Moved \(t.title)", { self.save(t) })
+                return ("Passou para esse dia: \(t.title)", { self.save(t) })
             }
             let task = TaskItem(title: k.prefix(1).uppercased() + k.dropFirst(), due: d)
             save(task)
-            return ("Nothing matched, so it's a task for that day", { self.remove(task) })
+            return ("Não encontrei nada, por isso ficou como tarefa para esse dia", { self.remove(task) })
         case .feeling(let w, let e, let p):
             let m = MoodEntry(energy: e, pleasant: p, word: w)
             save(m)
-            return ("Feeling saved", { self.remove(m) })
+            return ("Estado de espírito guardado", { self.remove(m) })
         case .task(let t):
             let task = TaskItem(title: t)
             save(task)
-            return ("Added to tasks", { self.remove(task) })
+            return ("Adicionado às tarefas", { self.remove(task) })
         }
     }
 }

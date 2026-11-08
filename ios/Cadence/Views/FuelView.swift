@@ -17,7 +17,7 @@ struct FuelView: View {
             HStack {
                 GoalMenu()
                 Spacer()
-                NavigationLink { SmartSetup() } label: { Label("Setup", systemImage: "wand.and.stars").font(.geist(13, .semibold)) }.tint(.mint)
+                NavigationLink { SmartSetup() } label: { Label("Configurar", systemImage: "wand.and.stars").font(.geist(13, .semibold)) }.tint(.mint)
             }
             Card {
                 HStack(spacing: 16) {
@@ -27,26 +27,26 @@ struct FuelView: View {
                         Text("\(Int(f.protein)) g").font(.geist(14, .bold))
                     }
                     VStack(alignment: .leading, spacing: 6) {
-                        row("Calories", "\(Int(f.kcal)) / \(Int(p.kcal))")
-                        row("Protein", "\(Int(f.protein)) / \(Int(p.proteinTarget)) g")
-                        if let burned = store.health[Day.today]?.calories { row("Burned", "\(Int(burned).formatted())") }
-                        if let fat = p.fatTarget, let carbs = p.carbTarget { row("Fat · carbs", "\(Int(f.fat))/\(Int(fat)) · \(Int(f.carbs))/\(Int(carbs)) g") }
-                        if f.caffeine > 0 { row("Caffeine", "\(Int(f.caffeine)) mg") }
+                        row("Calorias", "\(Int(f.kcal)) / \(Int(p.kcal))")
+                        row("Proteína", "\(Int(f.protein)) / \(Int(p.proteinTarget)) g")
+                        if let burned = store.health[Day.today]?.calories { row("Calorias gastas", "\(Int(burned).formatted())") }
+                        if let fat = p.fatTarget, let carbs = p.carbTarget { row("Gordura · hidratos", "\(Int(f.fat))/\(Int(fat)) · \(Int(f.carbs))/\(Int(carbs)) g") }
+                        if f.caffeine > 0 { row("Cafeína", "\(Int(f.caffeine)) mg") }
                     }
                 }
             }
             if let c = store.proteinCatchUp() {
                 Card(tint: .fuel) {
-                    Eyebrow(text: "Protein catch-up", icon: "fork.knife", color: .fuel)
-                    Text("\(Int(c.gap)) g protein left today." + (c.meal.map { " Your \($0.name.lowercased()) covers \(Int($0.protein)) g." } ?? "")).font(.geist(14))
-                    if let m = c.meal { SoftButton(title: "Log \(m.name)", icon: "plus") { store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, mealId: m.id, group: m.group)) } }
+                    Eyebrow(text: "Proteína em falta", icon: "fork.knife", color: .fuel)
+                    Text("Faltam \(Int(c.gap)) g de proteína hoje." + (c.meal.map { " Uma dose de \($0.name.lowercased()) tem \(Int($0.protein)) g." } ?? "")).font(.geist(14))
+                    if let m = c.meal { SoftButton(title: "Registar \(m.name)", icon: "plus") { store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, mealId: m.id, group: m.group)) } }
                 }
             }
             WaterCard()
             Card {
-                HStack { Eyebrow(text: "Today", icon: "list.bullet"); Spacer(); Button { building = true } label: { Label("Build", systemImage: "square.stack.3d.up").font(.geist(13, .semibold)) }.tint(.fuel).accessibilityIdentifier("fuel.build"); Button { adding = true } label: { Label("Log food", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.fuel) }
+                HStack { Eyebrow(text: "Hoje", icon: "list.bullet"); Spacer(); Button { building = true } label: { Label("Montar", systemImage: "square.stack.3d.up").font(.geist(13, .semibold)) }.tint(.fuel).accessibilityIdentifier("fuel.build"); Button { adding = true } label: { Label("Registar comida", systemImage: "plus").font(.geist(13, .semibold)) }.tint(.fuel) }
                 let foods = store.foods()
-                if foods.isEmpty { Text("Nothing logged yet.").font(.geist(14)).foregroundStyle(Color.soft) }
+                if foods.isEmpty { Text("Ainda nada registado.").font(.geist(14)).foregroundStyle(Color.soft) }
                 ForEach(foods) { e in
                     HStack {
                         Text(clock(e.minute)).font(.mono(12)).foregroundStyle(Color.faint)
@@ -55,46 +55,46 @@ struct FuelView: View {
                         Text("\(Int(e.kcal)) · \(Int(e.protein)) g").font(.mono(12.5)).foregroundStyle(Color.soft)
                     }
                     .contextMenu {
-                        Button("Save as a meal", systemImage: "star") { store.save(SavedMeal(name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine, group: e.group)) }
-                        Button("Delete", systemImage: "trash", role: .destructive) { store.remove(e) }
+                        Button("Guardar como refeição", systemImage: "star") { store.save(SavedMeal(name: e.name, kcal: e.kcal, protein: e.protein, carbs: e.carbs, fat: e.fat, caffeine: e.caffeine, group: e.group)) }
+                        Button("Apagar", systemImage: "trash", role: .destructive) { store.remove(e) }
                     }
                 }
-                if let last = f.lastMeal, last > store.kitchenClose() { Text("Late meal: the kitchen closed at \(clock(store.kitchenClose())). Late eating raises night heart rate.").font(.geist(12)).foregroundStyle(Color.warn) }
+                if let last = f.lastMeal, last > store.kitchenClose() { Text("Refeição tardia: a cozinha fechou às \(clock(store.kitchenClose())). Comer tarde aumenta a frequência cardíaca durante a noite.").font(.geist(12)).foregroundStyle(Color.warn) }
             }
             Card {
-                HStack { Eyebrow(text: "Weight and targets", icon: "scalemass"); Spacer(); Button("Log weight") { weighing = true }.font(.geist(13, .semibold)).tint(.fuel) }
+                HStack { Eyebrow(text: "Peso e metas", icon: "scalemass"); Spacer(); Button("Registar peso") { weighing = true }.font(.geist(13, .semibold)).tint(.fuel) }
                 let w = store.all(WeightEntry.self).sorted { $0.date > $1.date }
-                row("Weight", w.first.map { "\(kg($0.kg)) kg · \(Day.date($0.date).formatted(.dateTime.day().month()))" + ($0.source == "health" ? " · Apple Health" : "") } ?? "\(kg(p.weightKg)) kg (profile)")
+                row("Peso", w.first.map { "\(kg($0.kg)) kg · \(Day.date($0.date).formatted(.dateTime.day().month()))" + ($0.source == "health" ? " · Apple Health" : "") } ?? "\(kg(p.weightKg)) kg (perfil)")
                 if let a = store.adaptiveTarget() {
-                    row("Trend", String(format: "%+.2f kg / week", a.trendKgPerWeek))
-                    row("Maintenance", "\(Int(a.tdee)) kcal")
+                    row("Tendência", String(format: "%+.2f kg / semana", a.trendKgPerWeek))
+                    row("Manutenção", "\(Int(a.tdee)) kcal")
                     if abs(a.kcal - p.kcal) >= 50 {
-                        SoftButton(title: "Use \(Int(a.kcal)) kcal from your data", icon: "arrow.triangle.2.circlepath") { store.update { $0.kcalTarget = a.kcal } }
+                        SoftButton(title: "Usar as \(Int(a.kcal)) kcal dos teus dados", icon: "arrow.triangle.2.circlepath") { store.update { $0.kcalTarget = a.kcal } }
                     }
                 } else {
-                    Text("Log your weight a few times a week and food for 10 days: the target then adjusts to what your weight actually does.").font(.geist(12)).foregroundStyle(Color.soft)
+                    Text("Regista o peso algumas vezes por semana e a comida durante 10 dias: a meta passa a ajustar-se ao que o teu peso faz de facto.").font(.geist(12)).foregroundStyle(Color.soft)
                 }
-                DisclosureGroup("From Apple Health") {
-                    Text("Shortcuts → Automation → New → Time of Day (10:00, daily, Run Immediately). Add \"Find Health Samples\": Type is Weight, sort by Start Date, Latest First, limit 1. Then \"Get contents of URL\" with the URL below, method POST, header X-Cadence-Token with your token, and a JSON body: kg = Health Samples › Value, date = Health Samples › Start Date (tap it, Date Format: ISO 8601). Typed weights are never replaced.").font(.geist(12)).foregroundStyle(Color.soft)
+                DisclosureGroup("A partir do Apple Health") {
+                    Text("Atalhos → Automatização → Nova → Hora do dia (10:00, diariamente, Executar imediatamente). Adiciona «Encontrar amostras de saúde»: tipo Peso, ordenar por Data de início, Mais recentes primeiro, limite 1. Depois «Obter conteúdo do URL» com o URL abaixo, método POST, cabeçalho X-Cadence-Token com o teu token e um corpo JSON: kg = Amostras de saúde › Valor, date = Amostras de saúde › Data de início (toca-lhe, Formato da data: ISO 8601). Os pesos que escreves à mão nunca são substituídos.").font(.geist(12)).foregroundStyle(Color.soft)
                     LabeledContent("URL", value: store.connection.server + "/weight.php").font(.geist(12))
                 }
                 .font(.geist(13)).tint(.soft)
             }
         }
-        .navigationTitle("Fuel")
+        .navigationTitle("Comida")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $adding) { FoodLogSheet() }
         .sheet(isPresented: $building) { NavigationStack { MealBuilderView() } }
-        .alert("Weight today", isPresented: $weighing) {
+        .alert("Peso de hoje", isPresented: $weighing) {
             TextField("kg", text: $weightText).keyboardType(.decimalPad)
-            Button("Save") {
+            Button("Guardar") {
                 if let v = Double(weightText.replacingOccurrences(of: ",", with: ".")), v > 30, v < 300 {
                     store.save(WeightEntry(kg: v))
                     store.update { $0.weightKg = v }
                 }
                 weightText = ""
             }
-            Button("Cancel", role: .cancel) { weightText = "" }
+            Button("Cancelar", role: .cancel) { weightText = "" }
         }
     }
 
@@ -109,13 +109,13 @@ struct WaterCard: View {
         let water = store.fuel().water, goal = store.waterGoal(), pace = store.waterPace()
         Card(tint: .water) {
             HStack {
-                Eyebrow(text: "Water", icon: "drop.fill", color: .water)
+                Eyebrow(text: "Água", icon: "drop.fill", color: .water)
                 Spacer()
                 Text(String(format: "%.1f / %.1f L", water / 1000, goal / 1000)).font(.mono(14, .semibold))
             }
             Bar(progress: water / goal, area: .water)
             HStack {
-                Text(water + 150 < pace ? "Behind pace by \(Int((pace - water) / 50) * 50) ml" : "On pace").font(.geist(12.5)).foregroundStyle(water + 150 < pace ? Color.warn : Color.soft)
+                Text(water + 150 < pace ? "Faltam \(Int((pace - water) / 50) * 50) ml para o ritmo" : "No ritmo").font(.geist(12.5)).foregroundStyle(water + 150 < pace ? Color.warn : Color.soft)
                 Spacer()
                 ForEach([250.0, 500.0], id: \.self) { ml in SoftButton(title: "+\(Int(ml))") { store.addWater(ml) } }
             }
@@ -154,11 +154,11 @@ struct FoodLogSheet: View {
         NavigationStack {
             List {
                 if let product {
-                    Section("Product") {
+                    Section("Produto") {
                         Text(product.name).font(.headline)
                         Stepper("\(Int(grams)) g", value: $grams, in: 5...1000, step: 5)
-                        Text("\(Int(product.kcal100 * grams / 100)) kcal · \(Int(product.protein100 * grams / 100)) g protein").foregroundStyle(Color.soft)
-                        Button("Log it") {
+                        Text("\(Int(product.kcal100 * grams / 100)) kcal · \(Int(product.protein100 * grams / 100)) g de proteína").foregroundStyle(Color.soft)
+                        Button("Registar") {
                             store.logFood(FoodEntry(name: product.name, kcal: (product.kcal100 * grams / 100).rounded(), protein: (product.protein100 * grams / 100).rounded(), carbs: product.carbs100 * grams / 100, fat: product.fat100 * grams / 100, grams: grams))
                             dismiss()
                         }
@@ -168,12 +168,12 @@ struct FoodLogSheet: View {
                 if !search.isEmpty {
                     let local = FoodSearch.local(search)
                     if !local.isEmpty {
-                        Section("Common foods and meals") {
+                        Section("Alimentos e refeições comuns") {
                             ForEach(local.prefix(15)) { f in foodRow(f) }
                         }
                     }
-                    Section(searching ? "Products · searching…" : "Products") {
-                        if results.isEmpty && !searching { Text(search.count < 3 ? "Type a few letters." : "No packaged products found. Try another name, or quick add.").foregroundStyle(Color.soft) }
+                    Section(searching ? "Produtos · a procurar…" : "Produtos") {
+                        if results.isEmpty && !searching { Text(search.count < 3 ? "Escreve algumas letras." : "Nenhum produto embalado encontrado. Experimenta outro nome ou o registo manual.").foregroundStyle(Color.soft) }
                         ForEach(results) { r in
                             Button { product = OFFProduct(name: r.name + (r.brand.map { " · \($0)" } ?? ""), kcal100: r.kcal100, protein100: r.protein100, carbs100: 0, fat100: 0, serving: r.serving); grams = r.serving ?? 100 } label: {
                                 HStack {
@@ -185,9 +185,9 @@ struct FoodLogSheet: View {
                         }
                     }
                 }
-                Section("Saved and recent") {
+                Section("Guardados e recentes") {
                     let items = store.quickFoods.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
-                    if items.isEmpty { Text("Foods you log appear here, most used first.").foregroundStyle(Color.soft) }
+                    if items.isEmpty { Text("O que registas aparece aqui, o mais usado primeiro.").foregroundStyle(Color.soft) }
                     ForEach(items.prefix(25)) { m in
                         Button {
                             logAndFinish(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, caffeine: m.caffeine, mealId: m.id.hasPrefix("recent-") ? nil : m.id, group: m.group))
@@ -199,32 +199,32 @@ struct FoodLogSheet: View {
                 if search.isEmpty { buildSection }
                 if search.isEmpty {
                     Section {
-                        Picker("", selection: $group) { ForEach(["Eating out", "Meals", "Soups and salads", "Breakfast", "Snacks", "Fruit", "Dairy", "Desserts", "Drinks"], id: \.self) { Text($0).tag($0) } }.pickerStyle(.menu).tint(.fuel)
+                        Picker("", selection: $group) { ForEach(["Eating out", "Meals", "Soups and salads", "Breakfast", "Snacks", "Fruit", "Dairy", "Desserts", "Drinks"], id: \.self) { Text(CommonFood.groupLabel($0)).tag($0) } }.pickerStyle(.menu).tint(.fuel)
                         ForEach(commonFoods.filter { $0.group == group }) { f in foodRow(f) }
-                    } header: { Text("Common foods · typical portions") } footer: { Text("Estimates for a normal portion; pick small, large or double when it was different.") }
+                    } header: { Text("Alimentos comuns · porções típicas") } footer: { Text("Estimativas para uma porção normal; escolhe pequena, grande ou dupla quando for diferente.") }
                 }
-                Section("Caffeine") {
+                Section("Cafeína") {
                     ForEach(caffeineDrinks, id: \.name) { d in
                         Button { store.logFood(FoodEntry(name: d.name, kcal: d.kcal, protein: 0, caffeine: d.mg)); dismiss() } label: {
                             HStack { Text(d.name).foregroundStyle(Color.ink); Spacer(); Text("\(Int(d.mg)) mg").font(.caption.monospaced()).foregroundStyle(Color.soft) }
                         }
                     }
                 }
-                Section("Quick add") {
-                    TextField("Name", text: $custom.name)
+                Section("Registo manual") {
+                    TextField("Nome", text: $custom.name)
                     TextField("kcal", value: $custom.kcal, format: .number).keyboardType(.decimalPad)
-                    TextField("Protein g", value: $custom.protein, format: .number).keyboardType(.decimalPad)
-                    Button("Log") {
+                    TextField("Proteína g", value: $custom.protein, format: .number).keyboardType(.decimalPad)
+                    Button("Registar") {
                         var e = custom
                         e.minute = Day.minuteOfDay()
-                        if e.name.isEmpty { e.name = "Quick add" }
+                        if e.name.isEmpty { e.name = "Registo manual" }
                         logAndFinish(e)
                     }
                     .disabled(custom.kcal <= 0 && custom.protein <= 0)
                 }
             }
             .cadenceList()
-            .searchable(text: $search, prompt: "Search foods, meals, products")
+            .searchable(text: $search, prompt: "Procurar alimentos, refeições, produtos")
             .task(id: search) {
                 results = []
                 guard search.count >= 3 else { return }
@@ -234,18 +234,18 @@ struct FoodLogSheet: View {
                 results = await FoodSearch.products(search)
                 searching = false
             }
-            .confirmationDialog(choosing.map { "\($0.name) · normal is \($0.portion)" } ?? "", isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }), titleVisibility: .visible) {
+            .confirmationDialog(choosing.map { "\($0.name) · porção normal: \($0.portion)" } ?? "", isPresented: Binding(get: { choosing != nil }, set: { if !$0 { choosing = nil } }), titleVisibility: .visible) {
                 if let f = choosing {
                     ForEach(portionSizes, id: \.name) { p in
-                        Button("\(p.name) · \(Int(f.kcal * p.factor)) kcal, \(Int(f.protein * p.factor)) g protein") { log(f, p.factor, size: p.name) }
+                        Button("\(portionSizeLabel(p.name)) · \(Int(f.kcal * p.factor)) kcal, \(Int(f.protein * p.factor)) g de proteína") { log(f, p.factor, size: portionSizeLabel(p.name)) }
                     }
                 }
             }
             .navigationDestination(isPresented: $offeringAddOns) { MealAddOnsView(meal: loggedMeal) { dismiss() } }
-            .navigationTitle("Log food")
+            .navigationTitle("Registar comida")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
                     Button { scanning = true } label: { Image(systemName: "barcode.viewfinder") }
                         .disabled(!(DataScannerViewController.isSupported && DataScannerViewController.isAvailable))
@@ -255,7 +255,7 @@ struct FoodLogSheet: View {
                 BarcodeScanner { code in
                     scanning = false
                     Task {
-                        if let p = await OFFProduct.fetch(code) { product = p; grams = p.serving ?? 100; message = nil } else { message = "Not found in Open Food Facts: use quick add." }
+                        if let p = await OFFProduct.fetch(code) { product = p; grams = p.serving ?? 100; message = nil } else { message = "Não está no Open Food Facts: usa o registo manual." }
                     }
                 }
                 .ignoresSafeArea()
@@ -267,9 +267,9 @@ struct FoodLogSheet: View {
 extension FoodLogSheet {
     var buildSection: some View {
         Section {
-            NavigationLink { MealBuilderView(onDone: { dismiss() }) } label: { Label("Build a meal", systemImage: "square.stack.3d.up").foregroundStyle(Color.ink) }
+            NavigationLink { MealBuilderView(onDone: { dismiss() }) } label: { Label("Montar uma refeição", systemImage: "square.stack.3d.up").foregroundStyle(Color.ink) }
                 .accessibilityIdentifier("food.build")
-        } footer: { Text("Pick a base, protein, vegetables and sauces for a live estimate.") }
+        } footer: { Text("Escolhe uma base, proteína, legumes e molhos para uma estimativa em tempo real.") }
     }
 
     func foodRow(_ f: CommonFood) -> some View {
@@ -302,7 +302,7 @@ struct OFFProduct {
         let n = p["nutriments"] as? [String: Any] ?? [:]
         func num(_ k: String) -> Double { (n[k] as? Double) ?? (n[k] as? NSNumber)?.doubleValue ?? Double(n[k] as? String ?? "") ?? 0 }
         let serving = (p["serving_quantity"] as? Double) ?? Double(p["serving_quantity"] as? String ?? "")
-        return OFFProduct(name: p["product_name"] as? String ?? "Product \(code)", kcal100: num("energy-kcal_100g"), protein100: num("proteins_100g"), carbs100: num("carbohydrates_100g"), fat100: num("fat_100g"), serving: serving)
+        return OFFProduct(name: p["product_name"] as? String ?? "Produto \(code)", kcal100: num("energy-kcal_100g"), protein100: num("proteins_100g"), carbs100: num("carbohydrates_100g"), fat100: num("fat_100g"), serving: serving)
     }
 }
 

@@ -32,7 +32,7 @@ struct AddOnGrid: View {
 
     var body: some View {
         ForEach(categories, id: \.self) { category in
-            Text(category).font(.geist(12, .semibold)).foregroundStyle(Color.soft)
+            Text(MealBuilder.categoryLabel(category)).font(.geist(12, .semibold)).foregroundStyle(Color.soft)
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
                 ForEach(MealBuilder.addOns.filter { $0.category == category }) { a in
                     BuilderChip(title: a.name, detail: "\(Int(a.kcal)) kcal · \(a.portion)", selected: selected.contains(a.id)) { toggle(a) }
@@ -86,7 +86,7 @@ struct MealBuilderView: View {
             meal.lastUsed = old.lastUsed
         }
         store.save(meal)
-        savedNote = "Saved \(meal.name) as a favourite."
+        savedNote = "Guardado nos favoritos: \(meal.name)."
     }
 
     var body: some View {
@@ -102,21 +102,21 @@ struct MealBuilderView: View {
         }
         .safeAreaInset(edge: .bottom) { estimateBar }
         .onChange(of: draft) { savedNote = nil }
-        .navigationTitle("Build a meal")
+        .navigationTitle("Montar uma refeição")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) { if onDone == nil { Button("Close") { dismiss() } } }
+            ToolbarItem(placement: .cancellationAction) { if onDone == nil { Button("Fechar") { dismiss() } } }
         }
-        .alert("Save as favourite", isPresented: $naming) {
-            TextField("Name", text: $favouriteName)
-            Button("Save") { saveFavourite() }
-            Button("Cancel", role: .cancel) {}
-        } message: { Text("One tap logs it next time, from here or from Log food.") }
+        .alert("Guardar como favorito", isPresented: $naming) {
+            TextField("Nome", text: $favouriteName)
+            Button("Guardar") { saveFavourite() }
+            Button("Cancelar", role: .cancel) {}
+        } message: { Text("Da próxima vez, regista-a com um toque, aqui ou em Registar comida.") }
     }
 
     private var favouritesCard: some View {
         Card(tint: .fuel) {
-            Eyebrow(text: "Your favourites · one tap to log", icon: "star.fill", color: .fuel)
+            Eyebrow(text: "Os teus favoritos · um toque para registar", icon: "star.fill", color: .fuel)
             ForEach(favourites) { m in
                 Button { logFavourite(m) } label: {
                     HStack {
@@ -128,7 +128,7 @@ struct MealBuilderView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .contextMenu { Button("Delete", systemImage: "trash", role: .destructive) { store.remove(m) } }
+                .contextMenu { Button("Apagar", systemImage: "trash", role: .destructive) { store.remove(m) } }
                 .accessibilityIdentifier("builder.favourite")
             }
         }
@@ -136,7 +136,7 @@ struct MealBuilderView: View {
 
     private var dishesCard: some View {
         Card {
-            Eyebrow(text: "Start from a typical plate", icon: "fork.knife")
+            Eyebrow(text: "Começar por um prato típico", icon: "fork.knife")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(MealBuilder.dishes) { d in
@@ -159,9 +159,9 @@ struct MealBuilderView: View {
 
     private var basesCard: some View {
         Card {
-            Eyebrow(text: "Base · pick one or two", icon: "circle.grid.2x2")
+            Eyebrow(text: "Base · escolhe uma ou duas", icon: "circle.grid.2x2")
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
-                BuilderChip(title: "None", selected: draft.bases.isEmpty) { draft.bases = [] }
+                BuilderChip(title: "Nenhuma", selected: draft.bases.isEmpty) { draft.bases = [] }
                 ForEach(MealBuilder.bases) { b in
                     BuilderChip(title: b.name, detail: partDetail(b), selected: draft.bases.contains(b.id)) { toggle(b.id, \.bases) }
                         .accessibilityIdentifier("builder.base.\(b.id)")
@@ -172,10 +172,10 @@ struct MealBuilderView: View {
 
     private var proteinCard: some View {
         Card {
-            Eyebrow(text: "Protein", icon: "flame")
-            Picker("", selection: $proteinGroup) { ForEach(MealBuilder.proteinGroups, id: \.self) { Text($0).tag($0) } }.pickerStyle(.segmented)
+            Eyebrow(text: "Proteína", icon: "flame")
+            Picker("", selection: $proteinGroup) { ForEach(MealBuilder.proteinGroups, id: \.self) { Text(MealBuilder.proteinGroupLabel($0)).tag($0) } }.pickerStyle(.segmented)
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
-                BuilderChip(title: "None", selected: draft.protein == nil) { draft.protein = nil; draft.method = nil }
+                BuilderChip(title: "Nenhuma", selected: draft.protein == nil) { draft.protein = nil; draft.method = nil }
                 ForEach(MealBuilder.proteins.filter { $0.group == proteinGroup }) { p in
                     BuilderChip(title: p.name, detail: partDetail(p), selected: draft.protein == p.id) { pickProtein(p) }
                         .accessibilityIdentifier("builder.protein.\(p.id)")
@@ -194,7 +194,7 @@ struct MealBuilderView: View {
     @ViewBuilder private var methodRow: some View {
         if let id = draft.protein, let p = MealBuilder.protein(id), !p.methods.isEmpty {
             let current = MealBuilder.effectiveMethod(draft)
-            Text("How it's cooked").font(.geist(12, .semibold)).foregroundStyle(Color.soft)
+            Text("Como é cozinhado").font(.geist(12, .semibold)).foregroundStyle(Color.soft)
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
                 ForEach(p.methods, id: \.self) { m in
                     BuilderChip(title: m.label, selected: current == m) { draft.method = m }
@@ -206,7 +206,7 @@ struct MealBuilderView: View {
 
     private var vegetablesCard: some View {
         Card {
-            Eyebrow(text: "Vegetables or salad", icon: "leaf")
+            Eyebrow(text: "Legumes ou salada", icon: "leaf")
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
                 ForEach(MealBuilder.vegetables) { v in
                     BuilderChip(title: v.name, detail: partDetail(v), selected: draft.vegetables.contains(v.id)) { toggle(v.id, \.vegetables) }
@@ -218,7 +218,7 @@ struct MealBuilderView: View {
 
     private var saucesCard: some View {
         Card {
-            Eyebrow(text: "Sauces, oil and toppings", icon: "drop")
+            Eyebrow(text: "Molhos, azeite e extras", icon: "drop")
             LazyVGrid(columns: chipColumns, alignment: .leading, spacing: 8) {
                 ForEach(MealBuilder.sauces) { s in
                     BuilderChip(title: s.name, detail: partDetail(s), selected: draft.sauces.contains(s.id)) { toggle(s.id, \.sauces) }
@@ -230,22 +230,22 @@ struct MealBuilderView: View {
 
     private var addOnsCard: some View {
         Card {
-            Eyebrow(text: "With the meal", icon: "plus.circle")
+            Eyebrow(text: "Com a refeição", icon: "plus.circle")
             AddOnGrid(categories: MealBuilder.addOnCategories.filter { $0 != "Salad" }, selected: draft.addOns) { a in toggle(a.id, \.addOns) }
         }
     }
 
     private var portionCard: some View {
         Card {
-            Eyebrow(text: "Portion", icon: "scalemass")
+            Eyebrow(text: "Porção", icon: "scalemass")
             HStack(spacing: 8) {
                 ForEach(portionSizes, id: \.name) { p in
-                    BuilderChip(title: p.name, selected: abs(draft.factor - p.factor) < 0.001) { draft.factor = p.factor }
+                    BuilderChip(title: portionSizeLabel(p.name), selected: abs(draft.factor - p.factor) < 0.001) { draft.factor = p.factor }
                         .accessibilityIdentifier("builder.portion.\(p.name.lowercased())")
                 }
             }
             Stepper(value: $draft.factor, in: 0.5...2.5, step: 0.05) {
-                Text("\(Int((draft.factor * 100).rounded()))% of a normal plate").font(.geist(13.5)).foregroundStyle(Color.soft)
+                Text("\(Int((draft.factor * 100).rounded()))% de um prato normal").font(.geist(13.5)).foregroundStyle(Color.soft)
             }
             .accessibilityIdentifier("builder.portion.stepper")
         }
@@ -256,28 +256,28 @@ struct MealBuilderView: View {
         let empty = MealBuilder.isEmpty(draft)
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Eyebrow(text: "Estimate", color: .fuel)
-                Text(empty ? "Pick something to start" : MealBuilder.name(draft)).font(.geist(12.5)).foregroundStyle(Color.soft).lineLimit(1)
+                Eyebrow(text: "Estimativa", color: .fuel)
+                Text(empty ? "Escolhe algo para começar" : MealBuilder.name(draft)).font(.geist(12.5)).foregroundStyle(Color.soft).lineLimit(1)
             }
             HStack {
                 stat("\(Int(t.kcal))", "kcal")
                 Spacer()
-                stat("\(Int(t.protein)) g", "protein")
+                stat("\(Int(t.protein)) g", "proteína")
                 Spacer()
-                stat("\(Int(t.carbs)) g", "carbs")
+                stat("\(Int(t.carbs)) g", "hidratos")
                 Spacer()
-                stat("\(Int(t.fat)) g", "fat")
+                stat("\(Int(t.fat)) g", "gordura")
             }
             .accessibilityIdentifier("builder.estimate")
             if let savedNote { Text(savedNote).font(.geist(12)).foregroundStyle(Color.good).lineLimit(1) }
             HStack(spacing: 8) {
-                SoftButton(title: "Favourite", icon: "star") {
+                SoftButton(title: "Favorito", icon: "star") {
                     favouriteName = ""
                     naming = true
                 }
                 .disabled(empty)
                 .accessibilityIdentifier("builder.favourite.save")
-                PrimaryButton(title: "Log meal", area: .fuel) { logMeal() }
+                PrimaryButton(title: "Registar refeição", area: .fuel) { logMeal() }
                     .disabled(empty)
                     .opacity(empty ? 0.5 : 1)
                     .accessibilityIdentifier("builder.save")
@@ -326,19 +326,19 @@ struct MealAddOnsView: View {
         let added = logged.values.map(\.kcal).reduce(0, +)
         return Screen(glow: .fuel) {
             Card(tint: .good) {
-                Eyebrow(text: "Logged", icon: "checkmark", color: .good)
+                Eyebrow(text: "Registado", icon: "checkmark", color: .good)
                 Text(meal).font(.geist(15, .semibold))
-                Text(logged.isEmpty ? "Anything with it? Each add-on has its own estimate." : "Added \(logged.count) · about \(Int(added)) kcal (estimate)").font(.geist(13)).foregroundStyle(Color.soft)
+                Text(logged.isEmpty ? "Mais alguma coisa? Cada extra tem a sua estimativa." : "Extras: \(logged.count) · cerca de \(Int(added)) kcal (estimativa)").font(.geist(13)).foregroundStyle(Color.soft)
             }
             Card { AddOnGrid(selected: Set(logged.keys)) { a in toggle(a) } }
         }
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: logged.isEmpty ? "Nothing else" : "Done", area: .fuel) { done() }
+            PrimaryButton(title: logged.isEmpty ? "Mais nada" : "Concluído", area: .fuel) { done() }
                 .accessibilityIdentifier("addons.done")
                 .padding(.horizontal, 16).padding(.vertical, 8)
         }
         .sensoryFeedback(.selection, trigger: logged.count)
-        .navigationTitle("Add to this meal")
+        .navigationTitle("Juntar a esta refeição")
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
     }
@@ -368,7 +368,7 @@ struct FoodGoalsCard: View {
         let met = FoodGoals.goalsMet(counts)
         return Card(tint: met == 3 ? Color.good : nil) {
             HStack {
-                Eyebrow(text: "Food goals", icon: "leaf.fill", color: .good)
+                Eyebrow(text: "Metas de comida", icon: "leaf.fill", color: .good)
                 Spacer()
                 Text("\(met)/3").font(.mono(12.5)).foregroundStyle(Color.soft)
             }
@@ -390,9 +390,9 @@ struct FoodGoalsCard: View {
 
     private func slots(_ c: FoodGoalCounts) -> [FoodGoalSlot] {
         [
-            FoodGoalSlot(id: "fruit", label: "Fruit", count: c.fruit, target: FoodGoals.fruitTarget, addOn: MealBuilder.pieceOfFruit),
-            FoodGoalSlot(id: "soup", label: "Soup", count: c.soup, target: FoodGoals.soupTarget, addOn: MealBuilder.mugOfSoup),
-            FoodGoalSlot(id: "veg", label: "Veg", count: c.veg, target: FoodGoals.vegTarget, addOn: MealBuilder.vegPortion),
+            FoodGoalSlot(id: "fruit", label: "Fruta", count: c.fruit, target: FoodGoals.fruitTarget, addOn: MealBuilder.pieceOfFruit),
+            FoodGoalSlot(id: "soup", label: "Sopa", count: c.soup, target: FoodGoals.soupTarget, addOn: MealBuilder.mugOfSoup),
+            FoodGoalSlot(id: "veg", label: "Legumes", count: c.veg, target: FoodGoals.vegTarget, addOn: MealBuilder.vegPortion),
         ]
     }
 
@@ -414,9 +414,9 @@ struct FoodGoalsCard: View {
         if let e = justAdded {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.good)
-                Text("Added \(e.name.lowercased()), about \(Int(e.kcal)) kcal").font(.geist(12.5)).lineLimit(1)
+                Text("Adicionado: \(e.name.lowercased()), cerca de \(Int(e.kcal)) kcal").font(.geist(12.5)).lineLimit(1)
                 Spacer(minLength: 0)
-                Button("Undo") { undo(e) }.font(.geist(12.5, .semibold)).tint(.fuel).accessibilityIdentifier("foodgoals.undo")
+                Button("Desfazer") { undo(e) }.font(.geist(12.5, .semibold)).tint(.fuel).accessibilityIdentifier("foodgoals.undo")
             }
         } else {
             Text(FoodGoals.line(c, minute: Clock.minute())).font(.geist(13)).foregroundStyle(Color.ink).accessibilityIdentifier("foodgoals.line")
