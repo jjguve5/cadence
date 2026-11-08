@@ -459,7 +459,9 @@ extension WorkoutSession {
         guard sets.indices.contains(index) else { return false }
         let set = sets[index]
         guard set.kind != .warmup, !set.done else { return false }
-        return !sets.indices.contains(where: { $0 != index && sets[$0].exerciseId == set.exerciseId && sets[$0].kind != .warmup && !sets[$0].done })
+        // the last working set of its exercise in the session's order (spec: «só na última série de trabalho»), whether
+        // or not the earlier ones are registered yet
+        return sets.indices.last(where: { sets[$0].exerciseId == set.exerciseId && sets[$0].kind != .warmup }) == index
     }
 
     /// Registers what you did: the values become the set's; its target stays as it was. Registering resumes a pause.

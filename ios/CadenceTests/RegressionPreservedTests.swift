@@ -710,6 +710,8 @@ final class RegressionPlanReviewTests: RegressionCase {
         store.saveReview(shake, on: Fixed.saturday, .done)
         XCTAssertEqual(store.status(shake, on: Fixed.saturday), .done)
         XCTAssertEqual(store.answerOrigin(shake, on: Fixed.saturday), .you)
+    }
+}
 
 // MARK: - The night (phase 2.9)
 

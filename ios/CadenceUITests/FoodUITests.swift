@@ -14,6 +14,17 @@ final class FoodUITests: CadenceUITestCase {
         XCTAssertTrue(el("fuel.screen").waitForExistence(timeout: 5), "Comida didn't open", file: file, line: line)
     }
 
+    /// Scrolls until the element is clear of the floating search field iOS 26 puts at the bottom of the log sheet:
+    /// XCUITest calls a row under it hittable, but the tap lands on the field (run 42489139391)
+    @discardableResult
+    private func revealAboveSearch(_ id: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let e = reveal(id, file: file, line: line)
+        var tries = 0
+        while e.frame.maxY > app.frame.maxY - 150 && tries < 6 { app.swipeUp(velocity: .slow); tries += 1 }
+        XCTAssertTrue(e.isHittable && e.frame.maxY <= app.frame.maxY - 150, "\(id) stays under the search field", file: file, line: line)
+        return e
+    }
+
     /// The rows of today's food on Comida
     private func entries() -> XCUIElementQuery {
         app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fuel.entry."))
@@ -26,7 +37,7 @@ final class FoodUITests: CadenceUITestCase {
         openFood()
         XCTAssertTrue(el("fuel.empty").exists, "nothing logged today")
         reveal("fuel.log").tap()
-        reveal("food.caffeine.0").tap()
+        revealAboveSearch("food.caffeine.0").tap()
         XCTAssertTrue(el("food.confirm.screen").waitForExistence(timeout: 5), "the tap opens the confirmation")
         XCTAssertTrue(el("food.confirm.save").exists)
         shot("food-confirm")
@@ -37,7 +48,7 @@ final class FoodUITests: CadenceUITestCase {
         XCTAssertEqual(entries().count, 0)
 
         reveal("fuel.log").tap()
-        reveal("food.caffeine.0").tap()
+        revealAboveSearch("food.caffeine.0").tap()
         let save = el("food.confirm.save")
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         save.tap()
