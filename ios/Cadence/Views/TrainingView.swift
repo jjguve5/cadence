@@ -1137,7 +1137,7 @@ struct TrainingChangeSheet: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(on ? .isSelected : [])
-                    .accessibilityIdentifier("change.reason.\(r.rawValue)")
+                    .accessibilityIdentifier("workout.change.reason.\(r.rawValue)")
                 }
             }
         }
@@ -1150,7 +1150,7 @@ struct TrainingChangeSheet: View {
             WhyLine(text: reason == .busy ? "a máquina pode libertar-se; o treino fica igual, só muda a ordem." : "o treino fica igual, só muda a ordem.")
             HStack {
                 TrainingButton(title: "Confirmar", prominent: true) { reorder(s, next) }
-                    .accessibilityIdentifier("change.reorder")
+                    .accessibilityIdentifier("workout.change.reorder")
                 Spacer()
             }
         }
@@ -1164,7 +1164,7 @@ struct TrainingChangeSheet: View {
             Text("mesmo grupo · \(TrainingRules.planText(exercise)) · \(known ? "já o fizeste antes" : "sem histórico: começa leve")").font(.geist(12)).foregroundStyle(Color.soft)
             HStack {
                 TrainingButton(title: "Trocar") { replace(s, with: alt) }
-                    .accessibilityIdentifier("change.swap")
+                    .accessibilityIdentifier("workout.change.swap")
                 Spacer()
             }
         }
@@ -1179,12 +1179,12 @@ struct TrainingChangeSheet: View {
                 .font(.geist(13))
             HStack(spacing: 8) {
                 TrainingButton(title: "Saltar exercício") { skip(s) }
-                    .accessibilityIdentifier("change.skip")
+                    .accessibilityIdentifier("workout.change.skip")
                 TrainingButton(title: "Terminar treino") {
                     dismiss()
                     endWorkout()
                 }
-                .accessibilityIdentifier("change.end")
+                .accessibilityIdentifier("workout.change.end")
             }
         }
     }
