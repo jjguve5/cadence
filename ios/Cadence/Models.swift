@@ -144,6 +144,11 @@ struct PromiseLog: Codable, Identifiable, Equatable {
     /// and any that went through an older build, which ignores this field and drops it when it saves. A missing source
     /// is never taken as yours (the absence of a label proves no confirmation).
     var source: String? = nil
+    /// «Não se aplica» in the end-of-day review (phase 2.8): saved as status skipped with this set to true, so an older
+    /// build, which doesn't know the field, reads it as skipped (and drops the field if it saves the log again). nil is a
+    /// plain skip («Não fiz»). «Não confirmado» is no log at all. LogStatus gets no new value: an older build would
+    /// protect the whole file on meeting one.
+    var notApplicable: Bool? = nil
     static let byYou = "you"
     var id: String { "\(promiseId)|\(date)" }
 }

@@ -31,13 +31,9 @@ final class RegressionPlannedChangeTests: RegressionCase {
         XCTAssertEqual(store.answerOrigin(lightsOut, on: yesterday), .imported("fitbit"), "but kept as imported from the band, not as your answer")
     }
 
-    /// Phase 2.8 (Plano): the end-of-day review tells «não fiz», «não confirmado» and «não se aplica» apart. Update:
-    /// the new answer(s) exist, and the rollback test still passes (an older build must keep reading the file).
-    func testCurrentAHabitHasOnlyThreeAnswers() {
-        XCTAssertEqual(["done", "skipped", "tiny"].compactMap(LogStatus.init(rawValue:)), [.done, .skipped, .tiny])
-        XCTAssertNil(LogStatus(rawValue: "notConfirmed"))
-        XCTAssertNil(LogStatus(rawValue: "notApplicable"))
-    }
+    // Phase 2.8 (Plano) updated testCurrentAHabitHasOnlyThreeAnswers (the review's «Não se aplica» is a skip with
+    // notApplicable, «não confirmado» is no log, still three LogStatus values) and moved it to RegressionPreservedTests
+    // (RegressionPlanReviewTests.testTheReviewTellsFourAnswersApartWithThreeStatuses).
 }
 
 // Changes the design v17 asks for that live in views only, so this phase can't test them without changing the app.

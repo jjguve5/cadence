@@ -669,3 +669,46 @@ final class RegressionTodayTests: RegressionCase {
         }
     }
 }
+
+// MARK: - Plano · end-of-day review (phase 2.8)
+
+final class RegressionPlanReviewTests: RegressionCase {
+    /// Was RegressionPlannedChangeTests.testCurrentAHabitHasOnlyThreeAnswers. The review tells «Feito», «Não fiz», «Não
+    /// se aplica» and «não confirmado» apart without a new LogStatus value (an older build protects the whole file when
+    /// it meets one): «Não se aplica» is a skip with notApplicable true, so an older build reads it as skipped, and «não
+    /// confirmado» is no log at all. The answer is yours (source "you").
+    @MainActor
+    func testTheReviewTellsFourAnswersApartWithThreeStatuses() throws {
+        XCTAssertEqual(["done", "skipped", "tiny"].compactMap(LogStatus.init(rawValue:)), [.done, .skipped, .tiny])
+        XCTAssertNil(LogStatus(rawValue: "notConfirmed"))
+        XCTAssertNil(LogStatus(rawValue: "notApplicable"))
+
+        let shake = PromiseItem(id: "S1", title: "Batido", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 17 * 60))
+        let store = try makeStore { $0.promises[shake.id] = shake }
+        XCTAssertEqual(store.reviewAnswer(shake, on: Fixed.saturday), .notConfirmed, "no log is «não confirmado»")
+        store.saveReview(shake, on: Fixed.saturday, .notConfirmed)
+        XCTAssertNil(store.logs["S1|\(Fixed.saturday)"], "«não confirmado» saves nothing")
+
+        store.saveReview(shake, on: Fixed.saturday, .notApplicable)
+        let log = try XCTUnwrap(store.logs["S1|\(Fixed.saturday)"])
+        XCTAssertEqual(log.status, .skipped)
+        XCTAssertEqual(log.notApplicable, true)
+        XCTAssertEqual(log.source, PromiseLog.byYou)
+        XCTAssertEqual(store.reviewAnswer(shake, on: Fixed.saturday), .notApplicable)
+
+        // What a build from before 2.8 reads from that log: the same JSON, without knowing the new field
+        struct Before28: Decodable { var promiseId: String; var date: String; var status: LogStatus; var at: Double; var source: String? }
+        let data = try JSONEncoder().encode(log)
+        XCTAssertEqual(try JSONDecoder().decode(Before28.self, from: data).status, .skipped)
+        // and one saved without the field reads back as nil, a plain skip
+        let plain = #"{"promiseId":"S1","date":"2026-11-07","status":"skipped","at":1}"#
+        XCTAssertNil(try JSONDecoder().decode(PromiseLog.self, from: Data(plain.utf8)).notApplicable)
+
+        store.saveReview(shake, on: Fixed.saturday, .notDone)
+        XCTAssertEqual(store.reviewAnswer(shake, on: Fixed.saturday), .notDone)
+        XCTAssertNil(store.logs["S1|\(Fixed.saturday)"]?.notApplicable, "«Não fiz» is a plain skip")
+        store.saveReview(shake, on: Fixed.saturday, .done)
+        XCTAssertEqual(store.status(shake, on: Fixed.saturday), .done)
+        XCTAssertEqual(store.answerOrigin(shake, on: Fixed.saturday), .you)
+    }
+}

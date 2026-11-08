@@ -26,15 +26,31 @@ final class Agenda: ObservableObject {
     @Published private(set) var events: [CalendarEvent] = []
     @Published private(set) var error: String?
     @Published private(set) var focusShared: [String: JSONValue]?
+    /// The days the calendar was read for (phase 2.8): outside them the plan says «sem dados», never «sem eventos»
+    @Published private(set) var known: ClosedRange<String>? = nil
     private var last: Date?
     private let file = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("calendar.json")
 
     private init() {
-        if let d = try? Data(contentsOf: file), let e = try? JSONDecoder().decode([CalendarEvent].self, from: d) { events = e }
+        if let d = try? Data(contentsOf: file), let e = try? JSONDecoder().decode([CalendarEvent].self, from: d) {
+            events = e
+            // the copy kept on the phone covers the days of the read that wrote it
+            let attributes = try? FileManager.default.attributesOfItem(atPath: file.path)
+            if let read = attributes?[.modificationDate] as? Date { known = Agenda.window(from: Day.key(read)) }
+        }
     }
 
-    /// UI-test scenarios only
-    func seed(_ list: [CalendarEvent]) { events = list }
+    /// UI-test scenarios only: the seeded list is the whole calendar
+    func seed(_ list: [CalendarEvent]) {
+        events = list
+        known = "0000-01-01"..."9999-12-31"
+    }
+
+    /// The days one read covers: calendar.php?from=<the day before>&days=9
+    nonisolated static func window(from day: String) -> ClosedRange<String> { Day.add(-1, to: day)...Day.add(7, to: day) }
+
+    /// Whether the calendar was read for this day (read with no events is «sem eventos»; not read is «sem dados»)
+    func covers(_ day: String) -> Bool { known?.contains(day) ?? false }
 
     func events(on day: String) -> [CalendarEvent] { events.filter { !$0.allDay && $0.day == day }.sorted { $0.start < $1.start } }
     func allDay(on day: String) -> [CalendarEvent] { events.filter { $0.allDay && $0.start <= day && $0.end > day } }
@@ -48,6 +64,7 @@ final class Agenda: ObservableObject {
         struct Reply: Decodable { var events: [CalendarEvent] }
         if code == 200, let r = try? JSONDecoder().decode(Reply.self, from: data) {
             events = r.events
+            known = Agenda.window(from: Day.today)
             error = nil
             last = Date()
             if let e = try? JSONEncoder().encode(r.events) { try? e.write(to: file, options: .atomic) }
@@ -264,4 +281,325 @@ extension Store {
     var currentBook: Book? { all(Book.self).filter { $0.finished == nil }.max { $0.started < $1.started } }
 
     func readingMinutes(on day: String = Day.today) -> Int { all(ReadingSession.self).filter { $0.date == day }.map(\.minutes).reduce(0, +) }
+}
+
+// MARK: - Plano (phase 2.8): the day's load, other times for what Cadence placed, the month grid, new events
+
+/// A stretch of a day, in minutes after midnight; the end is not included
+struct PlanSpan: Equatable {
+    var start: Int
+    var end: Int
+    var minutes: Int { max(0, end - start) }
+}
+
+/// The day's load in one line (decision 2.8): the minutes taken by calendar events, your blocks and events in Cadence,
+/// and the training, against the hours awake (wake-up to lights out). What overlaps counts once in `busy`.
+struct DayLoad: Equatable {
+    var events: Int
+    var blocks: Int
+    var training: Int
+    var busy: Int
+    var awake: Int
+    var free: Int { max(0, awake - busy) }
+    var share: Double { awake > 0 ? min(1, Double(busy) / Double(awake)) : 0 }
+    /// How full the day looks in the month grid: 0 (nothing) to 3 (most of the day)
+    var level: Int { PlanRules.level(busy: busy, awake: awake) }
+}
+
+/// Another time for something Cadence placed, and the free window it sits in (for the «Porquê» line)
+struct PlanAlternative: Equatable {
+    var start: Int
+    var freeFrom: Int
+    var freeTo: Int
+}
+
+/// The month grid's marks. Their shape tells them apart, not only their colour: what is confirmed is filled, a
+/// suggestion is hollow, a training with no record is dashed
+enum PlanMark: String, CaseIterable {
+    case training, trainingLogged, trainingNoRecord, commitment, suggestion
+    var word: String {
+        switch self {
+        case .training: return "treino"
+        case .trainingLogged: return "treino registado"
+        case .trainingNoRecord: return "treino sem registo"
+        case .commitment: return "compromisso"
+        case .suggestion: return "sugestão"
+        }
+    }
+}
+
+/// Something on the plan by name, day and time (a calendar event or one of Cadence's own)
+struct PlanEntry: Equatable {
+    var title: String
+    var day: String
+    var minute: Int
+}
+
+enum PlanRules {
+    /// The minutes two stretches share
+    static func overlap(_ a: PlanSpan, _ b: PlanSpan) -> Int { max(0, min(a.end, b.end) - max(a.start, b.start)) }
+
+    /// The minutes the stretches cover inside [from, to), what overlaps counted once
+    static func covered(_ spans: [PlanSpan], from: Int, to: Int) -> Int {
+        let clipped = spans.map { PlanSpan(start: max(from, $0.start), end: min(to, $0.end)) }.filter { $0.end > $0.start }.sorted { $0.start < $1.start }
+        var total = 0
+        var current: PlanSpan?
+        for s in clipped {
+            if let c = current, s.start <= c.end {
+                current = PlanSpan(start: c.start, end: max(c.end, s.end))
+            } else {
+                total += current?.minutes ?? 0
+                current = s
+            }
+        }
+        return total + (current?.minutes ?? 0)
+    }
+
+    /// Events, blocks and training against the hours awake, each part on its own and all of them together
+    static func load(events: [PlanSpan], blocks: [PlanSpan], training: PlanSpan?, wake: Int, lightsOut: Int) -> DayLoad {
+        let t: [PlanSpan] = training.map { [$0] } ?? []
+        return DayLoad(events: covered(events, from: wake, to: lightsOut), blocks: covered(blocks, from: wake, to: lightsOut),
+                       training: covered(t, from: wake, to: lightsOut), busy: covered(events + blocks + t, from: wake, to: lightsOut),
+                       awake: max(0, lightsOut - wake))
+    }
+
+    /// Nothing is 0; under a quarter of the hours awake is 1; under 60% is 2; more is 3
+    static func level(busy: Int, awake: Int) -> Int {
+        guard busy > 0, awake > 0 else { return 0 }
+        let share = Double(busy) / Double(awake)
+        return share < 0.25 ? 1 : share < 0.6 ? 2 : 3
+    }
+
+    static func fold(_ s: String) -> String {
+        s.lowercased().folding(options: .diacriticInsensitive, locale: nil).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// An event by its name and start time, the same on every day it repeats
+    static func repeatKey(_ e: CalendarEvent) -> String { fold(e.title) + "|" + String(e.startMinute) }
+
+    /// Events that repeat every day (work, a daily stand-up): the same name at the same time on 3 or more days of what
+    /// the calendar sent (it sends 9 days, so a weekly event is there twice at most). They don't mark the month grid;
+    /// they still show in the day and count in its load.
+    static func repeating(_ events: [CalendarEvent]) -> Set<String> {
+        var days: [String: Set<String>] = [:]
+        for e in events where !e.allDay { days[repeatKey(e), default: []].insert(e.day) }
+        return Set(days.filter { $0.value.count >= 3 }.keys)
+    }
+
+    private static func floor15(_ m: Int) -> Int { m >= 0 ? (m / 15) * 15 : -(((-m) + 14) / 15) * 15 }
+    private static func ceil15(_ m: Int) -> Int { -floor15(-m) }
+
+    /// Where something of `length` minutes can go instead, nearest to where it was: one start per free window between
+    /// the busy stretches (keeping `margin` minutes from each), on the quarter hour, inside [from, to]. Nearest first.
+    /// Only what Cadence placed is ever moved: the busy stretches stay where they are.
+    static func alternatives(length: Int, original: Int, busy: [PlanSpan], from: Int, to: Int, margin: Int, limit: Int = 3) -> [PlanAlternative] {
+        guard length > 0, to > from else { return [] }
+        var merged: [PlanSpan] = []
+        for s in busy.filter({ $0.end > from && $0.start < to }).sorted(by: { $0.start < $1.start }) {
+            if let last = merged.last, s.start <= last.end { merged[merged.count - 1].end = max(last.end, s.end) } else { merged.append(s) }
+        }
+        var found: [PlanAlternative] = []
+        var cursor = from
+        var afterBusy = false
+        for i in 0...merged.count {
+            let beforeBusy = i < merged.count
+            let freeTo = beforeBusy ? merged[i].start : to
+            if freeTo > cursor {
+                let lo = ceil15(cursor + (afterBusy ? margin : 0))
+                let hi = floor15(freeTo - (beforeBusy ? margin : 0) - length)
+                if lo <= hi { found.append(PlanAlternative(start: min(hi, max(lo, floor15(original + 7))), freeFrom: cursor, freeTo: freeTo)) }
+            }
+            if beforeBusy {
+                cursor = max(cursor, merged[i].end)
+                afterBusy = true
+            }
+        }
+        let sorted = found.sorted { a, b in
+            let da = abs(a.start - original), db = abs(b.start - original)
+            return da == db ? a.start < b.start : da < db
+        }
+        return Array(sorted.prefix(limit))
+    }
+
+    /// The month grid's marks for a day: the training (registered, planned, or planned in the past with no record:
+    /// «sem registo», never «falhado»), then commitments, then suggestions
+    static func marks(trainingPlanned: Bool, trainingLogged: Bool, past: Bool, commitments: Int, suggestions: Int) -> [PlanMark] {
+        var m: [PlanMark] = []
+        if trainingLogged { m.append(.trainingLogged) } else if trainingPlanned { m.append(past ? .trainingNoRecord : .training) }
+        if commitments > 0 { m.append(.commitment) }
+        if suggestions > 0 { m.append(.suggestion) }
+        return m
+    }
+
+    static func monthStart(_ key: String) -> String { String(key.prefix(8)) + "01" }
+
+    static func addMonths(_ n: Int, to key: String) -> String {
+        let first = Day.date(monthStart(key))
+        return Day.key(Day.calendar.date(byAdding: .month, value: n, to: first) ?? first)
+    }
+
+    /// The month's days in weeks from Monday; nil where a week starts before or ends after the month
+    static func monthCells(_ key: String) -> [String?] {
+        let first = monthStart(key)
+        let count = Day.calendar.range(of: .day, in: .month, for: Day.date(first))?.count ?? 30
+        var cells: [String?] = Array(repeating: nil, count: (Day.weekday(first) + 5) % 7)
+        for i in 0..<count { cells.append(Day.add(i, to: first)) }
+        while cells.count % 7 != 0 { cells.append(nil) }
+        return cells
+    }
+
+    /// Something with the same name in the same week (Monday to Sunday), so a new event isn't a duplicate by mistake
+    static func similar(to title: String, on day: String, among entries: [PlanEntry]) -> PlanEntry? {
+        let key = fold(title)
+        guard !key.isEmpty else { return nil }
+        let week = Day.weekStart(day)
+        return entries.filter { fold($0.title) == key && Day.weekStart($0.day) == week }.min { ($0.day, $0.minute) < ($1.day, $1.minute) }
+    }
+}
+
+/// Dates in the Plano's words, in European Portuguese whatever the phone's settings («Quinta, 12 de novembro»)
+enum PlanFormat {
+    static let weekdays = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"] // by Calendar weekday, 1 = Sunday
+    static let shortWeekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"]
+    static let months = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+
+    private static func parts(_ key: String) -> (year: Int, month: Int, day: Int)? {
+        let p = key.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3, (1...12).contains(p[1]) else { return nil }
+        return (p[0], p[1], p[2])
+    }
+
+    static func weekday(_ key: String) -> String { weekdays[Day.weekday(key) - 1] }
+    static func short(_ key: String) -> String { shortWeekdays[Day.weekday(key) - 1] }
+
+    /// «12 de novembro»
+    static func dayMonth(_ key: String) -> String {
+        guard let p = parts(key) else { return key }
+        return "\(p.day) de \(months[p.month - 1])"
+    }
+
+    /// «Quinta, 12 de novembro»
+    static func day(_ key: String) -> String { "\(weekday(key)), \(dayMonth(key))" }
+
+    /// «novembro»
+    static func monthName(_ key: String) -> String {
+        guard let p = parts(key) else { return key }
+        return months[p.month - 1]
+    }
+
+    /// «Novembro de 2026»
+    static func month(_ key: String) -> String {
+        guard let p = parts(key) else { return key }
+        let m = months[p.month - 1]
+        return "\(m.prefix(1).uppercased())\(m.dropFirst()) de \(p.year)"
+    }
+
+    /// «9 a 15 de novembro», «30 de novembro a 6 de dezembro»
+    static func week(from start: String) -> String {
+        guard let a = parts(start), let b = parts(Day.add(6, to: start)) else { return start }
+        return a.month == b.month ? "\(a.day) a \(b.day) de \(months[b.month - 1])" : "\(a.day) de \(months[a.month - 1]) a \(b.day) de \(months[b.month - 1])"
+    }
+
+    /// «Hoje», «Amanhã», «Ontem», or the day
+    static func relative(_ key: String, today: String) -> String {
+        switch Day.between(today, key) {
+        case 0: return "Hoje"
+        case 1: return "Amanhã"
+        case -1: return "Ontem"
+        default: return day(key)
+        }
+    }
+}
+
+/// A new event as understood from one line («dentista quinta às 3»), always shown back in the form before anything is
+/// saved. The day words are QuickCapture's (and its reminder text, for «lembra-me de…»); a time needs «às» or a
+/// written form (15:30, 18h). An hour from 1 to 11 with nothing saying morning or afternoon has two readings, to choose
+/// from before saving (decisions 29–30: ambiguities are settled before Guardar).
+struct EventDraft: Equatable {
+    var title: String
+    var day: String?
+    var minute: Int?
+    var options: [Int] = []
+
+    static func parse(_ raw: String, today: String) -> EventDraft {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = PlanRules.fold(text)
+        var minute: Int?
+        var options: [Int] = []
+        if let t = clock(in: lower) {
+            let m = t.hour * 60 + t.minute
+            if let later = t.afternoon {
+                minute = later && t.hour < 12 ? m + 720 : m
+            } else if (1...11).contains(t.hour) && !t.leadingZero {
+                options = [m + 720, m]
+            } else {
+                minute = m
+            }
+        }
+        var base = text
+        if case .reminder(let what, _, _) = QuickCapture.parse(text, today: today), !what.isEmpty { base = what }
+        return EventDraft(title: cleanTitle(base), day: QuickCapture.dayWord(in: lower, today: today), minute: minute, options: options)
+    }
+
+    private struct ClockWords {
+        var hour: Int
+        var minute: Int
+        var leadingZero: Bool
+        var afternoon: Bool?
+    }
+
+    private static let timeExpression = try? NSRegularExpression(pattern: #"(?:\b(as|at|pelas)\s+)?\b(\d{1,2})(?:([:h])(\d{2})?)?\b"#)
+
+    /// The first time of day in the (lowercased, accent-free) text: after «às», «at» or «pelas», or written 15:30 / 18h
+    private static func clock(in lower: String) -> ClockWords? {
+        guard let re = timeExpression else { return nil }
+        let ns = lower as NSString
+        for m in re.matches(in: lower, range: NSRange(location: 0, length: ns.length)) {
+            let prefixed = m.range(at: 1).location != NSNotFound
+            let written = m.range(at: 3).location != NSNotFound
+            guard prefixed || written else { continue }
+            let hourText = ns.substring(with: m.range(at: 2))
+            guard let h = Int(hourText), h < 24 else { continue }
+            var mins = 0
+            if m.range(at: 4).location != NSNotFound {
+                guard let v = Int(ns.substring(with: m.range(at: 4))), v < 60 else { continue }
+                mins = v
+            }
+            let later = ["da tarde", "de tarde", "a tarde", "da noite", "de noite", "a noite"].contains { lower.contains($0) }
+            let earlier = ["da manha", "de manha", "da madrugada", "de madrugada"].contains { lower.contains($0) }
+            let period: Bool? = later ? true : (earlier ? false : nil)
+            return ClockWords(hour: h, minute: mins, leadingZero: hourText.count == 2 && hourText.hasPrefix("0"), afternoon: period)
+        }
+        return nil
+    }
+
+    private static let dayWords: Set<String> = ["hoje", "amanha", "today", "tomorrow", "domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado",
+                                                "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+    private static let connectors: Set<String> = ["na", "no", "de", "do", "da", "a", "as", "at", "on", "para", "em", "pelas"]
+    private static let periods: Set<String> = ["manha", "tarde", "noite", "madrugada"]
+
+    /// The name without the day and time words («Dentista quinta às 3» → «Dentista»)
+    static func cleanTitle(_ text: String) -> String {
+        let words = text.split(separator: " ").map(String.init)
+        let folded = words.map { PlanRules.fold($0).trimmingCharacters(in: .punctuationCharacters) }
+        var keep = Array(repeating: true, count: words.count)
+        for i in folded.indices {
+            let w = folded[i]
+            let before = i > 0 ? folded[i - 1] : ""
+            let isDay = dayWords.contains(w) || w.hasSuffix("-feira") || w == "feira"
+            let looksLikeTime = w.range(of: #"^\d{1,2}([:h]\d{0,2})?$"#, options: .regularExpression) != nil
+            let isTime = looksLikeTime && (["as", "at", "pelas"].contains(before) || w.contains(":") || w.contains("h"))
+            let isPeriod = periods.contains(w) && ["da", "de", "a"].contains(before)
+            let isHours = (w == "horas" || w == "h") && i > 0 && !keep[i - 1]
+            guard isDay || isTime || isPeriod || isHours else { continue }
+            keep[i] = false
+            if i > 0, connectors.contains(before) { keep[i - 1] = false }
+        }
+        var out: [String] = []
+        for i in words.indices where keep[i] { out.append(words[i]) }
+        while let last = out.last, connectors.contains(PlanRules.fold(last)) { out.removeLast() }
+        while out.count > 1, let first = out.first, connectors.contains(PlanRules.fold(first)) { out.removeFirst() }
+        let t = out.joined(separator: " ").trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+        return t.prefix(1).uppercased() + t.dropFirst()
+    }
 }

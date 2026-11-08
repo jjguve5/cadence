@@ -385,10 +385,11 @@ final class Store: ObservableObject {
         mark("promise:\(promise.id)")
     }
 
-    /// `source` is "you" for an answer you gave, or the data source for one imported from it (see PromiseLog.source)
-    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus, source: String = PromiseLog.byYou) {
+    /// `source` is "you" for an answer you gave, or the data source for one imported from it (see PromiseLog.source).
+    /// `notApplicable` marks a skip as «Não se aplica» (the end-of-day review, phase 2.8; see PromiseLog.notApplicable).
+    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus, source: String = PromiseLog.byYou, notApplicable: Bool? = nil) {
         guard canChange else { return }
-        let entry = PromiseLog(promiseId: promise.id, date: day, status: status, source: source)
+        let entry = PromiseLog(promiseId: promise.id, date: day, status: status, source: source, notApplicable: notApplicable)
         logs[entry.id] = entry
         mark("log:\(entry.id)")
         Reminders.shared.clear(promise: promise.id, day: day)
