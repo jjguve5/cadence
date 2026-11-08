@@ -141,6 +141,21 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 let m = Day.minuteOfDay(planned[i].at), moved = Engine.outside(m, busy: busy)
                 if moved != m { planned[i].at = Day.at(moved, on: day) }
             }
+            // Antes de sair (phase 2.9): at the time to leave for the day's next departure, what's still to see. Optional
+            // («Lembrar às …» in Antes de sair, on unless you turn it off) and by the clock only: leaving home by location
+            // needs a permission this version doesn't ask for. When a regular trip leaves then, it joins that trip's
+            // «Sai agora» instead of ringing twice. Today and tomorrow only (the rain is known for today only).
+            if offset <= 1, LeaveRules.reminderOn, let departure = store.leaveDepartures(on: day).first(where: { Day.at($0.leave, on: day) > now }) {
+                let left = store.leaveEntries(on: day).filter { !$0.seen }.map { $0.item.title }
+                let at = Day.at(departure.leave, on: day)
+                if !left.isEmpty, !quiet(at) {
+                    if let i = planned.firstIndex(where: { $0.id.hasPrefix("leave|") && $0.at == at }) {
+                        planned[i].body += " " + LeaveRules.reminderBody(left)
+                    } else {
+                        planned.append(Planned(id: "beforeleave|\(day)", at: at, title: "Antes de sair", body: LeaveRules.reminderBody(left), priority: 1, promise: false))
+                    }
+                }
+            }
             // Home from the gym: when you arrive if Cadence knows where home is, otherwise 45 minutes after finishing
             if offset == 0, store.gymBagDue, let end = store.sessions(on: day).compactMap(\.end).max() {
                 let arrival = CLLocationManager().authorizationStatus == .authorizedWhenInUse || CLLocationManager().authorizationStatus == .authorizedAlways ? store.homeCoordinate : nil
@@ -305,7 +320,7 @@ enum NotificationLearning {
     }
 
     static var summary: [(kind: String, rate: Double, n: Int)] {
-        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave", "shower", "gymbag"]
+        let names = ["p", "wind", "close", "brief", "protein", "water", "plant", "dry", "bday", "renew", "doc", "touch", "groom", "m", "leave", "beforeleave", "shower", "gymbag"]
         return names.compactMap { k in
             let list = UserDefaults.standard.array(forKey: key(k)) as? [Int] ?? []
             return list.isEmpty ? nil : (k, Double(list.filter { $0 == 0 }.count) / Double(list.count), list.count)

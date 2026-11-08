@@ -1,5 +1,9 @@
 // Reading: books with pace and a finish date, quotes, and reading mode (press play: warm dark screen kept on,
 // a timer that survives locking, Do Not Disturb through a Shortcut you set up once). Projects live here too.
+// Phase 2.9 (design v17 N_Leitura, decision 78): a reading started from the night carries the minutes planned, with a
+// light vibration when they're up (which you can turn off); «Ao terminar» corrects the duration and, optionally, where
+// you stopped, by page or percentage. The reading planned (ReadingPlan) and the reading done (ReadingSession) are
+// different records.
 import SwiftUI
 
 struct BooksView: View {
@@ -111,6 +115,14 @@ struct ReadingMode: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    /// The minutes planned, when the reading was started from the night; nil otherwise (the ring keeps its 30 min)
+    var planned: Int?
+    @AppStorage("reading.nudge") private var nudge = true // the light vibration at the planned end
+    @State private var nudged = false
+    @State private var minutes = 0 // «Duração», corrected before saving
+    @State private var byPercent = false
+    @State private var percent = 0
+    @State private var startPercent = 0
     @State private var session = ReadingSession()
     @State private var now = Date()
     @State private var paused: Date?
@@ -122,6 +134,11 @@ struct ReadingMode: View {
     @State private var goal = 30
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let cream = Color(hex: 0xF6EAD2)
+
+    init(planned: Int? = nil) {
+        self.planned = planned
+        _goal = State(initialValue: planned ?? 30)
+    }
 
     private var elapsed: Double { (paused ?? now).timeIntervalSince(Date(timeIntervalSince1970: session.start / 1000)) - pausedTotal }
 
@@ -135,7 +152,7 @@ struct ReadingMode: View {
                         Text("NÃO INCOMODAR · ATIVADO").font(.geist(11, .semibold)).tracking(1.1).foregroundStyle(cream.opacity(0.5))
                     }
                     Spacer()
-                    Button("Terminar") { finishing = true; page = book?.page ?? 0 }.font(.geist(14)).foregroundStyle(cream.opacity(0.55))
+                    Button("Terminar") { finish(book) }.font(.geist(14)).foregroundStyle(cream.opacity(0.55))
                 }
                 .padding(.top, 6)
                 Spacer(minLength: 30)
@@ -153,14 +170,24 @@ struct ReadingMode: View {
                 }
                 .frame(width: 236, height: 236)
                 Spacer(minLength: 30)
+                if let planned {
+                    let startMinute = Day.minuteOfDay(Date(timeIntervalSince1970: session.start / 1000))
+                    Button { nudge.toggle() } label: {
+                        Text("Planeado \(planned) min · " + (nudge ? "aviso discreto às \(clock(startMinute + planned))" : "sem aviso")).font(.geist(13)).foregroundStyle(cream.opacity(0.6))
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(nudge ? "Desliga a vibração no fim do tempo planeado" : "Liga uma vibração leve no fim do tempo planeado")
+                    .accessibilityIdentifier("reading.nudge")
+                }
                 Text("Ecrã escurecido e sempre ligado. As notificações esperam.").font(.geist(13)).foregroundStyle(cream.opacity(0.42))
                     .padding(.bottom, 14)
                 HStack(spacing: 10) {
                     readingButton(paused == nil ? "Pausa" : "Retomar") {
                         if let p = paused { pausedTotal += Date().timeIntervalSince(p); paused = nil } else { paused = Date() }
                     }
-                    readingButton("Nota") { finishing = true; page = book?.page ?? 0 }
-                    Button { finishing = true; page = book?.page ?? 0 } label: {
+                    readingButton("Nota") { finish(book) }
+                    Button { finish(book) } label: {
                         Text("Concluído").font(.geist(15, .semibold)).foregroundStyle(Color(hex: 0x2B1A05)).frame(maxWidth: .infinity).padding(.vertical, 15)
                             .background(RoundedRectangle(cornerRadius: 15, style: .continuous).fill(LinearGradient(colors: [Color(hex: 0xF6D48F), Color(hex: 0xC98B3A)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                             .shadow(color: Color(hex: 0xC98B3A, opacity: 0.4), radius: 12, y: 5)
@@ -171,7 +198,14 @@ struct ReadingMode: View {
             .padding(.horizontal, 22).padding(.bottom, 10)
         }
         .preferredColorScheme(.dark)
-        .onReceive(timer) { now = $0 }
+        .onReceive(timer) {
+            now = $0
+            // A light vibration once the planned minutes are up, if you keep it on; never while paused
+            if let planned, nudge, !nudged, paused == nil, elapsed >= Double(planned * 60) {
+                nudged = true
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+        }
         .onAppear {
             session = ReadingSession(bookId: book?.id, fromPage: book?.page ?? 0)
             UIApplication.shared.isIdleTimerDisabled = true
@@ -181,17 +215,48 @@ struct ReadingMode: View {
         .sheet(isPresented: $finishing) {
             NavigationStack {
                 Form {
-                    if let book { Stepper("Agora na página \(page)", value: $page, in: 0...book.pages) }
-                    TextField("Uma linha sobre esta sessão", text: $note, axis: .vertical)
-                    TextField("Uma citação a guardar", text: $quote, axis: .vertical)
+                    Section {
+                        Stepper(value: $minutes, in: 0...600) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Duração · \(minutes) min")
+                                Text("corrige se pousaste o livro antes").font(.geist(12)).foregroundStyle(Color.soft)
+                            }
+                        }
+                        .accessibilityIdentifier("reading.minutes")
+                    } header: {
+                        Text(startedText(book))
+                    }
+                    if let book {
+                        Section("Onde ficaste · opcional") {
+                            Picker("Em", selection: $byPercent) {
+                                Text("Página").tag(false)
+                                Text("Percentagem").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            if byPercent {
+                                Stepper("\(percent)%", value: $percent, in: 0...100)
+                            } else {
+                                Stepper("Página \(page)", value: $page, in: 0...book.pages)
+                            }
+                        }
+                    }
+                    Section {
+                        TextField("Uma linha sobre esta sessão", text: $note, axis: .vertical)
+                        TextField("Uma citação a guardar", text: $quote, axis: .vertical)
+                    } footer: {
+                        Text(planned.map { "Planeada: \($0) min · feita: o que guardares." } ?? "")
+                    }
                 }
                 .cadenceList()
-                .navigationTitle("\(Int(elapsed / 60)) \(Int(elapsed / 60) == 1 ? "minuto" : "minutos") de leitura")
+                .navigationTitle("Leitura")
+                .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Guardar") {
+                        Button("Guardar leitura") {
                             var s = session
-                            s.minutes = Int(elapsed / 60)
+                            s.minutes = minutes
+                            // By percentage only when you changed it: an untouched percentage never moves the page
+                            if byPercent, percent != startPercent, let b = book { page = min(b.pages, Int((Double(percent) / 100 * Double(b.pages)).rounded())) }
                             s.toPage = page
                             s.note = note.isEmpty ? nil : note
                             s.quote = quote.isEmpty ? nil : quote
@@ -201,11 +266,27 @@ struct ReadingMode: View {
                             finishing = false
                             dismiss()
                         }
+                        .accessibilityIdentifier("reading.save")
                     }
                     ToolbarItem(placement: .cancellationAction) { Button("Continuar a ler") { finishing = false } }
                 }
             }
         }
+    }
+
+    /// «Ao terminar»: the duration as timed, to correct; where you were in the book
+    private func finish(_ book: Book?) {
+        minutes = Int(elapsed / 60)
+        page = book?.page ?? 0
+        if let book, book.pages > 0 { percent = min(100, Int((Double(book.page) / Double(book.pages) * 100).rounded())) } else { percent = 0 }
+        startPercent = percent
+        finishing = true
+    }
+
+    /// "Harry Potter · começaste às 22:02"
+    private func startedText(_ book: Book?) -> String {
+        let start = clock(Day.minuteOfDay(Date(timeIntervalSince1970: session.start / 1000)))
+        return (book.map { $0.title + " · " } ?? "") + "começaste às " + start
     }
 
     private func readingButton(_ title: String, action: @escaping () -> Void) -> some View {

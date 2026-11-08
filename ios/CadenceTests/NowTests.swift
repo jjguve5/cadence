@@ -165,6 +165,51 @@ final class NowTests: RegressionCase {
         XCTAssertNil(store.record(NowDismiss.self, key), "with nothing before, Desfazer leaves no record")
     }
 
+    // MARK: Antes de sair and the routine of the moment (phase 2.9 wires D3's steps 3 and 4)
+
+    /// D3's examples: 7:42 with a trip leaving at 8:15 gives Antes de sair; 17:30 with training at 18:30 gives Antes de
+    /// sair; 14:20 with the dentist at 15:00 gives the urgent step; 10:13 with training late in the afternoon gives the
+    /// routine of the moment
+    @MainActor
+    func testTheExamplesOfTheRule() throws {
+        let trip = try makeStore { $0.add(RegularTrip(id: "R", title: "Faculdade", weekdays: [Day.weekday(Day.today)], arrive: 9 * 60, travel: 35, buffer: 10)) }
+        XCTAssertEqual(trip.nowStep(minute: 7 * 60 + 42, events: []), .beforeLeaving, "7:42, leaving at 8:15")
+        XCTAssertNil(trip.nowStep(minute: 7 * 60 + 14, events: []), "more than an hour before leaving: not yet")
+        XCTAssertNil(trip.nowStep(minute: 8 * 60 + 16, events: []), "past the time to leave: no step (a line in Today instead)")
+
+        let training = try makeStore { $0.add(PlanBlock(id: "B", date: Day.today, start: 18 * 60 + 30, minutes: 60, title: "Pernas", type: "training")) }
+        XCTAssertEqual(training.nowStep(minute: 17 * 60 + 30, events: []), .beforeLeaving, "17:30, training at 18:30")
+
+        let dentist = try makeStore()
+        XCTAssertEqual(dentist.nowStep(minute: 14 * 60 + 20, events: [event("ev1", start: 15 * 60, location: "Clínica")])?.isUrgent, true, "14:20, dentist at 15:00: urgent first")
+
+        let morning = try makeStore { s in
+            s.add(CareRoutine(id: "RM", title: "Rotina da manhã", icon: "sun.max", steps: [RoutineStep(id: "RM1", title: "Lavar a cara", seconds: 60)]))
+            s.add(WorkoutTemplate(id: "T", name: "Pernas", exercises: [], weekdays: [Day.weekday(Day.today)], minutes: 60))
+        }
+        XCTAssertEqual(morning.nowStep(minute: 10 * 60 + 13, events: []), .routine, "10:13, training late in the afternoon: the routine")
+    }
+
+    /// Antes de sair (3) comes before the routine of the moment (4); once everything is seen the routine is the step,
+    /// and once the routine is confirmed the next habit is
+    @MainActor
+    func testAntesDeSairComesBeforeTheRoutineAndBothGoWhenDone() throws {
+        let creatine = PromiseItem(id: "H1", title: "Creatina", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 18 * 60))
+        let store = try makeStore { s in
+            s.promises[creatine.id] = creatine
+            s.add(CareRoutine(id: "RN", title: "Rotina da noite", icon: "moon.stars", steps: [RoutineStep(id: "RN1", title: "Lavar a cara", seconds: 60)]))
+            s.add(PlanBlock(id: "B", date: Day.today, start: 18 * 60 + 30, minutes: 60, title: "Pernas", type: "training"))
+        }
+        let minute = 17 * 60 + 20
+        XCTAssertEqual(store.nowStep(minute: minute, events: []), .beforeLeaving)
+        store.finishLeaving()
+        XCTAssertEqual(store.nowStep(minute: minute, events: []), .routine, "everything seen: the routine of the moment")
+        let night = try XCTUnwrap(store.record(CareRoutine.self, "RN"))
+        store.confirmSteps(["RN1": nowMs()], of: night)
+        guard case .habit(let next)? = store.nowStep(minute: minute, events: []) else { return XCTFail("then the next habit") }
+        XCTAssertEqual(next.id, "H1")
+    }
+
     // MARK: Rings with no data
 
     /// No band data is «sem dados», drawn dashed with no number; food and water with nothing logged keep their number,

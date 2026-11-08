@@ -181,17 +181,20 @@ extension Store {
     /// Picks wearable items for the weather and the day (clean, or worn below their wash limit): enough warmth for the
     /// layers, rainproof outer and shoes when it rains, one colour accent at most, nothing worn the last two days, and
     /// more of what you usually accept.
-    func outfit(for day: String = Day.today) -> [Garment] {
+    /// Phase 2.9 (tomorrow's outfit, Preparar amanhã): `availableOnly` keeps to pieces whose stage is «Disponível» (no
+    /// piece near its wash limit, for washing, in the machine or drying), and `weather` is tomorrow's forecast instead
+    /// of today's. Their defaults leave every other use exactly as it was.
+    func outfit(for day: String = Day.today, availableOnly: Bool = false, weather: (layers: Int, rain: Bool)? = nil) -> [Garment] {
         if let log = record(OutfitLog.self, day) { return log.items.compactMap { record(Garment.self, $0) } }
         let call = weatherCall()
-        let layers = call?.layers ?? 2
-        let rain = call?.umbrella ?? false
+        let layers = weather?.layers ?? call?.layers ?? 2
+        let rain = weather?.rain ?? call?.umbrella ?? false
         let smart = Agenda.shared.events(on: day).contains { e in ["seminar", "meeting", "presentation", "interview", "defesa", "reunião"].contains { e.title.lowercased().contains($0) } }
         let lastTwo = Set((1...2).map { Day.add(-$0, to: day) })
         // A piece worn on its own («Vesti hoje» in the Roupeiro) has no outfit log, so its last wear counts too
         let recent = Set((1...2).compactMap { record(OutfitLog.self, Day.add(-$0, to: day)) }.flatMap(\.items))
             .union(garments.filter { g in g.lastWorn.map { lastTwo.contains($0) } ?? false }.map(\.id))
-        let clean = garments.filter { $0.wearable && $0.type != "gym" && !recent.contains($0.id) }
+        let clean = garments.filter { $0.wearable && (!availableOnly || $0.stage == .available) && $0.type != "gym" && !recent.contains($0.id) }
         func best(_ type: String, warmth: ClosedRange<Int>? = nil, rainproof: Bool = false, accent: Bool = true) -> Garment? {
             clean.filter { $0.type == type && (warmth?.contains($0.warmth) ?? true) && (!rainproof || $0.rainproof) && (accent || $0.neutral) }
                 .max { score($0, smart) < score($1, smart) }
@@ -210,6 +213,22 @@ extension Store {
         let liked = Double(g.accepted + 1) / Double(g.accepted + g.swapped + 2)
         let rest = Double(g.lastWorn.map { Day.between($0, Day.today) } ?? 14) / 14
         return liked * 2 + min(1, rest) + (smart && g.style == "smart" ? 1.5 : 0) + (!smart && g.style == "sport" ? -0.5 : 0)
+    }
+
+    /// «Aceitar roupa» (Preparar amanhã, phase 2.9): the pieces are chosen for that day and nothing more: the outfit
+    /// is saved with `worn: false` and no use is counted (only «Vesti hoje» or wear() count one). An outfit already worn
+    /// that day is left as it is. Returns the day's outfit as it was, for Desfazer (restoreOutfit).
+    @discardableResult
+    func chooseOutfit(_ items: [Garment], for day: String) -> OutfitLog? {
+        let before = record(OutfitLog.self, day)
+        guard before?.worn != true, !items.isEmpty else { return before }
+        save(OutfitLog(date: day, items: items.map(\.id), worn: false))
+        return before
+    }
+
+    /// Desfazer for «Aceitar roupa»: the day's outfit as it was, or none
+    func restoreOutfit(_ before: OutfitLog?, for day: String) {
+        if let before { save(before) } else if let now = record(OutfitLog.self, day) { remove(now) }
     }
 
     func wear(_ items: [Garment], on day: String = Day.today) {

@@ -1,5 +1,7 @@
 // Today: «Agora» (one step at a time, Now.swift), how you are (the rings with their source), quick logs ordered by use,
-// readiness with its reasons, today's habits, closing the day.
+// readiness with its reasons, today's habits, closing the day. Phase 2.9: Antes de sair and the routine of the moment
+// in «Agora» (steps 3 and 4), «Preparar para sair» on an urgent departure, the line left after leaving, the night's
+// sequence in place of «Agora» at night, and last night's sleep in the morning (NightViews.swift, LeaveView.swift).
 import SwiftUI
 
 struct TodayView: View {
@@ -13,6 +15,11 @@ struct TodayView: View {
     @State private var capturing = false
     @State private var showingYou = false
     @State private var ringsOpen = false // an urgent step shrinks the rings to a line; tapping it opens them
+    @State private var leaving = false // Antes de sair
+    @State private var playing: CareRoutine? // the routine of the moment, in Higiene's player
+    @State private var nightPage: NightSheetPage? // Preparar amanhã or Antes de dormir
+    @State private var readingStart: ReadingStart? // a reading started from the night
+    @State private var sleepOpen = false // Como dormiste
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -24,12 +31,13 @@ struct TodayView: View {
         let step = store.nowStep(minute: minute)
         let urgent = step?.isUrgent ?? false
         let later = store.nowLater(after: step, minute: minute)
+        let night = !urgent && store.nightActive(minute: minute) && NightRules.takesAgora(step)
         NavigationStack {
             ScrollViewReader { proxy in
                 Screen(glow: .mint) {
                     header
                     // An urgent step takes the place of «Agora» at the top; the rings and the rest of the day shrink to a line
-                    if urgent, let step { TodayNowCard(step: step, minute: minute, later: later, showLater: false) }
+                    if urgent, let step { TodayNowCard(step: step, minute: minute, later: later, showLater: false, openLeave: { leaving = true }) }
                     if store.needsGoogle { googleCard }
                     if store.health.isEmpty, store.device == nil, !TestMode.active { sourceCard }
                     if !store.profile.setupDone {
@@ -44,11 +52,18 @@ struct TodayView: View {
                     if store.journalDue { JournalCard(canPostpone: true) }
                     MinimumDayBanner()
                     if urgent && !ringsOpen { ringsLine } else { DayRings() }
+                    if NightRules.isMorning(minute: minute, wake: store.profile.wakeMinute) { SleepMorningLine { sleepOpen = true } }
                     if urgent, !later.isEmpty { laterLine(later) { showHabits(proxy) } }
                     if urgent { quickLogs }
                     FocusCard()
-                    // «Agora» where "A seguir" was, so the cards above it keep their place
-                    if !urgent, let step { TodayNowCard(step: step, minute: minute, later: later) { showHabits(proxy) } }
+                    // «Agora» where "A seguir" was, so the cards above it keep their place. At night it follows the
+                    // night's sequence instead (unless a departure, a workout or Antes de sair comes first)
+                    if night {
+                        TodayNightCard(minute: minute, open: { nightPage = $0 }, read: { startReading($0) })
+                    } else if !urgent, let step {
+                        TodayNowCard(step: step, minute: minute, later: later, openLater: { showHabits(proxy) }, openLeave: { leaving = true }, play: { playing = $0 })
+                    }
+                    if !night { LeaveLaterLine(minute: minute) { leaving = true } } // the night doesn't bring the day's leftovers back
                     if !urgent { quickLogs }
                     unsentCard
                     FoodGoalsCard()
@@ -69,6 +84,11 @@ struct TodayView: View {
             .sheet(isPresented: $settingUp) { SmartSetup() }
             .sheet(isPresented: $capturing) { QuickCaptureSheet() }
             .sheet(isPresented: $showingYou) { YouView() }
+            .sheet(isPresented: $leaving) { LeaveView().environmentObject(store) }
+            .sheet(item: $nightPage) { NightSheet(page: $0).environmentObject(store) }
+            .sheet(isPresented: $sleepOpen) { SleepMorningView().environmentObject(store) }
+            .fullScreenCover(item: $playing) { RoutinePlayer(routine: $0).environmentObject(store) }
+            .fullScreenCover(item: $readingStart) { ReadingMode(planned: $0.minutes).environmentObject(store) }
             .onChange(of: store.captureOpen) { _, open in if open { capturing = true; store.captureOpen = false } }
             .onAppear { store.recordMorningPrediction() }
             .toolbar(.hidden, for: .navigationBar)
@@ -176,6 +196,13 @@ struct TodayView: View {
     }
 
     static let habitsAnchor = "today.habits"
+
+    /// Reading from the night: the plan is saved when you start it (ReadingPlan); the reading done is saved at the end
+    private func startReading(_ minutes: Int?) {
+        let minute = store.nowMinute
+        if let minutes { store.planReading(minutes: minutes, from: NightRules.evening(minute), on: store.nightDay(minute: minute)) }
+        readingStart = ReadingStart(minutes: minutes)
+    }
 
     /// «Depois» and the rings' line take you to the rest of today
     private func showHabits(_ proxy: ScrollViewProxy) {
@@ -374,7 +401,10 @@ struct PromiseRow: View {
                 Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) esta semana").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
-            if status == nil, promise.title.lowercased().contains("brush") {
+            // Phase 2.9: an answer from the band shows as «Importado», never as yours
+            if NightRules.answerState(store.answerOrigin(promise, on: day)) == .imported {
+                StateTag(state: .imported).accessibilityIdentifier("habit.imported.\(promise.id)")
+            } else if status == nil, promise.title.lowercased().contains("brush") {
                 Button { if insideSheet { brushing = true } else { store.brushingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
                 Button { if insideSheet { reading = true } else { store.readingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
@@ -456,13 +486,16 @@ struct TodayNowCard: View {
     var later: [NowLater]
     var showLater = true
     var openLater: () -> Void = {}
+    var openLeave: () -> Void = {} // Antes de sair
+    var play: (CareRoutine) -> Void = { _ in } // the routine of the moment, in the player
 
     var body: some View {
         switch step {
         case .leave(let d): leave(d)
         case .workout(let w): workout(w)
+        case .beforeLeaving: beforeLeaving
+        case .routine: routine
         case .habit(let p): habit(p)
-        case .beforeLeaving, .routine: EmptyView() // phases 2.9 and 2.5 draw their step here
         }
     }
 
@@ -487,7 +520,13 @@ struct TodayNowCard: View {
                 SourceLine(text: "Google Calendar").layoutPriority(1)
             }
             Text(reason).font(.geist(11.5)).foregroundStyle(Color.faint).fixedSize(horizontal: false, vertical: true)
-            // Phase 2.9: «Preparar para sair», the main button, goes here and opens Antes de sair
+            // «Preparar para sair», the main button, opens Antes de sair
+            Button(action: openLeave) {
+                Text("Preparar para sair").font(.geist(14, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
+                    .padding(.horizontal, 18).frame(minHeight: 44).background(Capsule().fill(DataState.pending.color))
+            }
+            .buttonStyle(Pressable())
+            .accessibilityIdentifier("next.action")
             HStack(spacing: 8) {
                 Button { store.answerNow(d, snooze: true, minute: minute) } label: {
                     Text("Adiar \(NowRule.snoozeMinutes) min").font(.geist(13, .semibold)).foregroundStyle(Color.ink)
@@ -503,6 +542,69 @@ struct TodayNowCard: View {
             .buttonStyle(Pressable())
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("now.leave")
+    }
+
+    /// Antes de sair (D3, step 3): a departure within the hour and what's still to see; the list opens from here
+    @ViewBuilder private var beforeLeaving: some View {
+        let pending = store.leaveEntries().filter { !$0.seen }
+        let next = LeaveRules.next(store.leaveDepartures(), minute: minute)
+        Card(state: .pending) {
+            HStack(spacing: 8) {
+                Eyebrow(text: "Agora", color: DataState.pending.color)
+                StateTag(state: .pending, text: LeaveRules.pendingText(pending.count))
+                Spacer(minLength: 0)
+            }
+            Text("Antes de sair").font(.geist(17, .semibold))
+            if let next { Text("Sair às \(clock(next.leave)) · \(next.title)").font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1) }
+            let names = LeaveRules.names(pending.map { $0.item.title })
+            Text(names.prefix(1).uppercased() + String(names.dropFirst())).font(.geist(12.5)).foregroundStyle(Color.faint).lineLimit(2)
+            HStack(spacing: 8) {
+                Button(action: openLeave) {
+                    Text("Ver a lista").font(.geist(14, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
+                        .padding(.horizontal, 18).frame(minHeight: 44).background(Capsule().fill(DataState.pending.color))
+                }
+                .buttonStyle(Pressable())
+                .accessibilityIdentifier("next.action")
+                Spacer(minLength: 0)
+            }
+            laterRow
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("now.beforeleaving")
+    }
+
+    /// The routine of the moment (D3, step 4): Higiene's routine still to confirm; «Começar» opens its player with the
+    /// steps left, which confirms each as you go
+    @ViewBuilder private var routine: some View {
+        if let r = store.routineDueNow(minute: minute) {
+            let pending = store.pendingSteps(r)
+            let seconds = pending.map { $0.seconds }.reduce(0, +)
+            Card {
+                HStack(spacing: 8) {
+                    Eyebrow(text: "Agora", color: .mint)
+                    StateTag(state: .pending, text: "\(pending.count) por confirmar")
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(r.title).font(.geist(16, .bold))
+                        Text(ptCount(pending.count, "passo", "passos") + " · cerca de \(max(1, (seconds + 59) / 60)) min").font(.geist(12.5)).foregroundStyle(Color.soft)
+                    }
+                    Spacer(minLength: 8)
+                    Button {
+                        var left = r
+                        left.steps = pending // the player goes through what's still to do
+                        play(left)
+                    } label: {
+                        Label("Começar", systemImage: "play.fill").font(.geist(14, .semibold)).foregroundStyle(Color(hex: 0x05140F))
+                            .padding(.horizontal, 16).frame(minHeight: 44).background(Capsule().fill(Area.mint.gradient))
+                    }
+                    .buttonStyle(Pressable())
+                    .accessibilityLabel("Começar \(r.title)").accessibilityIdentifier("next.action")
+                }
+                laterRow
+            }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("now.routine")
+        }
     }
 
     private func workout(_ w: NowWorkout) -> some View {

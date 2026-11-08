@@ -710,5 +710,38 @@ final class RegressionPlanReviewTests: RegressionCase {
         store.saveReview(shake, on: Fixed.saturday, .done)
         XCTAssertEqual(store.status(shake, on: Fixed.saturday), .done)
         XCTAssertEqual(store.answerOrigin(shake, on: Fixed.saturday), .you)
+
+// MARK: - The night (phase 2.9)
+
+final class RegressionNightTests: RegressionCase {
+    /// Phases 2.2 and 2.9 (moved from RegressionPlannedChangeTests, where it pinned only the answer's source): data from
+    /// the band can mark the bedtime habit done, but it is kept and shown as «Importado» (StateTag), never as confirmed
+    /// by you; «Vou dormir» is a separate intention (its own record, id = the day, an object) that answers no habit and
+    /// never says when sleep started.
+    /// Built relative to today because autoComplete() only looks at today and yesterday.
+    @MainActor
+    func testBandSleepTicksTheBedtimeHabitAsImportedAndVouDormirIsOnlyAnIntention() throws {
+        let yesterday = Day.add(-1, to: Day.today)
+        let lightsOut = PromiseItem(id: "L1", title: "Lights out", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 23 * 60))
+        let start = ISO8601DateFormatter().string(from: Day.at(23 * 60 + 5, on: yesterday))
+        let end = ISO8601DateFormatter().string(from: Day.at(7 * 60, on: Day.today))
+        let store = try makeStore { s in
+            s.promises[lightsOut.id] = lightsOut
+            s.health[Day.today] = HealthDay(date: Day.today, sleep: SleepRecord(start: start, end: end, asleep: 450))
+        }
+        store.autoComplete()
+        XCTAssertEqual(store.status(lightsOut, on: yesterday), .done, "still counts as done")
+        XCTAssertEqual(store.answerOrigin(lightsOut, on: yesterday), .imported("fitbit"), "kept as imported from the band, not as your answer")
+        XCTAssertEqual(NightRules.answerState(store.answerOrigin(lightsOut, on: yesterday)), .imported, "and shown as «Importado», not «Confirmado»")
+        XCTAssertEqual(DataState.imported.label, "Importado")
+        XCTAssertEqual(store.bedtimeHabits(on: yesterday).map { $0.id }, ["L1"], "the morning's «Como dormiste» lists it with its label")
+
+        store.goingToSleep(minute: 22 * 60 + 33, on: Day.today)
+        let intent = try XCTUnwrap(store.record(SleepIntent.self, Day.today), "«Vou dormir» exists, as its own record")
+        XCTAssertEqual(intent.id, Day.today)
+        XCTAssertEqual(intent.minute, 22 * 60 + 33)
+        guard case .object? = store.records(SleepIntent.kind)[Day.today] else { return XCTFail("the intention's value is an object") }
+        XCTAssertNil(store.status(lightsOut, on: Day.today), "the intention doesn't answer the bedtime habit")
+        XCTAssertEqual(store.health[Day.today]?.sleep?.start, start, "nor change when the band says sleep started")
     }
 }

@@ -1,8 +1,8 @@
 // «Agora» on Today (phase 2.4, decision D3): one step at a time. Each step only applies when the one before it doesn't:
 //   1. an event that needs you to leave within 45 min («Preparar para sair» · «Adiar 10 min» · «Já não vou»);
 //   2. a workout in progress (continue it);
-//   3. Antes de sair (phase 2.9 wires it here);
-//   4. the routine of the moment (phase 2.5 wires it here);
+//   3. Antes de sair: a departure within 60 min with something on the list still to see (phase 2.9, Night.swift);
+//   4. the routine of the moment still to confirm, Higiene's routineDueNow() (phase 2.5, wired here by phase 2.9);
 //   5. the next habit (what "A seguir" did before);
 //   6. nothing: no card.
 // The rule is a pure function over its inputs (NowRule.pick); the Store glue at the end gathers them. Calendar events are
@@ -43,9 +43,11 @@ struct NowLater: Equatable {
 enum NowStep: Equatable {
     case leave(NowDeparture)
     case workout(NowWorkout)
-    /// Phase 2.9 (Antes de sair): a departure within 60 min with items still to check. Not wired yet, so never chosen.
+    /// Antes de sair (phase 2.9): a departure within 60 min with items still to see. The card reads the list itself
+    /// (Store.leaveEntries), so the step carries nothing.
     case beforeLeaving
-    /// Phase 2.5 (Higiene): the routine of the moment, still to confirm («Começar»). Not wired yet, so never chosen.
+    /// The routine of the moment, still to confirm («Começar»): Higiene's routineDueNow() (phase 2.5). The card reads
+    /// the routine itself.
     case routine
     case habit(PromiseItem)
 
@@ -62,8 +64,8 @@ struct NowInputs {
     var departures: [NowDeparture] = []
     var dismissals: [String: NowDismiss] = [:] // today's answers to a warning, by event id
     var workout: NowWorkout?
-    var beforeLeaving: NowStep? // phase 2.9 fills this in
-    var routine: NowStep? // phase 2.5 fills this in
+    var beforeLeaving: NowStep? // Store.nowBeforeLeaving (phase 2.9)
+    var routine: NowStep? // Store.nowRoutine: Higiene's routine of the moment (phase 2.5)
     var habits: [NowHabit] = [] // today's, in the order of the day
 }
 
@@ -188,12 +190,17 @@ extension Store {
         due(on: day).map { NowHabit(promise: $0, time: time(of: $0, on: day), answered: status($0, on: day) != nil) }
     }
 
-    /// Step 3, Antes de sair. Phase 2.9 fills this in (a departure within 60 min with items still to check); until
-    /// then there is no candidate.
-    func nowBeforeLeaving(minute: Int, day: String = Day.today) -> NowStep? { nil }
+    /// Step 3, Antes de sair (phase 2.9): a departure within 60 min (an event with a place, a regular trip, training)
+    /// and something on the day's list still to see. `events` is for tests; the app reads the calendar.
+    func nowBeforeLeaving(minute: Int, events: [CalendarEvent]? = nil, day: String = Day.today) -> NowStep? {
+        let pending = leaveEntries(on: day).filter { !$0.seen }.count
+        return LeaveRules.isStep(leaveDepartures(on: day, events: events), minute: minute, pending: pending) ? .beforeLeaving : nil
+    }
 
-    /// Step 4, the routine of the moment. Phase 2.5 fills this in; until then there is no candidate.
-    func nowRoutine(minute: Int, day: String = Day.today) -> NowStep? { nil }
+    /// Step 4, the routine of the moment still to confirm: Higiene's routineDueNow() (phase 2.5), as it is
+    func nowRoutine(minute: Int, day: String = Day.today) -> NowStep? {
+        routineDueNow(minute: minute, day: day) == nil ? nil : .routine
+    }
 
     func nowInputs(minute: Int, events: [CalendarEvent]? = nil, day: String = Day.today) -> NowInputs {
         let departures = nowDepartures(events: events, day: day)
@@ -203,7 +210,7 @@ extension Store {
         }
         return NowInputs(minute: minute, departures: departures, dismissals: dismissals,
                          workout: activeSession.map { NowWorkout(id: $0.id, name: $0.name, start: $0.start) },
-                         beforeLeaving: nowBeforeLeaving(minute: minute, day: day), routine: nowRoutine(minute: minute, day: day),
+                         beforeLeaving: nowBeforeLeaving(minute: minute, events: events, day: day), routine: nowRoutine(minute: minute, day: day),
                          habits: nowHabits(on: day))
     }
 
