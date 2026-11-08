@@ -50,7 +50,9 @@ final class Agenda: ObservableObject {
     nonisolated static func window(from day: String) -> ClosedRange<String> { Day.add(-1, to: day)...Day.add(7, to: day) }
 
     /// Whether the calendar was read for this day (read with no events is «sem eventos»; not read is «sem dados»)
-    func covers(_ day: String) -> Bool { known?.contains(day) ?? false }
+    func covers(_ day: String) -> Bool { Agenda.covers(day, known: known) }
+
+    nonisolated static func covers(_ day: String, known: ClosedRange<String>?) -> Bool { known?.contains(day) ?? false }
 
     func events(on day: String) -> [CalendarEvent] { events.filter { !$0.allDay && $0.day == day }.sorted { $0.start < $1.start } }
     func allDay(on day: String) -> [CalendarEvent] { events.filter { $0.allDay && $0.start <= day && $0.end > day } }
@@ -314,9 +316,10 @@ struct PlanAlternative: Equatable {
 }
 
 /// The month grid's marks. Their shape tells them apart, not only their colour: what is confirmed is filled, a
-/// suggestion is hollow, a training with no record is dashed
+/// suggestion is hollow, a training with no record is dashed, a day the calendar wasn't read for has a dashed circle
+/// («Sem dados», never «livre»)
 enum PlanMark: String, CaseIterable {
-    case training, trainingLogged, trainingNoRecord, commitment, suggestion
+    case training, trainingLogged, trainingNoRecord, commitment, suggestion, noData
     var word: String {
         switch self {
         case .training: return "treino"
@@ -324,6 +327,7 @@ enum PlanMark: String, CaseIterable {
         case .trainingNoRecord: return "treino sem registo"
         case .commitment: return "compromisso"
         case .suggestion: return "sugestão"
+        case .noData: return "sem dados do calendário"
         }
     }
 }
@@ -377,14 +381,19 @@ enum PlanRules {
     /// An event by its name and start time, the same on every day it repeats
     static func repeatKey(_ e: CalendarEvent) -> String { fold(e.title) + "|" + String(e.startMinute) }
 
-    /// Events that repeat every day (work, a daily stand-up): the same name at the same time on 3 or more days of what
-    /// the calendar sent (it sends 9 days, so a weekly event is there twice at most). They don't mark the month grid;
-    /// they still show in the day and count in its load.
-    static func repeating(_ events: [CalendarEvent]) -> Set<String> {
+    /// Events that repeat every day (a daily stand-up): the same name at the same time on every day the calendar was
+    /// read for, except at most one (a Monday/Wednesday/Friday class is not one). `window` is the days of the read
+    /// (Agenda.known). They don't mark the month grid; they still show in the day and count in its load.
+    static func repeating(_ events: [CalendarEvent], window: ClosedRange<String>?) -> Set<String> {
+        guard let window else { return [] }
+        let covered = Day.between(window.lowerBound, window.upperBound) + 1
         var days: [String: Set<String>] = [:]
-        for e in events where !e.allDay { days[repeatKey(e), default: []].insert(e.day) }
-        return Set(days.filter { $0.value.count >= 3 }.keys)
+        for e in events where !e.allDay && window.contains(e.day) { days[repeatKey(e), default: []].insert(e.day) }
+        return Set(days.filter { $0.value.count >= max(2, covered - 1) }.keys)
     }
+
+    /// The word in the day's load line: partial when the calendar wasn't read for that day
+    static func loadWord(known: Bool) -> String { known ? "carga" : "carga parcial" }
 
     private static func floor15(_ m: Int) -> Int { m >= 0 ? (m / 15) * 15 : -(((-m) + 14) / 15) * 15 }
     private static func ceil15(_ m: Int) -> Int { -floor15(-m) }
@@ -422,16 +431,25 @@ enum PlanRules {
     }
 
     /// The month grid's marks for a day: the training (registered, planned, or planned in the past with no record:
-    /// «sem registo», never «falhado»), then commitments, then suggestions
-    static func marks(trainingPlanned: Bool, trainingLogged: Bool, past: Bool, commitments: Int, suggestions: Int) -> [PlanMark] {
+    /// «sem registo», never «falhado»), then commitments, then suggestions; last, «sem dados» when the calendar wasn't
+    /// read for that day, so an empty cell never reads as free
+    static func marks(trainingPlanned: Bool, trainingLogged: Bool, past: Bool, commitments: Int, suggestions: Int, calendarKnown: Bool = true) -> [PlanMark] {
         var m: [PlanMark] = []
         if trainingLogged { m.append(.trainingLogged) } else if trainingPlanned { m.append(past ? .trainingNoRecord : .training) }
         if commitments > 0 { m.append(.commitment) }
         if suggestions > 0 { m.append(.suggestion) }
+        if !calendarKnown { m.append(.noData) }
         return m
     }
 
     static func monthStart(_ key: String) -> String { String(key.prefix(8)) + "01" }
+
+    /// The day the month's summary shows: the one you picked, or today, and only if it's in the month on screen; nil
+    /// when it isn't (the summary never shows a day of another month)
+    static func monthPick(_ picked: String?, month: String, today: String) -> String? {
+        let day = picked ?? today
+        return monthStart(day) == monthStart(month) ? day : nil
+    }
 
     static func addMonths(_ n: Int, to key: String) -> String {
         let first = Day.date(monthStart(key))
@@ -471,6 +489,21 @@ enum PlanFormat {
 
     static func weekday(_ key: String) -> String { weekdays[Day.weekday(key) - 1] }
     static func short(_ key: String) -> String { shortWeekdays[Day.weekday(key) - 1] }
+
+    /// Whether the time is in the hour 1, the only singular one in Portuguese («à 1», «da 1:00»; 13:00 is «às 13:00»)
+    private static func oneOClock(_ minute: Int) -> Bool { (((minute % 1440) + 1440) % 1440) / 60 == 1 }
+
+    /// «às 15:00», «à 1:00»
+    static func at(_ minute: Int) -> String { (oneOClock(minute) ? "à " : "às ") + clock(minute) }
+
+    /// «das 15:00», «da 1:00»
+    static func from(_ minute: Int) -> String { (oneOClock(minute) ? "da " : "das ") + clock(minute) }
+
+    /// «as 15:00», «a 1:00», after «para»
+    static func article(_ minute: Int) -> String { (oneOClock(minute) ? "a " : "as ") + clock(minute) }
+
+    /// «às 3», «à 1»: the hour on its own, as you'd say it
+    static func atHour(_ hour: Int) -> String { hour == 1 ? "à 1" : "às \(hour)" }
 
     /// «12 de novembro»
     static func dayMonth(_ key: String) -> String {
@@ -512,9 +545,9 @@ enum PlanFormat {
 }
 
 /// A new event as understood from one line («dentista quinta às 3»), always shown back in the form before anything is
-/// saved. The day words are QuickCapture's (and its reminder text, for «lembra-me de…»); a time needs «às» or a
-/// written form (15:30, 18h). An hour from 1 to 11 with nothing saying morning or afternoon has two readings, to choose
-/// from before saving (decisions 29–30: ambiguities are settled before Guardar).
+/// saved. The day words are QuickCapture's (and its reminder text, for «lembra-me de…»); a time needs «às» («à» for
+/// the hour 1: «à 1») or a written form (15:30, 18h). An hour from 1 to 11 with nothing saying morning or afternoon has
+/// two readings, to choose from before saving (decisions 29–30: ambiguities are settled before Guardar).
 struct EventDraft: Equatable {
     var title: String
     var day: String?
@@ -548,17 +581,20 @@ struct EventDraft: Equatable {
         var afternoon: Bool?
     }
 
-    private static let timeExpression = try? NSRegularExpression(pattern: #"(?:\b(as|at|pelas)\s+)?\b(\d{1,2})(?:([:h])(\d{2})?)?\b"#)
+    private static let timeExpression = try? NSRegularExpression(pattern: #"(?:\b(as|at|a|pelas)\s+)?\b(\d{1,2})(?:([:h])(\d{2})?)?\b"#)
 
-    /// The first time of day in the (lowercased, accent-free) text: after «às», «at» or «pelas», or written 15:30 / 18h
+    /// The first time of day in the (lowercased, accent-free) text: after «às», «at» or «pelas», after «à» for the hour 1
+    /// (the only singular hour: «a 2 amigos» isn't a time), or written 15:30 / 18h
     private static func clock(in lower: String) -> ClockWords? {
         guard let re = timeExpression else { return nil }
         let ns = lower as NSString
         for m in re.matches(in: lower, range: NSRange(location: 0, length: ns.length)) {
-            let prefixed = m.range(at: 1).location != NSNotFound
+            let prefix = m.range(at: 1).location != NSNotFound ? ns.substring(with: m.range(at: 1)) : ""
+            let prefixed = !prefix.isEmpty
             let written = m.range(at: 3).location != NSNotFound
             guard prefixed || written else { continue }
             let hourText = ns.substring(with: m.range(at: 2))
+            if prefix == "a", !written, hourText != "1" { continue }
             guard let h = Int(hourText), h < 24 else { continue }
             var mins = 0
             if m.range(at: 4).location != NSNotFound {
@@ -588,7 +624,8 @@ struct EventDraft: Equatable {
             let before = i > 0 ? folded[i - 1] : ""
             let isDay = dayWords.contains(w) || w.hasSuffix("-feira") || w == "feira"
             let looksLikeTime = w.range(of: #"^\d{1,2}([:h]\d{0,2})?$"#, options: .regularExpression) != nil
-            let isTime = looksLikeTime && (["as", "at", "pelas"].contains(before) || w.contains(":") || w.contains("h"))
+            let hourOne = before == "a" && String(w.prefix(while: { $0.isNumber })) == "1" // «à 1», the singular hour
+            let isTime = looksLikeTime && (["as", "at", "pelas"].contains(before) || w.contains(":") || w.contains("h") || hourOne)
             let isPeriod = periods.contains(w) && ["da", "de", "a"].contains(before)
             let isHours = (w == "horas" || w == "h") && i > 0 && !keep[i - 1]
             guard isDay || isTime || isPeriod || isHours else { continue }

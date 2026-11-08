@@ -59,6 +59,20 @@ final class PlanTests: RegressionCase {
 
     // MARK: Conflicts
 
+    /// An event you created in Cadence (a block that isn't the training) is shown as a conflict, with no other time
+    /// offered: only the training is ever moved (B3-R3)
+    @MainActor
+    func testAnEventYouCreatedIsShownWithoutAMoveProposal() throws {
+        let store = try makeStore { s in
+            s.add(PlanBlock(id: "D1", date: self.wednesday, start: 900, minutes: 60, title: "Dentista", type: "other"))
+        }
+        let meeting = event("g1", "Reunião", 930, 990, on: wednesday)
+        let c = try XCTUnwrap(store.planConflicts(on: wednesday, events: [meeting]).first)
+        XCTAssertFalse(c.training)
+        XCTAssertEqual(c.overlap, 30)
+        XCTAssertEqual(store.planAlternatives(for: c, events: [meeting], today: "2026-11-10"), [], "no other time for something of yours")
+    }
+
     /// Nearest free window first, 15 min clear of what's busy, on the quarter hour; one time per window; none when
     /// there's no room
     func testAlternativesAreTheNearestFreeTimes() {
@@ -130,11 +144,56 @@ final class PlanTests: RegressionCase {
 
     // MARK: Month
 
-    /// The same name at the same time on 3 or more days repeats every day (work); a weekly event doesn't
-    func testDailyEventsAreTheSameNameAndTimeOnThreeDays() {
-        var events = ["2026-11-09", "2026-11-10", "2026-11-11"].map { self.event("w\($0)", "Trabalho", 540, 1050, on: $0) }
-        events += [event("d1", "Dentista", 900, 960, on: "2026-11-12"), event("f1", "Futebol", 1200, 1290, on: "2026-11-09"), event("f2", "Futebol", 1200, 1290, on: "2026-11-16")]
-        XCTAssertEqual(PlanRules.repeating(events), ["trabalho|540"])
+    /// An event repeats every day only when it's on every day the calendar was read for, except at most one (B3-R2: this
+    /// test used to pin «3 or more days», which hid a class three times a week). A Monday/Wednesday/Friday class and work
+    /// from Monday to Friday stay visible; days outside the read don't count.
+    func testOnlyAnEventOnEveryCoveredDayRepeatsEveryDay() {
+        let window = Agenda.window(from: "2026-11-08") // Saturday 7 to Sunday 15: nine days
+        let nine = (0..<9).map { Day.add($0, to: "2026-11-07") }
+        var events = nine.map { self.event("s\($0)", "Stand-up", 540, 555, on: $0) }
+        events += nine.dropFirst().map { self.event("c\($0)", "Comprimidos", 480, 490, on: $0) } // eight of the nine
+        events += ["2026-11-09", "2026-11-11", "2026-11-13"].map { self.event("a\($0)", "Aula", 1080, 1170, on: $0) } // Monday, Wednesday, Friday
+        events += (0..<5).map { self.event("w\($0)", "Trabalho", 540, 1050, on: Day.add($0, to: "2026-11-09")) } // Monday to Friday
+        events += [event("f1", "Futebol", 1200, 1290, on: "2026-11-09"), event("f2", "Futebol", 1200, 1290, on: "2026-11-16")]
+        // seven days inside the read and two outside it: nine in all, but only the seven count
+        events += (0..<7).map { self.event("o\($0)", "Almoço", 780, 840, on: Day.add($0, to: "2026-11-07")) }
+        events += ["2026-11-16", "2026-11-17"].map { self.event("o\($0)", "Almoço", 780, 840, on: $0) }
+        XCTAssertEqual(PlanRules.repeating(events, window: window), ["stand-up|540", "comprimidos|480"])
+        XCTAssertEqual(PlanRules.repeating(events, window: nil), [], "a calendar never read has nothing daily")
+    }
+
+    /// Outside what the calendar was read for, a day is «sem dados», never «livre»: its own mark, no level (so no shade),
+    /// and the load line says it's partial (B3-R1). `Agenda.covers` is the read's days and nothing else.
+    @MainActor
+    func testADayTheCalendarWasntReadForIsSemDadosNotFree() throws {
+        let window = Agenda.window(from: "2026-11-08")
+        XCTAssertTrue(Agenda.covers("2026-11-07", known: window), "the first day of the read")
+        XCTAssertTrue(Agenda.covers("2026-11-15", known: window), "the last day of the read")
+        XCTAssertFalse(Agenda.covers("2026-11-06", known: window))
+        XCTAssertFalse(Agenda.covers("2026-11-16", known: window))
+        XCTAssertFalse(Agenda.covers("2026-11-08", known: nil), "never read: no day is covered")
+
+        XCTAssertEqual(PlanRules.marks(trainingPlanned: false, trainingLogged: false, past: false, commitments: 0, suggestions: 0, calendarKnown: false), [.noData])
+        XCTAssertEqual(PlanRules.marks(trainingPlanned: true, trainingLogged: false, past: false, commitments: 1, suggestions: 0, calendarKnown: false), [.training, .commitment, .noData])
+        XCTAssertEqual(PlanRules.loadWord(known: false), "carga parcial")
+        XCTAssertEqual(PlanRules.loadWord(known: true), "carga")
+
+        let store = try makeStore()
+        let unknown = store.monthDay("2026-11-20", today: "2026-11-08", repeating: [], kept: [], known: false)
+        XCTAssertEqual(unknown.marks, [.noData])
+        XCTAssertNil(unknown.level, "no shade: an empty cell there isn't a free day")
+        let known = store.monthDay("2026-11-20", today: "2026-11-08", repeating: [], kept: [], known: true)
+        XCTAssertEqual(known.marks, [])
+        XCTAssertEqual(known.level, 0, "read and empty is a free day")
+    }
+
+    /// The summary only ever shows a day of the month on screen (B3-M4): the day you picked if it's there, otherwise
+    /// today if it's there, otherwise nothing
+    func testTheSummaryShowsOnlyADayOfTheMonthOnScreen() {
+        XCTAssertEqual(PlanRules.monthPick(nil, month: "2026-11-01", today: "2026-11-08"), "2026-11-08")
+        XCTAssertEqual(PlanRules.monthPick("2026-11-20", month: "2026-11-01", today: "2026-11-08"), "2026-11-20")
+        XCTAssertNil(PlanRules.monthPick("2026-11-20", month: "2026-12-01", today: "2026-11-08"), "a day picked in another month is cleared")
+        XCTAssertNil(PlanRules.monthPick(nil, month: "2026-12-01", today: "2026-11-08"), "today isn't in December")
     }
 
     /// Marks by shape: a training registered, planned, or planned in the past with no record (never «falhado»), then
@@ -220,6 +279,35 @@ final class PlanTests: RegressionCase {
         XCTAssertEqual(EventDraft.parse("Dentista hoje as 3", today: today), EventDraft(title: "Dentista", day: today, minute: nil, options: [900, 180]))
     }
 
+    /// «à 1» is a time (B3-M3): the hour 1 is the only singular one, so only it is read after a bare «a», and «a 2 amigos»
+    /// isn't a time. With nothing saying morning or afternoon it has two readings, like any hour from 1 to 11.
+    func testTheSingularHourIsATimeInTheLine() {
+        let today = "2026-11-08"
+        XCTAssertEqual(EventDraft.parse("dentista quinta à 1", today: today), EventDraft(title: "Dentista", day: "2026-11-12", minute: nil, options: [780, 60]))
+        XCTAssertEqual(EventDraft.parse("almoço à 1:30", today: today), EventDraft(title: "Almoço", day: nil, minute: nil, options: [810, 90]))
+        XCTAssertEqual(EventDraft.parse("reunião a 1 da tarde", today: today), EventDraft(title: "Reunião", day: nil, minute: 780, options: []))
+        let friends = EventDraft.parse("ligar a 2 amigos", today: today)
+        XCTAssertNil(friends.minute, "«a» only goes with the hour 1")
+        XCTAssertEqual(friends.options, [])
+        XCTAssertEqual(friends.title, "Ligar a 2 amigos")
+    }
+
+    /// The hour 1 is singular in European Portuguese («à 1:00», «da 1:00»); every other hour, 13:00 and 0:00 included, is
+    /// plural
+    func testTheHourOneIsSingular() {
+        XCTAssertEqual(PlanFormat.at(60), "à 1:00")
+        XCTAssertEqual(PlanFormat.at(90), "à 1:30")
+        XCTAssertEqual(PlanFormat.at(120), "às 2:00")
+        XCTAssertEqual(PlanFormat.at(780), "às 13:00")
+        XCTAssertEqual(PlanFormat.at(0), "às 0:00")
+        XCTAssertEqual(PlanFormat.from(60), "da 1:00")
+        XCTAssertEqual(PlanFormat.from(900), "das 15:00")
+        XCTAssertEqual(PlanFormat.article(60), "a 1:00")
+        XCTAssertEqual(PlanFormat.article(1050), "as 17:30")
+        XCTAssertEqual(PlanFormat.atHour(1), "à 1")
+        XCTAssertEqual(PlanFormat.atHour(3), "às 3")
+    }
+
     /// The same name in the same week, Monday to Sunday
     func testSomethingWithTheSameNameThatWeek() {
         let entries = [PlanEntry(title: "Dentista", day: "2026-11-10", minute: 900), PlanEntry(title: "Dentista", day: "2026-11-17", minute: 900)]
@@ -259,5 +347,188 @@ final class PlanTests: RegressionCase {
         XCTAssertEqual(store.planItems(for: Fixed.saturday).first { $0.id == "S1" }?.detail, "não se aplica")
         store.saveReview(shake, on: Fixed.saturday, .notDone)
         XCTAssertEqual(store.planItems(for: Fixed.saturday).first { $0.id == "S1" }?.detail, "saltado")
+    }
+
+    // MARK: «Não se aplica» is not «Não fiz» (B3-E1)
+
+    private func habit(_ id: String, kind: PromiseKind = .routine, weekdays: [Int]? = nil) -> PromiseItem {
+        var schedule = Schedule(rule: .daily, start: "2026-01-01", minute: 9 * 60)
+        if let weekdays {
+            schedule.rule = .weekdays
+            schedule.weekdays = weekdays
+        }
+        return PromiseItem(id: id, title: id, kind: kind, schedule: schedule)
+    }
+
+    private func answer(_ p: PromiseItem, _ status: LogStatus, on day: String, notApplicable: Bool? = nil, in s: inout Saved) {
+        let log = PromiseLog(promiseId: p.id, date: day, status: status, notApplicable: notApplicable)
+        s.logs[log.id] = log
+    }
+
+    /// One habit done and one «Não se aplica» is all of what counted: 40 of 40 points for habits, 30 of 30 with Comida
+    /// on. A plain «Não fiz» stays in the count (20 of 40). Saved points are read as they were saved.
+    @MainActor
+    func testNotApplicableLeavesTheScore() throws {
+        let done = habit("D"), notApplicable = habit("NA"), missed = habit("M")
+        let day = Fixed.saturday
+        let withoutFuel = try makeStore { s in
+            s.profile.areasOff = ["fuel"]
+            s.promises = [done.id: done, notApplicable.id: notApplicable]
+            self.answer(done, .done, on: day, in: &s)
+            self.answer(notApplicable, .skipped, on: day, notApplicable: true, in: &s)
+        }
+        XCTAssertEqual(withoutFuel.score(on: day), 40)
+        let withFuel = try makeStore { s in
+            s.promises = [done.id: done, notApplicable.id: notApplicable]
+            self.answer(done, .done, on: day, in: &s)
+            self.answer(notApplicable, .skipped, on: day, notApplicable: true, in: &s)
+        }
+        XCTAssertEqual(withFuel.score(on: day), 30)
+        let plainSkip = try makeStore { s in
+            s.profile.areasOff = ["fuel"]
+            s.promises = [done.id: done, missed.id: missed]
+            self.answer(done, .done, on: day, in: &s)
+            self.answer(missed, .skipped, on: day, in: &s)
+        }
+        XCTAssertEqual(plainSkip.score(on: day), 20, "«Não fiz» is a miss and stays in the count")
+    }
+
+    /// A day answered «Não se aplica» leaves «x/y esta semana»: done, due so far and the week's total
+    @MainActor
+    func testNotApplicableLeavesTheWeekCount() throws {
+        let p = habit("H1")
+        let store = try makeStore { s in
+            s.promises[p.id] = p
+            self.answer(p, .done, on: Fixed.monday, in: &s)
+            self.answer(p, .skipped, on: Fixed.tuesday, notApplicable: true, in: &s)
+            self.answer(p, .skipped, on: Fixed.wednesday, in: &s)
+        }
+        let w = store.week(p, upTo: Fixed.wednesday)
+        XCTAssertEqual(w.done, 1)
+        XCTAssertEqual(w.due, 2, "Monday and Wednesday: Tuesday didn't apply, Wednesday's skip still counts")
+        XCTAssertEqual(w.total, 6, "the week's seven days less the one that didn't apply")
+    }
+
+    /// «Hábitos cumpridos %» in the weekly review and the habits ring leave it out too; a plain skip stays in
+    @MainActor
+    func testNotApplicableLeavesTheWeeklyReviewAndTheRing() throws {
+        let done = habit("D", weekdays: [2]), notApplicable = habit("NA", weekdays: [2]), missed = habit("M", weekdays: [2]) // Mondays only
+        let applied = try makeStore { s in
+            s.promises = [done.id: done, notApplicable.id: notApplicable]
+            self.answer(done, .done, on: Fixed.monday, in: &s)
+            self.answer(notApplicable, .skipped, on: Fixed.monday, notApplicable: true, in: &s)
+        }
+        XCTAssertEqual(applied.weekReview(Fixed.monday).first { $0.0 == "Hábitos cumpridos" }?.1, "100%")
+        let skipped = try makeStore { s in
+            s.promises = [done.id: done, missed.id: missed]
+            self.answer(done, .done, on: Fixed.monday, in: &s)
+            self.answer(missed, .skipped, on: Fixed.monday, in: &s)
+        }
+        XCTAssertEqual(skipped.weekReview(Fixed.monday).first { $0.0 == "Hábitos cumpridos" }?.1, "50%")
+
+        // the ring is today's, so its answers are today's
+        let today = Day.today
+        let daily = habit("D"), otherDaily = habit("NA")
+        let ringStore = try makeStore { s in
+            s.promises = [daily.id: daily, otherDaily.id: otherDaily]
+            self.answer(daily, .done, on: today, in: &s)
+            self.answer(otherDaily, .skipped, on: today, notApplicable: true, in: &s)
+        }
+        let ring = try XCTUnwrap(ringStore.ringStats().day.first { $0.key == .promises })
+        XCTAssertEqual(ring.center, "1/1")
+        XCTAssertEqual(ring.target, 1)
+    }
+
+    /// On a minimum day a must-do that doesn't apply leaves the essentials: done against the one that's left
+    @MainActor
+    func testNotApplicableLeavesTheMinimumDay() throws {
+        let done = habit("M1", kind: .mustDo), notApplicable = habit("M2", kind: .mustDo), missed = habit("M3", kind: .mustDo)
+        let day = Fixed.saturday
+        let applied = try makeStore { s in
+            s.promises = [done.id: done, notApplicable.id: notApplicable]
+            self.answer(done, .done, on: day, in: &s)
+            self.answer(notApplicable, .skipped, on: day, notApplicable: true, in: &s)
+        }
+        XCTAssertEqual(applied.minimumScore(on: day), 75, "50 for the essentials, 25 for sleep with no data")
+        let skipped = try makeStore { s in
+            s.promises = [done.id: done, missed.id: missed]
+            self.answer(done, .done, on: day, in: &s)
+            self.answer(missed, .skipped, on: day, in: &s)
+        }
+        XCTAssertEqual(skipped.minimumScore(on: day), 50, "one of two essentials")
+    }
+
+    /// In Today «Não se aplica» has its own circle and its own words for VoiceOver, not «Saltar»'s or «Não fiz»'s
+    func testNotApplicableLooksAndReadsDifferentlyFromASkip() {
+        XCTAssertEqual(TodayRules.habitIcon(.skipped, notApplicable: true), DataState.unavailable.icon)
+        XCTAssertNotEqual(TodayRules.habitIcon(.skipped, notApplicable: true), TodayRules.habitIcon(.skipped, notApplicable: false))
+        XCTAssertEqual(TodayRules.habitIcon(.skipped, notApplicable: false), "minus.circle")
+        XCTAssertEqual(TodayRules.habitIcon(.done, notApplicable: false), "checkmark.circle.fill")
+        XCTAssertEqual(TodayRules.habitIcon(nil, notApplicable: false), "circle")
+        XCTAssertEqual(TodayRules.habitLabel("Batido", .skipped, notApplicable: true), "Batido, não se aplica")
+        XCTAssertEqual(TodayRules.habitLabel("Batido", .skipped, notApplicable: false), "Batido, não fiz")
+        XCTAssertEqual(TodayRules.habitLabel("Batido", .done, notApplicable: false), "Batido, feito")
+        XCTAssertEqual(TodayRules.habitLabel("Batido", nil, notApplicable: false), "Batido, por responder")
+    }
+
+    // MARK: A session left open past its day (B3-E2, B4-N3, B4-N4, decision D23)
+
+    /// Open on a past day: partial when it's read, up to its last activity, in the review, the month, the weekly review
+    /// and the time audit; nothing is written. Open today it is still in progress.
+    @MainActor
+    func testAnOpenSessionFromAPastDayIsPartialWhenRead() throws {
+        let start = Day.at(18 * 60, on: Fixed.wednesday).timeIntervalSince1970 * 1000
+        var open = WorkoutSession(id: "S1", date: Fixed.wednesday, name: "Pernas", start: start, end: nil, order: [])
+        open.pausedAt = start + 40 * 60000 // the last thing done, 40 min in
+        let left = open
+        let store = try makeStore { $0.add(left) }
+
+        let line = try XCTUnwrap(DayReview.sessionLine(store.sessions(on: Fixed.wednesday), today: "2026-11-05"))
+        XCTAssertEqual(line.state, .partial)
+        XCTAssertEqual(line.text, "Parcial")
+        XCTAssertEqual(line.sub, "registado no treino · 40 min")
+        let running = try XCTUnwrap(DayReview.sessionLine(store.sessions(on: Fixed.wednesday), today: Fixed.wednesday))
+        XCTAssertEqual(running.state, .pending)
+        XCTAssertEqual(running.text, "Em curso")
+
+        XCTAssertTrue(store.trainingLogged(on: Fixed.wednesday, today: "2026-11-05"), "the month counts it as logged")
+        XCTAssertFalse(store.trainingLogged(on: Fixed.wednesday, today: Fixed.wednesday), "still in progress on its own day")
+        XCTAssertTrue(store.monthDay(Fixed.wednesday, today: "2026-11-05", repeating: [], kept: [], known: true).marks.contains(.trainingLogged))
+        XCTAssertEqual(store.trainingSlot(on: Fixed.wednesday)?.done, true, "what really happened, not the plan")
+
+        XCTAssertEqual(store.weekReview(Fixed.monday).first { $0.0 == "Treinos" }?.1, "1")
+        XCTAssertEqual(store.timeAudit(week: Fixed.monday).first { $0.0 == "Training" }?.1, 40)
+
+        XCTAssertNil(store.record(WorkoutSession.self, "S1")?.end, "computed on read: nothing is written")
+        XCTAssertEqual(store.pendingSyncCount, 0)
+    }
+
+    // MARK: Pending records (C-L2, B4-N8, decisions D8 and D24)
+
+    /// What the server can take, and what «Precisa de ação» and Perfil count: habit answers ("|" ids, decision D8) and
+    /// plain values stay on this iPhone; a record object or a deletion goes
+    @MainActor
+    func testWhatTheServerCanTakeIsWhatIsPending() throws {
+        let p = habit("H1")
+        let store = try makeStore { $0.promises[p.id] = p }
+        XCTAssertEqual(store.pendingSendableCount, 0)
+        store.log(p, on: Fixed.saturday, .done)
+        XCTAssertFalse(store.serverCanTake("log:H1|\(Fixed.saturday)"), "a habit answer has a | in its id")
+        XCTAssertEqual(store.pendingSyncCount, 1)
+        XCTAssertEqual(store.pendingSendableCount, 0, "it stays on this iPhone, so nothing needs action")
+        store.put("bedshift", Fixed.saturday, .number(15))
+        XCTAssertFalse(store.serverCanTake("bedshift:\(Fixed.saturday)"), "a plain value isn't an object")
+        XCTAssertEqual(store.pendingSendableCount, 0)
+        store.save(DayEntry(date: Fixed.saturday))
+        XCTAssertTrue(store.serverCanTake("day:\(Fixed.saturday)"))
+        XCTAssertEqual(store.pendingSendableCount, 1)
+        store.put("thing", "a-1", .object(["x": .number(1)]))
+        XCTAssertTrue(store.serverCanTake("thing:a-1"))
+        XCTAssertEqual(store.pendingSendableCount, 2)
+        store.put("thing", "a-1", nil)
+        XCTAssertTrue(store.serverCanTake("thing:a-1"), "a deletion goes to the server")
+        XCTAssertEqual(store.pendingSendableCount, 2)
+        XCTAssertFalse(store.serverCanTake("Bad:x"), "a type the server wouldn't take")
+        XCTAssertFalse(store.serverCanTake("thing:id with spaces"))
     }
 }

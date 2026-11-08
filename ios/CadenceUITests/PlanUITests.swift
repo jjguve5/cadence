@@ -15,7 +15,7 @@ final class PlanUITests: CadenceUITestCase {
     }
 
     /// Opens in Dia; Mês shows the grid, › moves to the next month and «Hoje» comes back. The choice survives a
-    /// relaunch, and «Abrir o dia» opens the chosen day in Dia.
+    /// relaunch, and «Abrir o dia» opens the chosen day in Dia without changing that choice.
     func testTheViewYouChooseStaysAndTheMonthNavigates() {
         launch("plan.month")
         open(.plan)
@@ -35,6 +35,10 @@ final class PlanUITests: CadenceUITestCase {
         reveal("plan.month.open").tap()
         XCTAssertTrue(el("plan.day").waitForExistence(timeout: 5), "«Abrir o dia» opens it in Dia")
         XCTAssertFalse(el("plan.month.grid").exists)
+        app.terminate()
+        launch("plan.month", reset: false)
+        open(.plan)
+        XCTAssertTrue(el("plan.month.grid").waitForExistence(timeout: 5), "«Abrir o dia» doesn't replace the view you chose")
     }
 
     /// A training at 18:30 and a Google dinner at 19:00: «Aplicar» moves only the training and offers Desfazer, which

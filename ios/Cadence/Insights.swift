@@ -154,7 +154,7 @@ extension Store {
         if isMinimumDay(day) { return minimumScore(on: day) }
         guard !profile.on("fuel") else { return scoreWithFuel(on: day) }
         var got = 0.0
-        let due = self.due(on: day)
+        let due = self.dueCounted(on: day) // «Não se aplica» leaves both sides of the count
         if due.isEmpty { got += 40 } else {
             let done = due.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count
             let tiny = due.filter { status($0, on: day) == .tiny }.count
@@ -168,7 +168,7 @@ extension Store {
 
     private func scoreWithFuel(on day: String) -> Int {
         var got = 0.0
-        let due = self.due(on: day)
+        let due = self.dueCounted(on: day) // «Não se aplica» leaves both sides of the count
         if due.isEmpty { got += 30 } else {
             let done = due.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count
             let tiny = due.filter { status($0, on: day) == .tiny }.count
@@ -204,7 +204,7 @@ extension Store {
         let minute = Day.minuteOfDay(now)
         let plan = sleepPlan()
         let today = Day.today
-        let dueToday = self.due(on: today)
+        let dueToday = self.dueCounted(on: today) // «Não se aplica» isn't a miss and isn't something left to do
         let allDone = !dueToday.isEmpty && dueToday.allSatisfy { status($0, on: today).map { $0 != .skipped } ?? false }
         if minute < 11 * 60, let s = health[today]?.sleep, Double(s.asleep) < Double(profile.sleepNeed) * 0.8 { return .sleepy }
         if minute >= min(plan.windDown, 1439) || minute < 4 * 60 { return openMustDos().isEmpty ? .sleepy : .eat }

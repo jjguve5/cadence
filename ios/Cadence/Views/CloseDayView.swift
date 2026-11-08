@@ -163,6 +163,18 @@ enum DayReview {
         }
         return parts.isEmpty ? "Nada para rever neste dia." : parts.joined(separator: " · ")
     }
+
+    /// The day's session as Treino has it: ended (Feito or Parcial), left open past its day (Parcial up to its last
+    /// activity, on read, as in Treino: decision D23; nothing is written), or open today (Em curso)
+    static func sessionLine(_ sessions: [WorkoutSession], today: String) -> (title: String, sub: String, state: DataState, text: String)? {
+        if let s = sessions.first(where: { $0.end != nil || TrainingRules.isExpired($0, today: today) }) {
+            let minutes = Int(((s.end ?? TrainingRules.lastActivity(s)) - s.start) / 60000)
+            let partial = TrainingRules.isPartial(s, today: today)
+            return (s.name, "registado no treino · \(minutes) min", partial ? DataState.partial : DataState.confirmed, partial ? "Parcial" : "Feito")
+        }
+        if let s = sessions.first(where: { $0.end == nil }) { return (s.name, "no treino", DataState.pending, "Em curso") }
+        return nil
+    }
 }
 
 @MainActor
@@ -225,13 +237,7 @@ struct DayReviewView: View {
 
     /// The training as Treino has it: registered, in progress, or planned with no record («Não confirmado»)
     private var trainingLine: (title: String, sub: String, state: DataState, text: String)? {
-        let sessions = store.sessions(on: day)
-        if let s = sessions.first(where: { $0.end != nil }), let end = s.end {
-            let minutes = Int((end - s.start) / 60000)
-            let partial = s.partial == true
-            return (s.name, "registado no treino · \(minutes) min", partial ? DataState.partial : DataState.confirmed, partial ? "Parcial" : "Feito")
-        }
-        if let s = sessions.first(where: { $0.end == nil }) { return (s.name, "no treino", DataState.pending, "Em curso") }
+        if let line = DayReview.sessionLine(store.sessions(on: day), today: Day.today) { return line }
         if let b = store.all(PlanBlock.self).first(where: { $0.date == day && $0.type == "training" }) { return (b.title, "sem registo no treino", DataState.noData, "Não confirmado") }
         if let t = store.templates.first(where: { $0.weekdays.contains(Day.weekday(day)) }) { return (t.name, "sem registo no treino", DataState.noData, "Não confirmado") }
         return nil

@@ -143,7 +143,8 @@ struct SettingsView: View {
                 LabeledContent("Estado", value: store.lastSaved.map { "verificado às " + $0.formatted(date: .omitted, time: .shortened) } ?? "sem gravações nesta sessão")
                 LabeledContent("Registos", value: "\(store.personalRecordCount)")
                 LabeledContent("Cópias locais", value: store.localCopies.first.map { "\(store.localCopies.count) · última \($0.date.formatted(date: .abbreviated, time: .omitted))" } ?? "nenhuma ainda")
-                LabeledContent("Por enviar ao servidor", value: "\(store.pendingSyncCount)")
+                LabeledContent("Por enviar ao servidor", value: "\(store.pendingSendableCount)") // the same count as «Precisa de ação» in Hoje (decision D24)
+                Text("As respostas aos hábitos ficam só neste iPhone: não vão para o servidor.").font(.footnote).foregroundStyle(Color.soft) // decision D8
                 if let hold = store.syncHold {
                     Text(hold).font(.footnote).foregroundStyle(Color.warn)
                 }

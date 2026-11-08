@@ -59,7 +59,8 @@ extension Store {
     /// template at 18:00, moved to finish before a trip or event that's in the way
     func trainingSlot(on day: String = Day.today) -> (start: Int, end: Int, title: String, done: Bool)? {
         func minute(_ ms: Double) -> Int { Day.minuteOfDay(Date(timeIntervalSince1970: ms / 1000)) }
-        if let s = sessions(on: day).first(where: { $0.end != nil }), let end = s.end { return (minute(s.start), minute(end), s.name, true) }
+        // Finished, or left open past its day: then it's partial up to its last activity, as in Treino (decision D23; nothing is written)
+        if let s = sessions(on: day).first(where: { $0.end != nil || TrainingRules.isExpired($0, today: Day.today) }) { return (minute(s.start), minute(s.end ?? TrainingRules.lastActivity(s)), s.name, true) }
         let planned = templates.first { $0.weekdays.contains(Day.weekday(day)) }
         if let s = sessions(on: day).first(where: { $0.end == nil && nowMs() - $0.start < 3 * 3600 * 1000 }) {
             let m = minute(s.start)
@@ -119,7 +120,7 @@ extension Store {
         let walk = Engine.paceShare(minute: minute, wake: p.wakeMinute, end: plan.windDown)
         let drink = Engine.paceShare(minute: minute, wake: p.wakeMinute, end: plan.perform - 120)
         let goal = waterGoal()
-        let due = self.due()
+        let due = self.dueCounted() // «Não se aplica» leaves both sides of the count
         let done = due.filter { status($0).map { $0 != .skipped } ?? false }.count
         let dueNow = due.filter { time(of: $0) <= minute }.count
         let steps = h?.steps ?? 0

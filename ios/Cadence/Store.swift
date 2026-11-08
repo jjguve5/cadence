@@ -410,6 +410,14 @@ final class Store: ObservableObject {
 
     func status(_ promise: PromiseItem, on day: String = Day.today) -> LogStatus? { logs["\(promise.id)|\(day)"]?.status }
 
+    /// «Não se aplica» (phase 2.8): a skip saved with notApplicable. Unlike «Não fiz» it isn't a miss: it leaves every
+    /// count, the numerator and the denominator. What was already saved in history (a closed day's points) never changes.
+    func isNotApplicable(_ promise: PromiseItem, on day: String = Day.today) -> Bool { logs["\(promise.id)|\(day)"]?.notApplicable == true }
+
+    /// The habits that count on a day: what's due, less any answered «Não se aplica». The score, the Pip's mood, the rings,
+    /// «x/y esta semana», the review and the minimum day start from here; the list on screen is still `due`.
+    func dueCounted(on day: String = Day.today) -> [PromiseItem] { due(on: day).filter { !isNotApplicable($0, on: day) } }
+
     /// Where a day's answer came from, or nil when there is no answer
     func answerOrigin(_ promise: PromiseItem, on day: String = Day.today) -> AnswerOrigin? {
         guard let log = logs["\(promise.id)|\(day)"] else { return nil }
@@ -428,17 +436,19 @@ final class Store: ObservableObject {
 
     func openMustDos(on day: String = Day.today) -> [PromiseItem] { due(on: day).filter { $0.kind == .mustDo && status($0, on: day) == nil } }
 
-    /// "6/6 this week": done so far against due so far, Monday to today
+    /// "6/6 this week": done so far against due so far, Monday to today. A day answered «Não se aplica» leaves all three
+    /// numbers (done, due so far and the week's total).
     func week(_ promise: PromiseItem, upTo day: String = Day.today) -> (done: Int, due: Int, total: Int) {
         let start = Day.weekStart(day)
         var done = 0, due = 0
         for i in 0...max(0, Day.between(start, day)) {
             let d = Day.add(i, to: start)
-            guard promise.schedule.isDue(on: d) else { continue }
+            guard promise.schedule.isDue(on: d), !isNotApplicable(promise, on: d) else { continue }
             due += 1
             if let s = status(promise, on: d), s != .skipped { done += 1 }
         }
-        return (done, due, promise.schedule.dueInWeek(of: day))
+        let notApplicable = (0..<7).map { Day.add($0, to: start) }.filter { promise.schedule.isDue(on: $0) && isNotApplicable(promise, on: $0) }.count
+        return (done, due, promise.schedule.dueInWeek(of: day) - notApplicable)
     }
 
     // MARK: - Days and profile

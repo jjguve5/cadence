@@ -45,7 +45,7 @@ extension Store {
             items.append(PlanItem(id: "shower", minute: Day.minuteOfDay(s.at), title: "Duche", detail: s.why, icon: "shower.fill", color: .water))
         }
         for c in commutes(on: day) {
-            items.append(PlanItem(id: "c" + c.id, minute: c.leave, end: c.arrive, title: "Para \(c.title)", detail: "sair às \(clock(c.leave)) · \(c.travel) min + \(c.buffer) de margem", icon: "tram.fill", color: Color(hex: 0x6CC4FF)))
+            items.append(PlanItem(id: "c" + c.id, minute: c.leave, end: c.arrive, title: "Para \(c.title)", detail: "sair \(PlanFormat.at(c.leave)) · \(c.travel) min + \(c.buffer) de margem", icon: "tram.fill", color: Color(hex: 0x6CC4FF)))
         }
         for p in due(on: day) {
             let st = status(p, on: day)
@@ -122,18 +122,18 @@ extension Store {
         return out
     }
 
-    /// Other times for it that day, nearest first (PlanRules.alternatives): from an hour after waking (and not before
-    /// now, today) to the wind-down, around calendar events, regular trips and everything else Cadence placed, keeping 15
-    /// minutes either side of a training (as the training slot does) and 10 around a block. None for a day gone by.
+    /// Other times for the training that day, nearest first (PlanRules.alternatives): from an hour after waking (and not
+    /// before now, today) to the wind-down, around calendar events, regular trips and everything else Cadence placed,
+    /// keeping 15 minutes either side of it (as the training slot does). None for a day gone by. None either for a block
+    /// or event of yours that isn't the training: it's shown as a conflict, but only the training is ever offered a new time.
     func planAlternatives(for c: PlanConflict, events: [CalendarEvent]? = nil, today: String = Day.today, minute: Int? = nil) -> [PlanAlternative] {
-        guard c.day >= today else { return [] }
+        guard c.training, c.day >= today else { return [] }
         var busy = (events ?? Agenda.shared.events(on: c.day)).map { PlanSpan(start: $0.startMinute, end: $0.endMinute) }
         busy += commutes(on: c.day).map { PlanSpan(start: $0.leave, end: $0.arrive) }
         busy += all(PlanBlock.self).filter { $0.date == c.day && $0.id != c.block?.id }.map { PlanSpan(start: $0.start, end: $0.start + $0.minutes) }
-        if !c.training, let t = trainingSlot(on: c.day) { busy.append(PlanSpan(start: t.start, end: t.end)) }
         var from = profile.wakeMinute + 60
         if c.day == today { from = max(from, minute ?? Clock.minute()) }
-        return PlanRules.alternatives(length: c.span.minutes, original: c.span.start, busy: busy, from: from, to: sleepPlan(for: c.day).windDown, margin: c.training ? 15 : 10)
+        return PlanRules.alternatives(length: c.span.minutes, original: c.span.start, busy: busy, from: from, to: sleepPlan(for: c.day).windDown, margin: 15)
     }
 
     /// The block as it would be at the new time: a copy, nothing saved (the training from your plan becomes a block)
@@ -170,7 +170,10 @@ extension Store {
         templates.contains { $0.weekdays.contains(Day.weekday(day)) } || all(PlanBlock.self).contains { $0.date == day && $0.type == "training" }
     }
 
-    func trainingLogged(on day: String) -> Bool { sessions(on: day).contains { $0.end != nil } }
+    /// Logged: finished, or left open past its day, which is partial when it's read (decision D23); nothing is written
+    func trainingLogged(on day: String, today: String = Day.today) -> Bool {
+        sessions(on: day).contains { $0.end != nil || TrainingRules.isExpired($0, today: today) }
+    }
 
     /// What marks the month grid as a commitment: calendar events that don't repeat every day, and your blocks and events
     func planCommitments(on day: String, repeating: Set<String>, events: [CalendarEvent]? = nil) -> Int {
@@ -180,13 +183,16 @@ extension Store {
     }
 
     /// A day of the month grid: its marks, how full it is, and its conflicts (from today on). A conflict with another
-    /// time to offer is a suggestion, until you keep it as it is.
-    func monthDay(_ day: String, today: String = Day.today, repeating: Set<String>, kept: Set<String>) -> (marks: [PlanMark], level: Int, conflicts: [PlanConflict]) {
+    /// time to offer is a suggestion, until you keep it as it is. Outside what the calendar was read for, `level` is nil
+    /// and «sem dados» is one of its marks: an empty cell there doesn't mean free. `known` is the view's reading of
+    /// Agenda.covers; nil reads it here.
+    func monthDay(_ day: String, today: String = Day.today, repeating: Set<String>, kept: Set<String>, known: Bool? = nil) -> (marks: [PlanMark], level: Int?, conflicts: [PlanConflict]) {
+        let calendarKnown = known ?? Agenda.shared.covers(day)
         let conflicts = day >= today ? planConflicts(on: day) : []
         let suggestions = conflicts.filter { !kept.contains($0.id) && !planAlternatives(for: $0, today: today).isEmpty }.count
-        let marks = PlanRules.marks(trainingPlanned: trainingPlanned(on: day), trainingLogged: trainingLogged(on: day), past: day < today,
-                                    commitments: planCommitments(on: day, repeating: repeating), suggestions: suggestions)
-        return (marks, dayLoad(on: day).level, conflicts)
+        let marks = PlanRules.marks(trainingPlanned: trainingPlanned(on: day), trainingLogged: trainingLogged(on: day, today: today), past: day < today,
+                                    commitments: planCommitments(on: day, repeating: repeating), suggestions: suggestions, calendarKnown: calendarKnown)
+        return (marks, calendarKnown ? dayLoad(on: day).level : nil, conflicts)
     }
 }
 
@@ -208,14 +214,15 @@ struct PlanView: View {
     @State private var chosenDay: String? // the day shown in Dia, or a day of the week shown in Semana; nil is today
     @State private var chosenMonth: String? // the first day of the month shown; nil is this month
     @State private var picked: String? // the day chosen in the month; nil is today
+    @State private var openedDay = false // «Abrir o dia» shows Dia without touching the view you chose (modeRaw)
     @State private var kept: Set<String> = [] // conflicts kept as they are («Manter assim», «Ignorar»): still shown, with no proposal, and no mark saved
     @State private var showingOthers: Set<String> = []
     @State private var loadOpen = false
     @State private var creating = false
     @State private var reviewing = false
 
-    private var mode: PlanMode { PlanMode(rawValue: modeRaw) ?? .day }
-    private var modeBinding: Binding<PlanMode> { Binding(get: { mode }, set: { modeRaw = $0.rawValue }) }
+    private var mode: PlanMode { openedDay ? .day : (PlanMode(rawValue: modeRaw) ?? .day) }
+    private var modeBinding: Binding<PlanMode> { Binding(get: { mode }, set: { openedDay = false; modeRaw = $0.rawValue }) }
 
     var body: some View {
         let today = Day.today
@@ -261,10 +268,11 @@ struct PlanView: View {
         .background(RoundedRectangle(cornerRadius: 18).fill(.white.opacity(0.055)))
     }
 
-    /// Opens a day in Dia (from a row of the week, the month's «Abrir o dia» or a conflict)
+    /// Opens a day in Dia (from a row of the week, the month's «Abrir o dia» or a conflict). The view you chose stays
+    /// stored: only tapping Dia · Semana · Mês changes it.
     private func openDay(_ day: String, today: String) {
         chosenDay = day == today ? nil : day
-        modeRaw = PlanMode.day.rawValue
+        openedDay = true
     }
 
     // MARK: Dia (N_Plano, N_PlanoConflito)
@@ -308,7 +316,7 @@ struct PlanView: View {
                 Spacer(minLength: 6)
                 Button { withAnimation(.easeOut(duration: 0.2)) { loadOpen.toggle() } } label: {
                     HStack(spacing: 4) {
-                        Text("carga")
+                        Text(PlanRules.loadWord(known: known))
                         EstimatedText(value: "\(duration(load.busy)) de \(duration(load.awake))")
                         Image(systemName: loadOpen ? "chevron.up" : "chevron.right").font(.system(size: 9, weight: .semibold))
                     }
@@ -318,7 +326,7 @@ struct PlanView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Carga do dia, estimada: \(duration(load.busy)) ocupadas de \(duration(load.awake)) acordado")
+                .accessibilityLabel("Carga do dia, estimada\(known ? "" : ", parcial, sem dados do calendário"): \(duration(load.busy)) ocupadas de \(duration(load.awake)) acordado")
                 .accessibilityHint(loadOpen ? "Esconde o detalhe" : "Mostra o detalhe")
                 .accessibilityIdentifier("plan.load")
             }
@@ -330,7 +338,7 @@ struct PlanView: View {
 
     private func loadDetail(_ day: String, _ load: DayLoad, known: Bool) -> some View {
         let lightsOut = store.sleepPlan(for: day).perform
-        let awake = "Acordado das \(clock(store.profile.wakeMinute)) às \(clock(lightsOut)), a hora de apagar as luzes. O que se sobrepõe conta uma vez."
+        let awake = "Acordado \(PlanFormat.from(store.profile.wakeMinute)) \(PlanFormat.at(lightsOut)), a hora de apagar as luzes. O que se sobrepõe conta uma vez."
         let note = known ? awake : awake + " Sem dados do Google Calendar para este dia: só conta o que está no Cadence."
         return Card {
             HStack { Eyebrow(text: "Carga do dia"); Spacer(); StateTag(state: .estimated) }
@@ -359,15 +367,16 @@ struct PlanView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// The conflict and, under it, the best other time: «Aplicar» moves only Cadence's side (with Desfazer); «Manter
-    /// assim» keeps the conflict in sight with no proposal and saves nothing
+    /// The conflict and, under it, the best other time for the training: «Aplicar» moves only Cadence's side (with
+    /// Desfazer); «Manter assim» keeps the conflict in sight with no proposal and saves nothing. A block or event of yours
+    /// that isn't the training is shown as a conflict with no proposal: only the training is offered a new time.
     @ViewBuilder private func conflictCards(_ c: PlanConflict, today: String) -> some View {
         let isKept = kept.contains(c.id)
         Card(state: .pending) {
             HStack {
-                Eyebrow(text: "Conflito às \(clock(c.at))")
+                Eyebrow(text: "Conflito \(PlanFormat.at(c.at))")
                 Spacer()
-                StateTag(state: .pending, text: isKept ? "Conflito" : "Precisa de decisão")
+                StateTag(state: .pending, text: isKept || !c.training ? "Conflito" : "Precisa de decisão")
             }
             HStack(alignment: .top, spacing: 8) {
                 conflictSide(time: "\(clock(c.span.start))–\(clock(c.span.end))", title: c.title, from: c.block == nil ? "do teu plano" : "do Cadence", google: false)
@@ -378,7 +387,7 @@ struct PlanView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("plan.conflict")
-        if !isKept { proposalCard(c, store.planAlternatives(for: c, today: today)) }
+        if !isKept && c.training { proposalCard(c, store.planAlternatives(for: c, today: today)) }
     }
 
     private func conflictSide(time: String, title: String, from: String, google: Bool) -> some View {
@@ -395,16 +404,17 @@ struct PlanView: View {
 
     private func conflictText(_ c: PlanConflict) -> String {
         let overlap = "Sobrepõem-se \(duration(c.overlap))."
+        if !c.training { return "\(overlap) Não mexo em nenhum dos dois: um é do teu calendário e o outro marcaste tu." }
         return c.otherIsGoogle ? "\(overlap) Não mexo em «\(c.other)»: é do teu calendário." : "\(overlap) «\(c.other)» fica onde o marcaste."
     }
 
     private func moveText(_ c: PlanConflict, to start: Int) -> String {
-        let span = "das \(clock(start)) às \(clock(start + c.span.minutes))"
+        let span = "\(PlanFormat.from(start)) \(PlanFormat.at(start + c.span.minutes))"
         return c.training ? "Treinar \(span)" : "«\(c.title)» \(span)"
     }
 
     private func whyText(_ c: PlanConflict, _ o: PlanAlternative) -> String {
-        "estás livre das \(clock(o.freeFrom)) às \(clock(o.freeTo)); " + (c.otherIsGoogle ? "o evento do calendário fica como está." : "«\(c.other)» fica como está.")
+        "estás livre \(PlanFormat.from(o.freeFrom)) \(PlanFormat.at(o.freeTo)); " + (c.otherIsGoogle ? "o evento do calendário fica como está." : "«\(c.other)» fica como está.")
     }
 
     @ViewBuilder private func proposalCard(_ c: PlanConflict, _ options: [PlanAlternative]) -> some View {
@@ -462,15 +472,15 @@ struct PlanView: View {
     private func apply(_ c: PlanConflict, _ o: PlanAlternative) {
         let undo = store.applyAlternative(c, start: o.start)
         showingOthers.remove(c.id)
-        UndoCenter.shared.show("\(c.title) passou para as \(clock(o.start))", undo: undo)
+        UndoCenter.shared.show("\(c.title) passou para \(PlanFormat.article(o.start))", undo: undo)
     }
 
     private var weatherSuggestions: some View {
         ForEach(store.weatherMoves(), id: \.0.id) { block, minute in
             Card(tint: .water) {
                 Eyebrow(text: "Chuva durante \(block.title.lowercased())", icon: "cloud.rain.fill", color: .water)
-                Text("Seco às \(clock(minute)). Mudar para essa hora?").font(.geist(14))
-                SoftButton(title: "Mover para as \(clock(minute))") { var b = block; b.start = minute; store.save(b) }
+                Text("Seco \(PlanFormat.at(minute)). Mudar para essa hora?").font(.geist(14))
+                SoftButton(title: "Mover para \(PlanFormat.article(minute))") { var b = block; b.start = minute; store.save(b) }
             }
         }
     }
@@ -608,8 +618,8 @@ struct PlanView: View {
         if let best = store.planAlternatives(for: c, today: today).first {
             Card(state: .suggested) {
                 HStack { Eyebrow(text: "Treino"); Spacer(); StateTag(state: .suggested) }
-                Text("\(PlanFormat.weekday(c.day)): «\(c.title)» das \(clock(c.span.start)) para as \(clock(best.start))").font(.geist(15, .semibold))
-                WhyLine(text: "choca com «\(c.other)» às \(clock(c.at)); estás livre das \(clock(best.freeFrom)) às \(clock(best.freeTo)).")
+                Text("\(PlanFormat.weekday(c.day)): «\(c.title)» \(PlanFormat.from(c.span.start)) para \(PlanFormat.article(best.start))").font(.geist(15, .semibold))
+                WhyLine(text: "choca com «\(c.other)» \(PlanFormat.at(c.at)); estás livre \(PlanFormat.from(best.freeFrom)) \(PlanFormat.at(best.freeTo)).")
                 HStack(spacing: 6) {
                     PlanButton(title: "Aceitar", style: .go, id: "plan.proposal.accept") { apply(c, best) }
                     PlanButton(title: "Ajustar", style: .line, id: "plan.proposal.adjust") { placing = store.proposedBlock(c, start: best.start) }
@@ -626,21 +636,31 @@ struct PlanView: View {
 
     @ViewBuilder private func monthView(today: String) -> some View {
         let month = chosenMonth ?? PlanRules.monthStart(today)
-        let pick = picked ?? today
-        let repeating = PlanRules.repeating(agenda.events)
+        let pick = PlanRules.monthPick(picked, month: month, today: today)
+        let repeating = PlanRules.repeating(agenda.events, window: agenda.known)
         let previous = PlanRules.addMonths(-1, to: month)
         let following = PlanRules.addMonths(1, to: month)
         VStack(alignment: .leading, spacing: 12) {
             PeriodNav(title: PlanFormat.month(month), away: month != PlanRules.monthStart(today),
                       prevLabel: "Mês anterior: \(PlanFormat.monthName(previous))", nextLabel: "Mês seguinte: \(PlanFormat.monthName(following))",
-                      prev: { chosenMonth = previous }, next: { chosenMonth = following }, home: { chosenMonth = nil; picked = nil })
+                      prev: { showMonth(previous) }, next: { showMonth(following) }, home: { chosenMonth = nil; picked = nil })
             monthGrid(month, today: today, pick: pick, repeating: repeating)
             monthLegend
-            monthSummary(pick, today: today, repeating: repeating)
+            if let pick {
+                monthSummary(pick, today: today, repeating: repeating)
+            } else {
+                Text("Toca num dia para veres o resumo.").font(.geist(13)).foregroundStyle(Color.soft).padding(.horizontal, 4)
+            }
         }
     }
 
-    private func monthGrid(_ month: String, today: String, pick: String, repeating: Set<String>) -> some View {
+    /// Changing month clears a day you chose in another one, so the summary never shows a day from outside the grid
+    private func showMonth(_ month: String) {
+        chosenMonth = month
+        if let p = picked, PlanRules.monthStart(p) != PlanRules.monthStart(month) { picked = nil }
+    }
+
+    private func monthGrid(_ month: String, today: String, pick: String?, repeating: Set<String>) -> some View {
         let cells = PlanRules.monthCells(month)
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
             ForEach(Array(["S", "T", "Q", "Q", "S", "S", "D"].enumerated()), id: \.offset) { _, w in
@@ -659,12 +679,15 @@ struct PlanView: View {
     }
 
     /// Today has an outline, the chosen day is filled; a lighter background is a fuller day. Daily-repeating events
-    /// don't mark it.
-    private func monthCell(_ d: String, today: String, pick: String, repeating: Set<String>) -> some View {
-        let info = store.monthDay(d, today: today, repeating: repeating, kept: kept)
+    /// don't mark it. A day the calendar wasn't read for has no shade: a dashed outline and the «sem dados» mark, so it
+    /// never looks free.
+    private func monthCell(_ d: String, today: String, pick: String?, repeating: Set<String>) -> some View {
+        let known = agenda.covers(d)
+        let info = store.monthDay(d, today: today, repeating: repeating, kept: kept, known: known)
         let selected = d == pick
         let isToday = d == today
         let shades: [Double] = [0, 0.045, 0.09, 0.15]
+        let shade: Double = info.level.map { shades[min(3, max(0, $0))] } ?? 0
         var label = PlanFormat.dayMonth(d)
         if isToday { label += ", hoje" }
         if selected { label += ", selecionado" }
@@ -680,9 +703,13 @@ struct PlanView: View {
             }
             .foregroundStyle(selected ? Color(hex: 0x032018) : d < today ? Color.faint : Color.ink)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(selected ? Color.mint : Color.white.opacity(shades[min(3, max(0, info.level))])))
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(selected ? Color.mint : Color.white.opacity(shade)))
             .overlay {
-                if isToday { RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.mint, lineWidth: 2) }
+                if isToday {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.mint, lineWidth: 2)
+                } else if !known && !selected {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.32), style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
+                }
             }
             .contentShape(Rectangle())
         }
@@ -700,8 +727,9 @@ struct PlanView: View {
             HStack(spacing: 12) {
                 legendItem(.trainingLogged, word: "registado")
                 legendItem(.trainingNoRecord, word: "sem registo")
+                legendItem(.noData, word: "sem dados")
             }
-            Text("Fundo mais claro: dia mais cheio.").font(.geist(11)).foregroundStyle(Color.soft)
+            Text("Fundo mais claro: dia mais cheio. Contorno tracejado: sem dados do calendário.").font(.geist(11)).foregroundStyle(Color.soft)
         }
         .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
@@ -740,18 +768,19 @@ struct PlanView: View {
                     PlanButton(title: "Abrir o dia", style: .go, id: "plan.month.open") { openDay(d, today: today) }
                 }
                 ForEach(events) { e in
-                    summaryRow(clock(e.startMinute), e.title, "até às \(clock(e.endMinute))") { SourceLine(text: "Google") }
+                    summaryRow(clock(e.startMinute), e.title, "até \(PlanFormat.at(e.endMinute))") { SourceLine(text: "Google") }
                 }
                 ForEach(blocks) { b in
                     summaryRow(clock(b.start), b.title, "\(duration(b.minutes)) · marcado por ti") { EmptyView() }
                 }
                 if let t = training {
-                    summaryRow(clock(t.start), t.title, t.done ? "registado no treino" : "treino até às \(clock(t.end))") {
-                        if t.done { StateTag(state: .confirmed, text: "Feito") }
+                    let partial = t.done && store.sessions(on: d).contains { TrainingRules.isPartial($0, today: today) }
+                    summaryRow(clock(t.start), t.title, t.done ? "registado no treino" : "treino até \(PlanFormat.at(t.end))") {
+                        if t.done { StateTag(state: partial ? .partial : .confirmed, text: partial ? "Parcial" : "Feito") }
                     }
                 }
                 ForEach(proposals, id: \.0.id) { c, o in
-                    summaryRow(clock(o.start), "\(c.title): passar para as \(clock(o.start))", "proposta · ainda não está no plano") { StateTag(state: .suggested) }
+                    summaryRow(clock(o.start), "\(c.title): passar para \(PlanFormat.article(o.start))", "proposta · ainda não está no plano") { StateTag(state: .suggested) }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -759,7 +788,7 @@ struct PlanView: View {
             ForEach(info.conflicts) { c in
                 Button { openDay(c.day, today: today) } label: {
                     HStack(spacing: 8) {
-                        Text("\(PlanFormat.relative(c.day, today: today)): «\(c.title)» das \(clock(c.span.start)) choca com «\(c.other)»")
+                        Text("\(PlanFormat.relative(c.day, today: today)): «\(c.title)» \(PlanFormat.from(c.span.start)) choca com «\(c.other)»")
                             .font(.geist(13)).foregroundStyle(Color.ink).frame(maxWidth: .infinity, alignment: .leading)
                         StateTag(state: .pending, text: "Conflito")
                         Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.faint)
@@ -835,7 +864,7 @@ struct EnergyRibbon: View {
                 }
             }
             .frame(height: 46)
-            HStack { Text(clock(start)); Spacer(); Text("luzes às \(clock(end))") }.font(.mono(10.5)).foregroundStyle(Color.faint)
+            HStack { Text(clock(start)); Spacer(); Text("luzes \(PlanFormat.at(end))") }.font(.mono(10.5)).foregroundStyle(Color.faint)
         }
     }
 }
@@ -867,7 +896,7 @@ struct NowCard: View {
                 }
             } else {
                 Eyebrow(text: "A seguir", color: .mint)
-                Text(next.map { "\($0.title) às \(clock($0.minute))" } ?? "Nada marcado: boa altura para te focares").font(.geist(15, .semibold))
+                Text(next.map { "\($0.title) \(PlanFormat.at($0.minute))" } ?? "Nada marcado: boa altura para te focares").font(.geist(15, .semibold))
                 Button("Começar uma sessão de foco") { focusing = true }.font(.geist(13, .semibold)).tint(.mint)
             }
         }
@@ -1063,7 +1092,7 @@ private struct LoadBar: View {
     }
 }
 
-/// A month grid mark: the shape says what it is (filled confirmed, hollow suggested, dashed with no record)
+/// A month grid mark: the shape says what it is (filled confirmed, hollow suggested, dashed with no record or no data)
 private struct MarkShape: View {
     var mark: PlanMark
     var onFill = false
@@ -1082,6 +1111,8 @@ private struct MarkShape: View {
                 Circle().fill(onFill ? dark : Color.fuel).frame(width: 7, height: 7)
             case .suggestion:
                 Circle().stroke(onFill ? dark : DataState.suggested.color, lineWidth: 1.6).frame(width: 6.5, height: 6.5)
+            case .noData:
+                Image(systemName: DataState.noData.icon).font(.system(size: 8, weight: .heavy)).foregroundStyle(onFill ? dark : DataState.noData.color)
             }
         }
         .frame(width: 9, height: 9)
@@ -1106,6 +1137,8 @@ struct NewEventSheet: View {
     @State private var lengthChanged = false
     @State private var heard = false
     @State private var dayHeard = false
+    @State private var titleEdited = false // you corrected the title by hand: the line no longer writes over it
+    @State private var timeEdited = false // you set the time by hand or chose a reading: the same for it
 
     init(day: String) {
         _day = State(initialValue: day)
@@ -1133,7 +1166,7 @@ struct NewEventSheet: View {
                     Text("Percebi isto. Confirma ou muda antes de guardar.").font(.geist(12)).foregroundStyle(Color.soft).padding(.horizontal, 4)
                 }
                 field("Título") {
-                    TextField("O quê", text: $title).font(.geist(15)).frame(minHeight: 30).accessibilityIdentifier("plan.new.title")
+                    TextField("O quê", text: Binding(get: { title }, set: { title = $0; titleEdited = true })).font(.geist(15)).frame(minHeight: 30).accessibilityIdentifier("plan.new.title")
                 }
                 field("Dia") {
                     DatePicker("Dia", selection: dayBinding, displayedComponents: .date).labelsHidden().accessibilityIdentifier("plan.new.day")
@@ -1181,7 +1214,7 @@ struct NewEventSheet: View {
     @ViewBuilder private var timeField: some View {
         if let m = minute {
             field("Hora") {
-                DatePicker("Hora", selection: Binding(get: { Day.at(m, on: day) }, set: { minute = Day.minuteOfDay($0) }), displayedComponents: .hourAndMinute)
+                DatePicker("Hora", selection: Binding(get: { Day.at(m, on: day) }, set: { minute = Day.minuteOfDay($0); timeEdited = true }), displayedComponents: .hourAndMinute)
                     .labelsHidden()
                     .accessibilityIdentifier("plan.new.time")
             }
@@ -1192,13 +1225,13 @@ struct NewEventSheet: View {
                     Text(ambiguity).font(.geist(13))
                     HStack(spacing: 8) {
                         ForEach(Array(options.enumerated()), id: \.offset) { i, o in
-                            PlanButton(title: clock(o), style: .line, id: "plan.new.time.\(i)") { minute = o }
+                            PlanButton(title: clock(o), style: .line, id: "plan.new.time.\(i)") { minute = o; timeEdited = true }
                         }
                         Spacer(minLength: 0)
                     }
                 } else {
                     Text(heard ? "Não percebi a hora." : "A que horas?").font(.geist(13))
-                    PlanButton(title: "Escolher hora", style: .line, id: "plan.new.time.pick") { minute = defaultMinute }
+                    PlanButton(title: "Escolher hora", style: .line, id: "plan.new.time.pick") { minute = defaultMinute; timeEdited = true }
                 }
             }
             .accessibilityElement(children: .contain)
@@ -1210,7 +1243,7 @@ struct NewEventSheet: View {
     private var ambiguity: String {
         let h = (options.last ?? 0) / 60
         let when = h <= 5 ? "de tarde ou de madrugada" : h <= 7 ? "de manhã ou ao fim da tarde" : "de manhã ou à noite"
-        return "«às \(h)» pode ser \(when)."
+        return "«\(PlanFormat.atHour(h))» pode ser \(when)."
     }
 
     private var defaultMinute: Int {
@@ -1231,7 +1264,7 @@ struct NewEventSheet: View {
         let calendar = Agenda.shared.events.filter { !$0.allDay }.map { PlanEntry(title: $0.title, day: $0.day, minute: $0.startMinute) }
         let mine = store.all(PlanBlock.self).map { PlanEntry(title: $0.title, day: $0.date, minute: $0.start) }
         if let same = PlanRules.similar(to: name, on: day, among: calendar + mine) {
-            return "Já tens «\(same.title)» nessa semana: \(PlanFormat.day(same.day).lowercased()) às \(clock(same.minute))."
+            return "Já tens «\(same.title)» nessa semana: \(PlanFormat.day(same.day).lowercased()) \(PlanFormat.at(same.minute))."
         }
         return Agenda.shared.covers(day) ? "Nada parecido nessa semana: sem duplicados." : "Sem dados do calendário para esse dia: só comparei com o que está no Cadence."
     }
@@ -1246,15 +1279,17 @@ struct NewEventSheet: View {
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
     }
 
-    /// What was typed, read back into the form (nothing is saved)
+    /// What was typed, read back into the form (nothing is saved). What you corrected by hand in the form stays.
     private func read(_ new: String) {
         let d = EventDraft.parse(new, today: Day.today)
         heard = !new.trimmingCharacters(in: .whitespaces).isEmpty
-        title = d.title
+        if !titleEdited { title = d.title }
         if let parsed = d.day { day = parsed }
         dayHeard = d.day != nil
-        minute = d.minute
-        options = d.options
+        if !timeEdited {
+            minute = d.minute
+            options = d.options
+        }
     }
 
     private func save() {

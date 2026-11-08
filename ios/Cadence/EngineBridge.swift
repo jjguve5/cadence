@@ -64,7 +64,7 @@ extension Store {
 
     /// On a minimum viable day only the essentials count: must-dos and medicines, sleep, water. Doing them is a full day.
     func minimumScore(on day: String) -> Int {
-        let musts = due(on: day).filter { $0.kind == .mustDo }
+        let musts = dueCounted(on: day).filter { $0.kind == .mustDo } // «Não se aplica» leaves both sides of the count
         let doses = self.doses(on: day)
         return Engine.minimumScore(essentials: musts.count + doses.count,
                                    essentialsDone: musts.filter { status($0, on: day).map { $0 != .skipped } ?? false }.count + doses.filter { $0.log?.taken == true }.count,

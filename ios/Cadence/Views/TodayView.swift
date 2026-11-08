@@ -386,24 +386,29 @@ struct PromiseRow: View {
 
     var body: some View {
         let status = store.status(promise, on: day)
+        let notApplicable = store.isNotApplicable(promise, on: day) // «Não se aplica» isn't «Não fiz»: its own look and label
         let w = store.week(promise, upTo: day)
         HStack(spacing: 10) {
             Button {
                 if status == nil { store.log(promise, on: day, .done) } else { store.undo(promise, on: day) }
             } label: {
-                Image(systemName: status == .done || status == .tiny ? "checkmark.circle.fill" : status == .skipped ? "minus.circle" : "circle")
+                Image(systemName: TodayRules.habitIcon(status, notApplicable: notApplicable))
                     .font(.geist(22)).foregroundStyle(status == nil ? Color.soft : status == .skipped ? Color.faint : Color.good)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(TodayRules.habitLabel(promise.title, status, notApplicable: notApplicable))
+            .accessibilityHint(status == nil ? "Marca como feito" : "Desfaz a resposta")
             Image(systemName: promise.icon).foregroundStyle(Color.soft).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(promise.title).font(.geist(14.5, .medium)).strikethrough(status == .skipped)
+                Text(promise.title).font(.geist(14.5, .medium)).strikethrough(status == .skipped && !notApplicable)
                 Text("\(store.timeLabel(promise, on: day)) · \(w.done)/\(w.total) esta semana").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Spacer()
             // Phase 2.9: an answer from the band shows as «Importado», never as yours
             if NightRules.answerState(store.answerOrigin(promise, on: day)) == .imported {
                 StateTag(state: .imported).accessibilityIdentifier("habit.imported.\(promise.id)")
+            } else if notApplicable {
+                StateTag(state: .unavailable, text: "Não se aplica").accessibilityIdentifier("habit.na.\(promise.id)")
             } else if status == nil, promise.title.lowercased().contains("brush") {
                 Button { if insideSheet { brushing = true } else { store.brushingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
@@ -503,9 +508,9 @@ struct TodayNowCard: View {
     private func leave(_ d: NowDeparture) -> some View {
         let left = d.leave - minute
         let tag: String = left > 0 ? "Daqui a \(left) min" : "Hora de sair"
-        let title: String = left > 0 ? "Sair até às \(clock(d.leave)) para \(d.title)" : "Sair agora para \(d.title)"
+        let title: String = left > 0 ? "Sair até \(PlanFormat.at(d.leave)) para \(d.title)" : "Sair agora para \(d.title)"
         let place: String = d.place.map { " · " + $0 } ?? ""
-        let when: String = "às " + clock(d.start) + place
+        let when: String = PlanFormat.at(d.start) + place
         let reason: String
         if let trip = d.trip { reason = "\(d.lead) min porta a porta, com margem (\(trip))" } else { reason = "Sem estimativa de viagem: saída \(d.lead) min antes" }
         return Card(state: .pending) {
@@ -555,7 +560,7 @@ struct TodayNowCard: View {
                 Spacer(minLength: 0)
             }
             Text("Antes de sair").font(.geist(17, .semibold))
-            if let next { Text("Sair às \(clock(next.leave)) · \(next.title)").font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1) }
+            if let next { Text("Sair \(PlanFormat.at(next.leave)) · \(next.title)").font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1) }
             let names = LeaveRules.names(pending.map { $0.item.title })
             Text(names.prefix(1).uppercased() + String(names.dropFirst())).font(.geist(12.5)).foregroundStyle(Color.faint).lineLimit(2)
             HStack(spacing: 8) {
@@ -614,7 +619,7 @@ struct TodayNowCard: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(w.name).font(.geist(17, .semibold))
-                    Text("Treino em curso · começou às \(clock(started))").font(.geist(12)).foregroundStyle(Color.soft)
+                    Text("Treino em curso · começou \(PlanFormat.at(started))").font(.geist(12)).foregroundStyle(Color.soft)
                 }
                 Spacer(minLength: 8)
                 Button { store.openWorkout = OpenSession(id: w.id) } label: {
@@ -692,6 +697,26 @@ enum TodayRules {
 
     static func unsentText(_ n: Int) -> String {
         n == 1 ? "1 registo ainda não chegou ao servidor. Está guardado neste iPhone." : "\(n) registos ainda não chegaram ao servidor. Estão guardados neste iPhone."
+    }
+
+    /// A habit's circle: done, «Não se aplica» (not the same as a skip or «Não fiz», which is a miss), skipped, or open
+    static func habitIcon(_ status: LogStatus?, notApplicable: Bool) -> String {
+        if notApplicable { return DataState.unavailable.icon }
+        switch status {
+        case .done?, .tiny?: return "checkmark.circle.fill"
+        case .skipped?: return "minus.circle"
+        case nil: return "circle"
+        }
+    }
+
+    /// What VoiceOver says for a habit's circle: its name and its answer
+    static func habitLabel(_ title: String, _ status: LogStatus?, notApplicable: Bool) -> String {
+        if notApplicable { return "\(title), não se aplica" }
+        switch status {
+        case .done?, .tiny?: return "\(title), feito"
+        case .skipped?: return "\(title), não fiz"
+        case nil: return "\(title), por responder"
+        }
     }
 }
 

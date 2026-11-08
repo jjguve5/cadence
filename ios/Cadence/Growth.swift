@@ -202,10 +202,11 @@ extension Store {
     func weekReview(_ week: String) -> [(String, String)] {
         let days = (0..<7).map { Day.add($0, to: week) }.filter { $0 <= Day.today }
         let focus = all(FocusSession.self).filter { days.contains($0.date) }.map(\.minutes).reduce(0, +)
-        let workouts = sessions().filter { days.contains($0.date) && $0.end != nil }.count
+        // A session left open past its day counts as partial, as in Treino (decision D23); nothing is written
+        let workouts = sessions().filter { days.contains($0.date) && ($0.end != nil || TrainingRules.isExpired($0, today: Day.today)) }.count
         let proteinDays = days.filter { fuel(on: $0).protein >= profile.proteinTarget * 0.9 }.count
         let nights = days.compactMap { health[$0]?.sleep?.asleep }
-        let due = days.flatMap { d in self.due(on: d).map { (d, $0) } }
+        let due = days.flatMap { d in self.dueCounted(on: d).map { (d, $0) } } // «Não se aplica» leaves both sides of the count
         let kept = due.filter { status($0.1, on: $0.0).map { $0 != .skipped } ?? false }.count
         let reading = days.map { readingMinutes(on: $0) }.reduce(0, +)
         return [
