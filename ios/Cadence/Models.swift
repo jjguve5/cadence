@@ -132,6 +132,10 @@ struct PromiseLog: Codable, Identifiable, Equatable {
     var date: String
     var status: LogStatus
     var at: Double = nowMs()
+    /// Where the answer came from: nil when you gave it (a tap, a notification, the brushing or reading timer); the
+    /// data source when it was imported ("fitbit", "apple"), so it can be shown as imported, never as confirmed by you.
+    /// Optional, so older files read as before and older builds ignore it.
+    var source: String? = nil
     var id: String { "\(promiseId)|\(date)" }
 }
 

@@ -241,6 +241,43 @@ final class RegressionPlanTests: RegressionCase {
 // MARK: - Shopping, medicines and grooming
 
 final class RegressionCareAndShoppingTests: RegressionCase {
+    /// Phase 2.2 (moved from RegressionPlannedChangeTests): a bought mark has an id and a value the server takes
+    /// (it skips ids outside [A-Za-z0-9_.:-]{1,80} and values that aren't objects), so it doesn't stay queued forever.
+    /// The line still leaves the list once bought, and a mark saved the old way ("<week>|<line>") still counts.
+    @MainActor
+    func testBuyingAComputedLineSavesAnIdTheServerTakes() throws {
+        let store = try makeStore { s in
+            s.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30))
+            s.add(PantryItem(id: "PM", name: "Maçã Gala", qty: 1, usePerDay: 1))
+        }
+        let week: String = store.week // the Monday of this week (Store also has a week(_:upTo:) method)
+        let server = try NSRegularExpression(pattern: "^[A-Za-z0-9_.:-]{1,80}$")
+        func takes(_ id: String) -> Bool { server.firstMatch(in: id, range: NSRange(id.startIndex..., in: id)) != nil }
+        let lines = store.shoppingList()
+        XCTAssertEqual(lines.count, 2)
+        for line in lines { store.tick(line) }
+        let marks = store.records("bought")
+        XCTAssertEqual(Set(marks.keys), ["\(week)_whey", "\(week)_maca-gala"], "accents dropped, anything else becomes -")
+        for (id, value) in marks {
+            XCTAssertTrue(takes(id), "\(id) is an id the server skips")
+            guard case .object = value else { return XCTFail("\(id): the server skips values that aren't objects") }
+        }
+        XCTAssertTrue(store.shoppingList().isEmpty, "once bought, the lines go")
+        XCTAssertEqual(Store.boughtKey(week: "2026-11-02", line: String(repeating: "x", count: 100)).count, 80, "never longer than the server takes")
+    }
+
+    /// A bought mark saved before phase 2.2 ("<week>|<line>" with a bare true) still takes the line off the list
+    @MainActor
+    func testAnOldBoughtMarkStillCounts() throws {
+        let probe = try makeStore { _ in }
+        let week: String = probe.week
+        let store = try makeStore { s in
+            s.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30))
+            s.put("bought", "\(week)|whey", .bool(true))
+        }
+        XCTAssertTrue(store.shoppingList().isEmpty)
+    }
+
     @MainActor
     func testShoppingListFromPantryMedicinesAndYourOwnItems() throws {
         let store = try makeStore { s in
@@ -406,5 +443,74 @@ final class RegressionRingKeyTests: RegressionCase {
         let renamed = RingStat(key: .sleep, name: "Sono", value: 0, target: 1, pace: nil, area: .sleep, center: "–", goal: "")
         XCTAssertEqual(renamed.id, "sleep", "a new name keeps the key")
         XCTAssertEqual(renamed.accessibilityID, "ring.sleep", "and the identifier")
+    }
+}
+
+// MARK: - Where an answer came from (phase 2.2)
+
+final class RegressionAnswerSourceTests: RegressionCase {
+    private let walk = PromiseItem(id: "W1", title: "10k steps", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 9 * 60))
+
+    /// An answer you give has no source: it counts as yours
+    @MainActor
+    func testAnAnswerYouGiveHasNoSource() throws {
+        let store = try makeStore { $0.promises[self.walk.id] = self.walk }
+        store.log(walk, .done)
+        XCTAssertEqual(store.status(walk), .done)
+        XCTAssertNil(store.answerSource(walk))
+    }
+
+    /// The steps goal ticked by the band's data is saved as imported from the health source the profile uses, and
+    /// becomes yours again when you answer it yourself
+    @MainActor
+    func testTheBandTicksTheStepsGoalAsImported() throws {
+        for healthSource in ["fitbit", "apple"] {
+            let store = try makeStore { s in
+                s.promises[self.walk.id] = self.walk
+                s.profile.healthSource = healthSource
+                s.health[Day.today] = HealthDay(date: Day.today, steps: 20000)
+            }
+            store.autoComplete()
+            XCTAssertEqual(store.status(walk), .done)
+            XCTAssertEqual(store.answerSource(walk), healthSource)
+            store.log(walk, .done)
+            XCTAssertNil(store.answerSource(walk), "answered by you now")
+        }
+    }
+
+    /// Below the goal nothing is ticked: low data never becomes an answer
+    @MainActor
+    func testTooFewStepsTickNothing() throws {
+        let store = try makeStore { s in
+            s.promises[self.walk.id] = self.walk
+            s.health[Day.today] = HealthDay(date: Day.today, steps: 100)
+        }
+        store.autoComplete()
+        XCTAssertNil(store.status(walk))
+    }
+
+    /// Older files have no source and read as answers you gave; an answer without a source is saved exactly as before
+    /// (no new key), so older builds see the same shape
+    func testOlderLogsWithoutASourceStillRead() throws {
+        let old = #"{"promiseId":"W1","date":"2026-11-02","status":"done","at":1}"#
+        let decoded = try JSONDecoder().decode(PromiseLog.self, from: Data(old.utf8))
+        XCTAssertNil(decoded.source)
+        let mine = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        XCTAssertEqual(Set(mine.keys), ["promiseId", "date", "status", "at"])
+        var imported = decoded
+        imported.source = "fitbit"
+        let back = try JSONDecoder().decode(PromiseLog.self, from: JSONEncoder().encode(imported))
+        XCTAssertEqual(back.source, "fitbit")
+    }
+}
+
+// MARK: - Journal question texts (phase 2.2)
+
+final class RegressionJournalTextTests: XCTestCase {
+    /// Every saved key has a text to show; phase 2.3 translates the texts, never the keys
+    func testEveryJournalKeyHasItsText() {
+        XCTAssertEqual(Set(journalQuestionText.keys), Set(journalQuestions))
+        for key in journalQuestions { XCTAssertFalse(journalText(key).isEmpty, key) }
+        XCTAssertEqual(journalText("Unknown question"), "Unknown question", "an unknown key shows as itself")
     }
 }

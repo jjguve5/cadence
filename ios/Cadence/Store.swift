@@ -366,9 +366,10 @@ final class Store: ObservableObject {
         mark("promise:\(promise.id)")
     }
 
-    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus) {
+    /// `source` is nil for an answer you gave, or the data source for one imported from it (see PromiseLog.source)
+    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus, source: String? = nil) {
         guard canChange else { return }
-        let entry = PromiseLog(promiseId: promise.id, date: day, status: status)
+        let entry = PromiseLog(promiseId: promise.id, date: day, status: status, source: source)
         logs[entry.id] = entry
         mark("log:\(entry.id)")
         Reminders.shared.clear(promise: promise.id, day: day)
@@ -388,6 +389,9 @@ final class Store: ObservableObject {
     }
 
     func status(_ promise: PromiseItem, on day: String = Day.today) -> LogStatus? { logs["\(promise.id)|\(day)"]?.status }
+
+    /// Where a day's answer came from: nil when you gave it (or there is none), otherwise the data source it was imported from
+    func answerSource(_ promise: PromiseItem, on day: String = Day.today) -> String? { logs["\(promise.id)|\(day)"]?.source }
 
     var activePromises: [PromiseItem] {
         if let activeCache { return activeCache }

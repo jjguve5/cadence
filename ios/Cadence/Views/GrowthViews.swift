@@ -124,7 +124,7 @@ struct YouGrowthView: View {
                     Eyebrow(text: "What affects you", icon: "slider.horizontal.3")
                     ForEach(levers, id: \.self) { Text("Before your best days: \($0.lowercased())").font(.geist(13.5)) }
                     ForEach(effects, id: \.question) { e in
-                        if let s = e.sleep, abs(s) >= 10 { Text("\(e.question): \(s > 0 ? "+" : "")\(s) min sleep that night" + (e.readiness.map { ", readiness \($0 > 0 ? "+" : "")\($0)" } ?? "")).font(.geist(13)).foregroundStyle(Color.soft) }
+                        if let s = e.sleep, abs(s) >= 10 { Text("\(journalText(e.question)): \(s > 0 ? "+" : "")\(s) min sleep that night" + (e.readiness.map { ", readiness \($0 > 0 ? "+" : "")\($0)" } ?? "")).font(.geist(13)).foregroundStyle(Color.soft) }
                     }
                     Text("Patterns from your own days, not proof.").font(.geist(11)).foregroundStyle(Color.faint)
                 }
@@ -161,7 +161,7 @@ struct JournalCard: View {
             }
             ForEach(journalQuestions, id: \.self) { q in
                 HStack {
-                    Text(q).font(.geist(13.5))
+                    Text(journalText(q)).font(.geist(13.5))
                     Spacer()
                     ForEach([true, false], id: \.self) { yes in
                         let on = entry.answered.contains(q) && entry.yes.contains(q) == yes

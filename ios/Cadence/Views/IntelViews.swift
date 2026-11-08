@@ -185,7 +185,7 @@ struct LearnedView: View {
                 Eyebrow(text: "Habits and your sleep", icon: "moon.stars")
                 if effects.isEmpty { Text("Answer the morning journal for a few weeks; each habit needs 5 days with it and 5 without.").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 ForEach(effects, id: \.question) { e in
-                    HStack { Text(e.question).font(.geist(13.5)); Spacer(); Text(e.sleep.map { "\($0 > 0 ? "+" : "")\($0) min" } ?? "–").font(.mono(12.5)).foregroundStyle(Color.soft) }
+                    HStack { Text(journalText(e.question)).font(.geist(13.5)); Spacer(); Text(e.sleep.map { "\($0 > 0 ? "+" : "")\($0) min" } ?? "–").font(.mono(12.5)).foregroundStyle(Color.soft) }
                 }
                 Text("Associations in your own days. Other things change at the same time, so none of this proves cause.").font(.geist(11)).foregroundStyle(Color.faint)
             }

@@ -13,7 +13,24 @@ struct JournalDay: Record, Equatable {
     var text = ""
 }
 
+/// The journal questions' keys: answers are saved under these exact texts (JournalDay.yes and .answered), so they never
+/// change, not even with a translation. What a question says on screen is journalText(_:).
 let journalQuestions = ["Caffeine after 14:00", "Alcohol", "Screens in bed", "Late dinner", "Stressful day", "Outside in the morning", "Trained", "Hot or noisy room"]
+
+/// What each journal question says on screen, by key. Phase 2.3 translates these texts; the keys stay.
+let journalQuestionText: [String: String] = [
+    "Caffeine after 14:00": "Caffeine after 14:00",
+    "Alcohol": "Alcohol",
+    "Screens in bed": "Screens in bed",
+    "Late dinner": "Late dinner",
+    "Stressful day": "Stressful day",
+    "Outside in the morning": "Outside in the morning",
+    "Trained": "Trained",
+    "Hot or noisy room": "Hot or noisy room",
+]
+
+/// The text shown for a journal question's key (the key itself if it has none)
+func journalText(_ key: String) -> String { journalQuestionText[key] ?? key }
 
 struct MoodEntry: Record, Equatable {
     static let kind = "mood"
@@ -120,7 +137,7 @@ extension Store {
             let rateAll = Double(answered.filter { $0.yes.contains(q) }.count) / Double(answered.count)
             out.append((q, rateBest - rateAll))
         }
-        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { ($0.1 > 0 ? "More " : "Less ") + $0.0.lowercased() }
+        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { ($0.1 > 0 ? "More " : "Less ") + journalText($0.0).lowercased() }
     }
 
     func prompts() -> [String] {

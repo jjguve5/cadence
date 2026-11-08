@@ -178,8 +178,9 @@ extension Store {
         for s in all(ShoppingItem.self) where !s.bought {
             lines["s-" + s.id] = ListLine(id: "s-" + s.id, name: s.name, qty: s.qty, unit: s.unit, aisle: s.aisle, reason: s.reason, price: prices[s.name.lowercased()], manual: s)
         }
-        let bought = Set(records("bought").filter { $0.key.hasPrefix(week) }.map { String($0.key.dropFirst(week.count + 1)) })
-        return lines.values.filter { $0.qty > 0 && !bought.contains($0.id) }.sorted { ($0.aisle, $0.name) < ($1.aisle, $1.name) }
+        let marks = records("bought")
+        let bought = { (id: String) in marks[Store.boughtKey(week: self.week, line: id)] != nil || marks["\(self.week)|\(id)"] != nil }
+        return lines.values.filter { $0.qty > 0 && !bought($0.id) }.sorted { ($0.aisle, $0.name) < ($1.aisle, $1.name) }
     }
 
     var prices: [String: Double] {
@@ -188,8 +189,19 @@ extension Store {
         return out
     }
 
+    /// The id a bought mark is saved under: the week, then the line, with only the characters the server takes
+    /// (letters and digits, "_", ".", ":" and "-"; accents dropped, anything else becomes "-"), at most 80. The value is
+    /// an object for the same reason. Marks saved before phase 2.2 as "<week>|<line>" with a bare true, which the server
+    /// skips, are still read.
+    nonisolated static func boughtKey(week: String, line: String) -> String {
+        let safe = line.folding(options: .diacriticInsensitive, locale: nil).map { c -> Character in
+            c.isASCII && (c.isLetter || c.isNumber || "_.:-".contains(c)) ? c : "-"
+        }
+        return String((week + "_" + String(safe)).prefix(80))
+    }
+
     func tick(_ line: ListLine) {
-        if var m = line.manual { m.bought = true; save(m) } else { put("bought", "\(week)|\(line.id)", .bool(true)) }
+        if var m = line.manual { m.bought = true; save(m) } else { put("bought", Store.boughtKey(week: week, line: line.id), .object(["at": .number(nowMs())])) }
         if var p = all(PantryItem.self).first(where: { $0.name.lowercased() == line.name.lowercased() }) { p.qty += line.qty; save(p) }
     }
 }

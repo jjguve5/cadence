@@ -42,20 +42,6 @@ final class RegressionPlannedChangeTests: RegressionCase {
         XCTAssertEqual(store.shoppingList().map(\.name), ["Whey", "Whey"], "today: no check for duplicates across sources")
     }
 
-    /// Phase 2.2: record ids must not contain "|" (the server skips them, so they stay queued). Update: the bought
-    /// mark uses an id the server takes; the line still leaves the list once bought.
-    @MainActor
-    func testCurrentBuyingAComputedLineSavesAnIdTheServerSkips() throws {
-        let store = try makeStore { $0.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30)) }
-        let line = try XCTUnwrap(store.shoppingList().first)
-        store.tick(line)
-        let week: String = store.week // the Monday of this week (Store also has a week(_:upTo:) method)
-        let keys = Array(store.records("bought").keys)
-        XCTAssertEqual(keys, ["\(week)|whey"])
-        XCTAssertTrue(keys[0].contains("|"), "today: an id the server skips")
-        XCTAssertTrue(store.shoppingList().isEmpty, "this part stays: once bought, the line goes")
-    }
-
     /// Phase 2.7 (Comida): the food group is chosen per item and a flavour isn't a fruit. Update: a protein drink
     /// "aroma manga" counts for no group (an old entry without a stored group may keep the name rule).
     func testCurrentAFlavourWordCountsAsFruit() {
@@ -63,10 +49,12 @@ final class RegressionPlannedChangeTests: RegressionCase {
     }
 
     /// Phases 2.2 and 2.9: data from the band can mark a habit done, but it must show as «Importado», not as confirmed
-    /// by you, and «Vou dormir» becomes a separate intention. Update: the log keeps a source (the band) the UI can show.
+    /// by you, and «Vou dormir» becomes a separate intention. Phase 2.2 did its part: the answer keeps its source (the
+    /// health source, "fitbit" by default). Phase 2.9 updates this test when the UI shows it as imported and «Vou dormir»
+    /// exists, then moves it to RegressionPreservedTests.
     /// Built relative to today because autoComplete() only looks at today and yesterday.
     @MainActor
-    func testCurrentBandSleepTicksTheBedtimeHabitAsDone() throws {
+    func testCurrentBandSleepTicksTheBedtimeHabitAsImported() throws {
         let yesterday = Day.add(-1, to: Day.today)
         let lightsOut = PromiseItem(id: "L1", title: "Lights out", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 23 * 60))
         let start = ISO8601DateFormatter().string(from: Day.at(23 * 60 + 5, on: yesterday))
@@ -76,7 +64,8 @@ final class RegressionPlannedChangeTests: RegressionCase {
             s.health[Day.today] = HealthDay(date: Day.today, sleep: SleepRecord(start: start, end: end, asleep: 450))
         }
         store.autoComplete()
-        XCTAssertEqual(store.status(lightsOut, on: yesterday), .done, "today: marked done, with nothing saying it came from the band")
+        XCTAssertEqual(store.status(lightsOut, on: yesterday), .done, "still counts as done")
+        XCTAssertEqual(store.answerSource(lightsOut, on: yesterday), "fitbit", "but kept as imported from the band, not as your answer")
     }
 
     /// Phase 2.8 (Plano): the end-of-day review tells «não fiz», «não confirmado» and «não se aplica» apart. Update:
