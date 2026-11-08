@@ -618,9 +618,10 @@ extension Store {
         due(on: day).filter { let t = $0.title.lowercased(); return t.hasPrefix("read") || t.hasPrefix("ler ") || t == "ler" }
     }
 
-    /// The bedtime habits the band can tick (as autoComplete reads them), and their Portuguese names
+    /// The bedtime habits the band can tick, matched as autoComplete matches them (English words only, decision D22:
+    /// «deitar» or «luzes» also name unrelated habits)
     func bedtimeHabits(on day: String) -> [PromiseItem] {
-        due(on: day).filter { let t = $0.title.lowercased(); return t.contains("bed") || t.contains("lights out") || t.contains("deitar") || t.contains("apagar as luzes") }
+        due(on: day).filter { let t = $0.title.lowercased(); return t.contains("bed") || t.contains("lights out") }
     }
 
     /// The night's Higiene routine (phase 2.5): the one with steps still to confirm, or the first
