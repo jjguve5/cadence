@@ -26,7 +26,7 @@ extension Color {
     static let bg = Color(hex: 0x07090E)
     static let ink = Color(hex: 0xEEF1F7)
     static let soft = Color(hex: 0xA3ABBD)
-    static let faint = Color(hex: 0x687186)
+    static let faint = Color(hex: 0x8A93A8) // the design's lighter secondary grey (v17), for contrast
     static let mint = Color(hex: 0x34E0B4), mint2 = Color(hex: 0x12A39B)
     static let water = Color(hex: 0x3FD2FF), water2 = Color(hex: 0x2F78FF)
     static let train = Color(hex: 0xFF5F6D), train2 = Color(hex: 0xD9378E)
@@ -54,20 +54,39 @@ enum Area {
     var glow: Color { colors[0] }
 }
 
+/// A card can carry the state of what it proposes (design v17): a suggestion has a pink edge, something pending an
+/// amber one, and missing data a dashed outline, so a proposal never looks like a fact
+enum CardState { case plain, suggested, pending, noData }
+
 struct Card<Content: View>: View {
     var tint: Color? = nil
     var padding: CGFloat = 14
+    var state: CardState = .plain
     @ViewBuilder var content: Content
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
         VStack(alignment: .leading, spacing: 8) { content }
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(tint.map { LinearGradient(colors: [$0.opacity(0.18), .white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing) }
-                          ?? LinearGradient(colors: [.white.opacity(0.055), .white.opacity(0.055)], startPoint: .top, endPoint: .bottom))
-            )
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(LinearGradient(colors: [tint?.opacity(0.45) ?? .white.opacity(0.11), tint?.opacity(0.15) ?? .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+            .background {
+                switch state {
+                case .plain:
+                    shape.fill(tint.map { LinearGradient(colors: [$0.opacity(0.18), .white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing) }
+                               ?? LinearGradient(colors: [.white.opacity(0.055), .white.opacity(0.055)], startPoint: .top, endPoint: .bottom))
+                case .suggested: shape.fill(DataState.suggested.color.opacity(0.05))
+                case .pending: shape.fill(DataState.pending.color.opacity(0.05))
+                case .noData: shape.fill(Color.white.opacity(0.02))
+                }
+            }
+            .overlay {
+                switch state {
+                case .plain:
+                    shape.stroke(LinearGradient(colors: [tint?.opacity(0.45) ?? .white.opacity(0.11), tint?.opacity(0.15) ?? .white.opacity(0.04)], startPoint: .top, endPoint: .bottom), lineWidth: 1)
+                case .suggested: shape.stroke(DataState.suggested.color.opacity(0.38), lineWidth: 1)
+                case .pending: shape.stroke(DataState.pending.color.opacity(0.38), lineWidth: 1)
+                case .noData: shape.stroke(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                }
+            }
     }
 }
 
@@ -100,7 +119,16 @@ struct Ring: View {
     var area: Area
     var width: CGFloat = 7
     var marker: Double? = nil // a tick at this share of the circle: where you should be by now
+    var noData = false // no data is not zero: a thin dashed circle, no arc and no marker
     var body: some View {
+        if noData {
+            Circle().stroke(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 2, dash: [4, 5]))
+        } else {
+            arcs
+        }
+    }
+
+    private var arcs: some View {
         ZStack {
             Circle().stroke(.white.opacity(0.08), lineWidth: width)
             Circle().trim(from: 0, to: max(0.001, min(1, progress)))
