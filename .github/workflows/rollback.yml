@@ -50,8 +50,23 @@ jobs:
       - name: Build the 2 Nov build and the new build
         run: |
           git worktree add ../old "$OLD_COMMIT"
+          # GitHub release downloads (the Lottie binary package) fail now and then with 504s, and a failed download
+          # leaves a partial file that makes the next try fail too: resolve first, a few times, from a clean cache
+          resolve() {
+            for i in 1 2 3 4 5; do
+              (cd "$1" && xcodebuild -resolvePackageDependencies -project Cadence.xcodeproj -scheme Cadence \
+                -derivedDataPath "$GITHUB_WORKSPACE/DD-$2" > "$GITHUB_WORKSPACE/resolve-$2.log" 2>&1) && return 0
+              echo "$2: package resolution attempt $i failed"
+              rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
+              sleep 30
+            done
+            tail -5 "$GITHUB_WORKSPACE/resolve-$2.log"
+            return 1
+          }
           build() {
-            (cd "$1" && xcodegen generate > /dev/null && xcodebuild build -project Cadence.xcodeproj -scheme Cadence \
+            (cd "$1" && xcodegen generate > /dev/null) || exit 1
+            resolve "$1" "$2" || exit 1
+            (cd "$1" && xcodebuild build -project Cadence.xcodeproj -scheme Cadence \
               -destination "id=$SIM" -derivedDataPath "$GITHUB_WORKSPACE/DD-$2" CODE_SIGNING_ALLOWED=NO > "$GITHUB_WORKSPACE/build-$2.log" 2>&1) \
               || { grep -B2 -A8 "error:" "$GITHUB_WORKSPACE/build-$2.log" | head -80; exit 1; }
           }

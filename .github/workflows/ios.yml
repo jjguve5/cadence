@@ -67,6 +67,18 @@ jobs:
           xcrun simctl bootstatus "$SIM_ID" -b
           echo "Booted $SIM_NAME"
 
+      # GitHub release downloads (the Lottie binary package) fail now and then with 504s; a failed download leaves a
+      # partial file that makes the next try fail too. Resolve first, a few times, from a clean cache.
+      - name: Resolve packages
+        run: |
+          for i in 1 2 3 4 5; do
+            xcodebuild -resolvePackageDependencies -project Cadence.xcodeproj -scheme Cadence -derivedDataPath DD > logs/resolve.log 2>&1 && exit 0
+            echo "attempt $i failed: $(grep -m1 -E 'failed downloading|error:' logs/resolve.log | cut -c1-200)"
+            rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
+            sleep 30
+          done
+          exit 1
+
       - name: Build for testing
         run: |
           set -o pipefail
@@ -175,6 +187,15 @@ jobs:
           sudo xcode-select -s "$XC"
           brew install xcodegen
           xcodegen generate
+      - name: Resolve packages (retried, as in simulator-tests)
+        run: |
+          for i in 1 2 3 4 5; do
+            xcodebuild -resolvePackageDependencies -project Cadence.xcodeproj -scheme Cadence -derivedDataPath build > resolve.log 2>&1 && exit 0
+            echo "attempt $i failed: $(grep -m1 -E 'failed downloading|error:' resolve.log | cut -c1-200)"
+            rm -rf ~/Library/Caches/org.swift.swiftpm/artifacts
+            sleep 30
+          done
+          exit 1
       - run: |
           set -o pipefail
           xcodebuild -project Cadence.xcodeproj -scheme Cadence -configuration Release -sdk iphoneos -destination generic/platform=iOS \
