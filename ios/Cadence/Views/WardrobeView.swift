@@ -464,7 +464,7 @@ struct GarmentEditor: View {
                 }
                 Section("Custo por uso") {
                     TextField("Preço €", value: $garment.price, format: .number).keyboardType(.decimalPad)
-                    if let p = garment.price, garment.totalWears > 0 { Text("\(euro(p / Double(garment.totalWears), decimals: true)) por uso, ao fim de \(garment.totalWears) usos").foregroundStyle(Color.soft) }
+                    if let p = garment.price, garment.totalWears > 0 { Text("\(euro(p / Double(garment.totalWears), decimals: true)) por uso, ao fim de \(ptCount(garment.totalWears, "uso", "usos"))").foregroundStyle(Color.soft) }
                 }
                 if !isNew { Button("Apagar", role: .destructive) { store.remove(garment); dismiss() } }
             }
@@ -752,7 +752,7 @@ struct LaundryLoadView: View {
         guard !items.isEmpty else { return }
         let s = store
         s.startWashing(items)
-        UndoCenter.shared.show(items.count == 1 ? "1 peça em lavagem" : "\(items.count) peças em lavagem") { s.restoreGarments(items) }
+        UndoCenter.shared.show(items.count == 1 ? "1 peça em lavagem" : "\(items.count) peças em lavagem") { s.undoStartWashing(items) }
         dismiss()
     }
 }

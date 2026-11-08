@@ -295,13 +295,24 @@ extension Store {
         save(g)
     }
 
-    /// «Pôr a lavar agora»: the pieces go into the machine («em lavagem», on top of «para lavar»)
+    /// «Pôr a lavar agora»: the pieces go into the machine («em lavagem», on top of «para lavar»). The load's start is
+    /// kept per wash group as before («laundry» records, same id and value as the old «Já lavei»), so the «Lavagem
+    /// concluída» reminder two hours later still comes, and older builds read it as they did
     func startWashing(_ items: [Garment]) {
         for var g in items {
             g.state = "wash"
             g.washing = true
             save(g)
         }
+        for group in Set(items.map(\.washGroup)) { put("laundry", "\(Day.today)-\(group)", .number(nowMs())) }
+        Reminders.shared.reschedule()
+    }
+
+    /// Desfazer for «Pôr a lavar agora»: the pieces as they were, and no reminder for a load that didn't start
+    func undoStartWashing(_ items: [Garment]) {
+        restoreGarments(items)
+        for group in Set(items.map(\.washGroup)) { put("laundry", "\(Day.today)-\(group)", nil) }
+        Reminders.shared.reschedule()
     }
 
     /// «Já lavei»: out of the machine, the pieces go to dry. Nothing is marked washed without this tap
