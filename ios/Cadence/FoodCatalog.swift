@@ -104,7 +104,7 @@ let commonFoods: [CommonFood] = [
     CommonFood(name: "Salada de tomate", portion: "1 acompanhamento", kcal: 50, protein: 1.2, group: "Soups and salads", words: "tomato salad cebola"),
     CommonFood(name: "Salada de grão com atum", portion: "1 taça", kcal: 380, protein: 25, group: "Soups and salads", words: "grao chickpea tuna salad"),
     // More fruit
-    CommonFood(name: "Tangerine", portion: "2 pequenas", kcal: 70, protein: 1, group: "Fruit", words: "tangerina clementina"),
+    CommonFood(name: "Tangerina", portion: "2 pequenas", kcal: 70, protein: 1, group: "Fruit", words: "tangerine tangerina clementina"),
     CommonFood(name: "Kiwi", portion: "1", kcal: 45, protein: 0.8, group: "Fruit", words: "kiwi"),
     CommonFood(name: "Morangos", portion: "1 chávena", kcal: 50, protein: 1, group: "Fruit", words: "strawberries morangos"),
     CommonFood(name: "Pêssego", portion: "1 médio", kcal: 60, protein: 1.4, group: "Fruit", words: "peach pessego"),

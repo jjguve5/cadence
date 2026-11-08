@@ -46,7 +46,7 @@ struct WardrobeView: View {
         Screen(glow: Color(hex: 0x7FB8FF)) {
             WeatherCard()
             Card {
-                HStack { Eyebrow(text: "Vestir hoje · \(store.weatherCall()?.layers ?? 2) camadas", icon: "tshirt.fill"); Spacer() }
+                HStack { Eyebrow(text: "Vestir hoje · \(ptCount(store.weatherCall()?.layers ?? 2, "camada", "camadas"))", icon: "tshirt.fill"); Spacer() }
                 if outfit.isEmpty { Text("Adiciona algumas peças e o Cadence combina-as com o tempo e o teu dia.").font(.geist(13)).foregroundStyle(Color.soft) }
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                     ForEach(outfit) { g in
@@ -157,12 +157,12 @@ struct GarmentEditor: View {
                 }
                 Section("Lavagem") {
                     Picker("Lava com", selection: $garment.washGroup) { ForEach(washGroups, id: \.self) { Text(washGroupLabel($0)).tag($0) } }
-                    Stepper("Lavar a cada \(garment.wearsBeforeWash) usos", value: $garment.wearsBeforeWash, in: 1...15)
+                    Stepper("Lavar a cada \(ptCount(garment.wearsBeforeWash, "uso", "usos"))", value: $garment.wearsBeforeWash, in: 1...15)
                     Picker("Estado", selection: $garment.state) { Text("Disponível").tag("clean"); Text("Usada").tag("worn"); Text("Para lavar").tag("wash"); Text("A secar").tag("drying") }
                 }
                 Section("Custo por uso") {
                     TextField("Preço €", value: $garment.price, format: .number).keyboardType(.decimalPad)
-                    if let p = garment.price, garment.totalWears > 0 { Text("\(euro(p / Double(garment.totalWears), decimals: true)) por uso, ao fim de \(garment.totalWears) usos").foregroundStyle(Color.soft) }
+                    if let p = garment.price, garment.totalWears > 0 { Text("\(euro(p / Double(garment.totalWears), decimals: true)) por uso, ao fim de \(ptCount(garment.totalWears, "uso", "usos"))").foregroundStyle(Color.soft) }
                 }
                 if !isNew { Button("Apagar", role: .destructive) { store.remove(garment); dismiss() } }
             }

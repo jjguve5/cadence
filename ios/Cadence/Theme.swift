@@ -223,6 +223,9 @@ struct SoftButton: View {
     }
 }
 
+/// A count with its noun in Portuguese: "1 dia", "3 dias" (the English code wrote "1 days")
+func ptCount(_ n: Int, _ one: String, _ many: String) -> String { "\(n) \(n == 1 ? one : many)" }
+
 extension View {
     func cadenceList() -> some View {
         self.scrollContentBackground(.hidden).background(Color.bg.ignoresSafeArea())

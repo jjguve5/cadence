@@ -98,7 +98,7 @@ struct ChoreForm: View {
         Form {
             TextField("Tarefa", text: $chore.title)
             TextField("Divisão", text: $chore.room)
-            Stepper("A cada \(chore.everyDays) dias", value: $chore.everyDays, in: 1...90)
+            Stepper("A cada \(ptCount(chore.everyDays, "dia", "dias"))", value: $chore.everyDays, in: 1...90)
             Stepper("Cerca de \(chore.minutes) min", value: $chore.minutes, in: 5...120, step: 5)
             Button("Guardar") { store.save(chore) }.disabled(chore.title.isEmpty)
         }
@@ -208,7 +208,7 @@ struct PersonForm: View {
         Form {
             TextField("Nome", text: $person.name)
             Toggle("Manter contacto", isOn: $person.keepInTouch)
-            if person.keepInTouch { Stepper("A cada \(person.everyWeeks) semanas", value: $person.everyWeeks, in: 1...26) }
+            if person.keepInTouch { Stepper("A cada \(ptCount(person.everyWeeks, "semana", "semanas"))", value: $person.everyWeeks, in: 1...26) }
             Toggle("Aniversário", isOn: Binding(get: { person.birthday != nil }, set: { person.birthday = $0 ? String(Day.today.dropFirst(5)) : nil }))
             if person.birthday != nil {
                 DatePicker("Dia", selection: Binding(get: { Day.date("2000-" + (person.birthday ?? "01-01")) }, set: { person.birthday = String(Day.key($0).dropFirst(5)) }), displayedComponents: .date)

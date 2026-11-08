@@ -63,7 +63,7 @@ struct PromiseEditor: View {
                 Section("Quando") {
                     Picker("Repete", selection: $promise.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
                     if promise.schedule.rule == .everyNDays {
-                        Stepper("A cada \(promise.schedule.every) dias", value: $promise.schedule.every, in: 1...60)
+                        Stepper("A cada \(ptCount(promise.schedule.every, "dia", "dias"))", value: $promise.schedule.every, in: 1...60)
                         DatePicker("A partir de", selection: Binding(get: { Day.date(promise.schedule.start) }, set: { promise.schedule.start = Day.key($0) }), displayedComponents: .date)
                     }
                     if promise.schedule.rule == .weekdays {

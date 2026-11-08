@@ -89,9 +89,9 @@ struct PlanView: View {
                 if let e = agenda.error { Text(e).font(.geist(12)).foregroundStyle(Color.warn) }
                 HStack(spacing: 10) {
                     NavigationLink { TasksView() } label: { tile("Tarefas", "tray.full", "\(store.all(TaskItem.self).filter { !$0.done }.count) por fazer") }
-                    NavigationLink { ProjectsView() } label: { tile("Projetos", "flag.fill", "\(store.all(Project.self).filter { !$0.archived }.count) ativos") }
+                    NavigationLink { ProjectsView() } label: { tile("Projetos", "flag.fill", ptCount(store.all(Project.self).filter { !$0.archived }.count, "ativo", "ativos")) }
                     NavigationLink { BooksView() } label: { tile("Leitura", "book.fill", "\(store.readingMinutes()) min hoje") }
-                    NavigationLink { TravelView() } label: { tile("Viagens", "airplane", store.nextTrip.map { $0.destination } ?? "\(store.all(RegularTrip.self).count) habituais") }
+                    NavigationLink { TravelView() } label: { tile("Viagens", "airplane", store.nextTrip.map { $0.destination } ?? ptCount(store.all(RegularTrip.self).count, "habitual", "habituais")) }
                 }
                 .buttonStyle(.plain)
             }

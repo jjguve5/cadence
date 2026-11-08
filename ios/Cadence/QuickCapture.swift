@@ -162,7 +162,7 @@ extension Store {
             entries.forEach(logFood)
             return ("\(foods.count) \(foods.count == 1 ? "alimento registado" : "alimentos registados")", { entries.forEach { self.remove($0) } })
         case .spend(let a, let c, let m):
-            let t = Transaction(amount: -a, merchant: m.isEmpty ? c : m.capitalized, category: c, reviewed: true)
+            let t = Transaction(amount: -a, merchant: m.isEmpty ? moneyCategoryLabel(c) : m.capitalized, category: c, reviewed: true)
             save(t)
             return ("Despesa guardada", { self.remove(t) })
         case .reminder(let t, let d, let m):

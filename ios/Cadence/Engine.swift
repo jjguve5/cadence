@@ -254,7 +254,7 @@ enum Engine {
         }()
         if shortSleep, c.deepWorkPlanned || (c.deadline.map { $0.daysLeft <= 7 } ?? false), morning {
             var ev = ["Dormiste \(duration(c.sleepMinutes ?? 0))" + (c.sleepBaseline.map { ", o teu habitual é \(duration(Int($0.median)))" } ?? "")]
-            if let d = c.deadline { ev.append("\(d.title): prazo daqui a \(d.daysLeft) dias") }
+            if let d = c.deadline { ev.append("\(d.title): prazo daqui a \(ptCount(d.daysLeft, "dia", "dias"))") }
             var why = "Depois de uma noite curta, a atenção está melhor cedo e esgota-se mais depressa. Põe primeiro o que exige mais concentração e deixa as reuniões para mais tarde."
             if let t = c.trainingToday { why += " Mantém \(t) e deixa o aquecimento decidir a intensidade." }
             out.append(Recommendation(kind: "focus", title: "Protege o teu bloco de foco da manhã", why: why, evidence: ev, confidence: c.sleepBaseline != nil ? .moderate : .low, action: .protectFocus, actionLabel: "Começar foco", priority: 80))
@@ -272,7 +272,7 @@ enum Engine {
 
         // A deadline falling behind
         if let d = c.deadline, d.behind, !c.deepWorkPlanned, c.minute < 18 * 60 {
-            out.append(Recommendation(kind: "deadline", title: "Marca um bloco de trabalho focado para \(d.title)", why: "Ao ritmo atual, acaba depois do prazo. Um bloco hoje mantém-no a tempo.", evidence: ["Prazo daqui a \(d.daysLeft) dias", "Ritmo do teu progresso nos últimos 14 dias"], confidence: .moderate, action: .placeDeepWork(d.title), actionLabel: "Adicionar ao plano", priority: 65))
+            out.append(Recommendation(kind: "deadline", title: "Marca um bloco de trabalho focado para \(d.title)", why: "Ao ritmo atual, acaba depois do prazo. Um bloco hoje mantém-no a tempo.", evidence: ["Prazo daqui a \(ptCount(d.daysLeft, "dia", "dias"))", "Ritmo do teu progresso nos últimos 14 dias"], confidence: .moderate, action: .placeDeepWork(d.title), actionLabel: "Adicionar ao plano", priority: 65))
         }
 
         // Sleep debt: a small, realistic change tonight

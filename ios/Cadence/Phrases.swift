@@ -771,7 +771,7 @@ enum PipLines {
             "Queres fazer agora, ou deixar passar hoje?",
             "Ainda há tempo, se quiseres.",
             "Tarde também conta.",
-            "Não se importa de ser um bocadinho mais tarde.",
+            "Pode ser um bocadinho mais tarde.",
             "Podemos fazer agora e ninguém vai saber.",
             "Começar mais tarde continua a ser começar.",
             "Ainda é esse o plano?",

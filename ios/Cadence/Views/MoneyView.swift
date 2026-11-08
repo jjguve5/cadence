@@ -254,7 +254,7 @@ struct RecapView: View {
             Card {
                 Eyebrow(text: "Face à tua média de 3 meses")
                 ForEach(r.vsAverage, id: \.0) { c, d in HStack { Text(moneyCategoryLabel(c)).font(.geist(14)); Spacer(); Text((d > 0 ? "+" : "") + euro(d)).font(.mono(14)).foregroundStyle(d > 0 ? Color.warn : Color.good) } }
-                if let biggest = r.vsAverage.first(where: { $0.1 > 20 }) { Text("Onde mexer: \(moneyCategoryLabel(biggest.0).lowercased()) está \(euro(biggest.1)) acima do habitual.").font(.geist(13)).foregroundStyle(Color.soft) }
+                if let biggest = r.vsAverage.first(where: { $0.1 > 20 }) { Text("Onde mexer: em \(moneyCategoryLabel(biggest.0).lowercased()), mais \(euro(biggest.1)) do que o habitual.").font(.geist(13)).foregroundStyle(Color.soft) }
             }
         }
         .navigationTitle("Resumo")

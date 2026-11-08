@@ -137,7 +137,7 @@ extension Store {
             let rateAll = Double(answered.filter { $0.yes.contains(q) }.count) / Double(answered.count)
             out.append((q, rateBest - rateAll))
         }
-        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { ($0.1 > 0 ? "Mais " : "Menos ") + journalText($0.0).lowercased() }
+        return out.filter { abs($0.1) >= 0.15 }.sorted { abs($0.1) > abs($1.1) }.prefix(4).map { journalText($0.0) + ($0.1 > 0 ? " (mais vezes)" : " (menos vezes)") }
     }
 
     func prompts() -> [String] {
@@ -240,7 +240,7 @@ extension Store {
         let mustDos = logs.values.filter { l in promises[l.promiseId]?.kind == .mustDo && l.status == .done }.count
         let focusHours = all(FocusSession.self).map(\.minutes).reduce(0, +) / 60
         return [
-            ("100 kg levantados", "dumbbell.fill", lifts.contains { $0 >= 100 }), ("10 livros", "books.vertical.fill", books >= 10),
+            ("100 kg de uma vez", "dumbbell.fill", lifts.contains { $0 >= 100 }), ("10 livros", "books.vertical.fill", books >= 10),
             ("30 noites de 7 h", "moon.stars.fill", goodNights >= 30), ("100 essenciais", "checkmark.seal.fill", mustDos >= 100),
             ("50 horas de foco", "brain.head.profile", focusHours >= 50), ("Primeira sessão de cozinha", "frying.pan.fill", !all(Portion.self).isEmpty),
             ("Nível 10", "leaf.fill", level.level >= 10), ("Um mês de creatina", "pills.fill", mustDos >= 30),

@@ -16,7 +16,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
     func setUp() {
         center.delegate = self
         let done = UNNotificationAction(identifier: "done", title: "Concluído ✓", options: [])
-        let snooze = UNNotificationAction(identifier: "snooze", title: "Daqui a 30 min", options: [])
+        let snooze = UNNotificationAction(identifier: "snooze", title: "Em 30 min", options: []) // the same words as the Pip Live Activity
         let skip = UNNotificationAction(identifier: "skip", title: "Saltar", options: [.destructive])
         let start = UNNotificationAction(identifier: "start", title: "Começar ▶", options: [.foreground])
         center.setNotificationCategories([
@@ -126,7 +126,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                 planned.append(Planned(id: "bday|\(b.name)|\(day)", at: Day.at(19 * 60, on: day), title: "Amanhã é o aniversário de \(b.name)", body: b.person?.gifts.first.map { "Ideia de prenda: \($0)" } ?? "Boa altura para uma mensagem ou uma prenda.", priority: 1, promise: false))
             }
             for (r, d) in store.upcomingRenewals where Day.between(day, d) == r.remindDays && r.amount < 0 {
-                planned.append(Planned(id: "renew|\(r.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(r.title) renova daqui a \(r.remindDays) dias", body: "\(euro(-r.amount, decimals: true))" + (r.cancelBy.map { " · cancela até \(Day.date($0).formatted(.dateTime.day().month())) se não precisares" } ?? ""), priority: 1, promise: false))
+                planned.append(Planned(id: "renew|\(r.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(r.title) renova daqui a \(ptCount(r.remindDays, "dia", "dias"))", body: "\(euro(-r.amount, decimals: true))" + (r.cancelBy.map { " · cancela até \(Day.date($0).formatted(.dateTime.day().month())) se não precisares" } ?? ""), priority: 1, promise: false))
             }
             for d in store.all(DocumentItem.self) where Day.between(day, d.expires) == d.leadDays || Day.between(day, d.expires) == 7 {
                 planned.append(Planned(id: "doc|\(d.id)|\(day)", at: Day.at(10 * 60, on: day), title: "\(d.title) expira em breve", body: Day.date(d.expires).formatted(.dateTime.day().month().year()), priority: 1, promise: false))

@@ -170,7 +170,7 @@ struct MedicineEditor: View {
                 }
                 Section("Frequência") {
                     Picker("Repete", selection: $med.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
-                    if med.schedule.rule == .everyNDays { Stepper("A cada \(med.schedule.every) dias", value: $med.schedule.every, in: 1...60) }
+                    if med.schedule.rule == .everyNDays { Stepper("A cada \(ptCount(med.schedule.every, "dia", "dias"))", value: $med.schedule.every, in: 1...60) }
                     if med.schedule.rule == .weekdays {
                         HStack {
                             ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { wd in
@@ -187,7 +187,7 @@ struct MedicineEditor: View {
                 Section("Stock") {
                     TextField("Unidades restantes (opcional)", value: $med.stock, format: .number).keyboardType(.decimalPad)
                     Stepper("\(kg(med.perDose)) por dose", value: $med.perDose, in: 0.5...10, step: 0.5)
-                    Stepper("Avisar quando restarem \(Int(med.refillAt)) doses", value: $med.refillAt, in: 1...60)
+                    Stepper(Int(med.refillAt) == 1 ? "Avisar quando restar 1 dose" : "Avisar quando restarem \(Int(med.refillAt)) doses", value: $med.refillAt, in: 1...60)
                 }
                 if store.record(Medicine.self, med.id) != nil { Button("Apagar", role: .destructive) { store.remove(med); dismiss() } }
             }

@@ -79,7 +79,7 @@ struct SignalsView: View {
                         Text("/ 100 · últimas 14 noites").font(.geist(12)).foregroundStyle(Color.soft)
                     }
                     Bar(progress: Double(sri) / 100, area: .sleep)
-                    Text(sri >= 80 ? "Muito regular. Em 60 977 adultos do UK Biobank, quem dormia com horários regulares viveu mais do que quem não dormia, mais do que a duração do sono fazia prever." : "Deitar e acordar às mesmas horas conta mais do que o total de horas. Tenta apagar as luzes sempre à mesma hora, com 30 minutos de margem.")
+                    Text(sri >= 80 ? "Muito regular. Em 60 977 adultos do UK Biobank, quem dormia com horários regulares viveu mais do que quem tinha horários irregulares, mais do que a duração do sono fazia prever." : "Deitar e acordar às mesmas horas conta mais do que o total de horas. Tenta apagar as luzes sempre à mesma hora, com 30 minutos de margem.")
                         .font(.geist(12.5)).foregroundStyle(Color.soft)
                 } else {
                     Text("Precisa de algumas noites de dados de sono.").font(.geist(13)).foregroundStyle(Color.soft)

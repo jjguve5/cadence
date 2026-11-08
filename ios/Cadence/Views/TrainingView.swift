@@ -72,7 +72,7 @@ struct TrainingView: View {
                 }
             }
             .buttonStyle(.plain)
-            Text("Exercise data by RepDB (repdb.co) · Body map based on GymMane by InlitX").font(.geist(10.5)).foregroundStyle(Color.faint)
+            Text("Dados de exercícios da RepDB (repdb.co) · Mapa corporal baseado no GymMane, de InlitX").font(.geist(10.5)).foregroundStyle(Color.faint)
         }
         .navigationTitle("Treino")
         .navigationBarTitleDisplayMode(.inline)
@@ -490,7 +490,7 @@ struct ExerciseDetail: View {
                     ForEach(ex.tips, id: \.self) { t in Text("• \(t)").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 }
             }
-            Text("Exercise data by RepDB (repdb.co)").font(.geist(10.5)).foregroundStyle(Color.faint)
+            Text("Dados de exercícios da RepDB (repdb.co)").font(.geist(10.5)).foregroundStyle(Color.faint)
         }
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)

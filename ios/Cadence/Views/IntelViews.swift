@@ -182,7 +182,7 @@ struct LearnedView: View {
             calibration("Curva de energia → qualidade da sessão de foco", store.focusPairs())
             let effects = store.journalEffects()
             Card {
-                Eyebrow(text: "Hábitos e o teu sono", icon: "moon.stars")
+                Eyebrow(text: "O teu dia e o teu sono", icon: "moon.stars")
                 if effects.isEmpty { Text("Responde ao diário da manhã durante algumas semanas; cada hábito precisa de 5 dias com ele e 5 sem ele.").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 ForEach(effects, id: \.question) { e in
                     HStack { Text(journalText(e.question)).font(.geist(13.5)); Spacer(); Text(e.sleep.map { "\($0 > 0 ? "+" : "")\($0) min" } ?? "–").font(.mono(12.5)).foregroundStyle(Color.soft) }

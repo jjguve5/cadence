@@ -82,7 +82,7 @@ struct LockScreenWorkout: View {
             HStack(spacing: 4) {
                 button("−2.5", .weightDown)
                 button("−1 rep", .repDown)
-                Button(intent: WorkoutIntent(.done)) { Text("Feito ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good)
+                Button(intent: WorkoutIntent(.done)) { Text("Concluído ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good)
                 button("+1 rep", .repUp)
                 button("+2.5", .weightUp)
             }

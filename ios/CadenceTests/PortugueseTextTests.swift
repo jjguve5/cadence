@@ -33,4 +33,25 @@ final class PortugueseTextTests: XCTestCase {
         }
         XCTAssertEqual(QuickCapture.parse("Move studying to tomorrow", today: today), .move(keyword: "studying", toDay: "2026-11-04"), "English still works")
     }
+
+    /// Every stored value that is shown has a Portuguese label: a missing one would fall back to the English key on screen
+    func testEveryStoredValueShownHasAPortugueseLabel() {
+        for a in aisles { XCTAssertNotEqual(shoppingAisleLabel(a), a, "aisle \(a)") }
+        for c in moneyCategories { XCTAssertNotEqual(moneyCategoryLabel(c), c, "money category \(c)") }
+        for g in washGroups { XCTAssertNotEqual(washGroupLabel(g), g, "wash group \(g)") }
+        for st in ["clean", "worn", "wash", "drying"] { XCTAssertNotEqual(garmentStateLabel(st), st, "garment state \(st)") }
+        for key in journalQuestions { XCTAssertNotEqual(journalText(key), key, "journal question \(key)") }
+    }
+
+    /// A bought mark's id is fixed for a given line: changing the function would orphan the marks already saved
+    func testABoughtMarkIdIsStable() {
+        XCTAssertEqual(Store.boughtKey(week: "2026-11-02", line: "maçã gala"), "2026-11-02_maca-gala_376f937a")
+        XCTAssertEqual(Store.boughtKey(week: "2026-11-02", line: "whey"), "2026-11-02_whey")
+    }
+
+    /// The timed tempo coach starts with «Já», in the Portuguese voice
+    func testTheTimedCoachStartsInPortuguese() {
+        let plank = TempoPlan.forExercise(id: "plank", name: "")
+        XCTAssertEqual(plank.cue(from: nil, to: plank.frame(elapsed: 0, target: 30), speakBreath: true), "Já")
+    }
 }
