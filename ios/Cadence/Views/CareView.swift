@@ -25,6 +25,7 @@ struct HygieneView: View {
     var body: some View {
         NavigationStack {
         Screen(glow: Color(hex: 0x5FE3D0)) {
+            // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
             Title(eyebrow: "Teeth, showers, grooming and routines", title: "Hygiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {

@@ -69,7 +69,7 @@ struct PlanView: View {
         NavigationStack {
             Screen(glow: .water) {
                 Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: "Plan")
-                    .accessibilityIdentifier("plan.screen")
+                    .accessibilityIdentifier("plan.screen") // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
                     .padding(.top, 8)
                 NowCard(focusing: $focusing)
                 EnergyRibbon()

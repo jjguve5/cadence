@@ -9,7 +9,7 @@ struct BodyView: View {
         NavigationStack {
             Screen(glow: .sleep) {
                 Title(eyebrow: "Sleep, recovery and signals", title: "Body")
-                    .accessibilityIdentifier("body.screen")
+                    .accessibilityIdentifier("body.screen") // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
                     .padding(.top, 8)
                 if store.profile.on("fuel") { NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain) }
                 if store.profile.on("training") {
@@ -31,9 +31,9 @@ struct BodyView: View {
         return Card(tint: .fuel) {
             HStack { Eyebrow(text: "Fuel", icon: "fork.knife", color: .fuel); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
             HStack(spacing: 14) {
-                mini("Calories", ring: "calories", f.kcal / p.kcal, .fuel, "\(Int(f.kcal))")
-                mini("Protein", ring: "protein", f.protein / p.proteinTarget, .train, "\(Int(f.protein)) g")
-                mini("Water", ring: "water", f.water / store.waterGoal(), .water, String(format: "%.1f L", f.water / 1000))
+                mini("Calories", ring: .calories, f.kcal / p.kcal, .fuel, "\(Int(f.kcal))")
+                mini("Protein", ring: .protein, f.protein / p.proteinTarget, .train, "\(Int(f.protein)) g")
+                mini("Water", ring: .water, f.water / store.waterGoal(), .water, String(format: "%.1f L", f.water / 1000))
             }
         }
     }
@@ -57,7 +57,7 @@ struct BodyView: View {
     }
 
     /// `ring` is the Today ring's key (RingStat.key), not its name, so a translated name can't lose the pace marker
-    private func mini(_ name: String, ring key: String, _ progress: Double, _ area: Area, _ value: String) -> some View {
+    private func mini(_ name: String, ring key: RingKey, _ progress: Double, _ area: Area, _ value: String) -> some View {
         HStack(spacing: 8) {
             Ring(progress: progress, area: area, width: 5, marker: store.ringStats().day.first { $0.key == key }?.pace).frame(width: 30, height: 30)
             VStack(alignment: .leading, spacing: 0) {

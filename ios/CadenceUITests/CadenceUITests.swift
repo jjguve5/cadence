@@ -160,6 +160,11 @@ final class CadenceUITests: XCTestCase {
     /// 2.3 translates the app this proves the system language and region don't matter; after it, that the tabs don't.
     func testNavigationInEuropeanPortuguese() {
         launch("normal", portuguese: true)
+        // The region took effect: Today's date has the day before the month ("8 November", later "8 de novembro"),
+        // where the simulator's default US region writes "November 8"
+        let titles = app.descendants(matching: .any).matching(identifier: Tab.today.screen)
+        let labels = (0..<titles.count).map { titles.element(boundBy: $0).label }
+        XCTAssertTrue(labels.contains { $0.range(of: #"\b\d{1,2} (de )?\p{L}{3,}"#, options: .regularExpression) != nil }, "the date isn't in Portugal's order: \(labels)")
         checkEveryTab(Tab.allCases)
         shot("tabs-pt-PT", app)
     }

@@ -19,7 +19,7 @@ struct LifeView: View {
             Screen(glow: Color(hex: 0x1D2550)) {
                 HStack(alignment: .bottom) {
                     Title(eyebrow: attention == 0 ? "All calm" : "\(attention) thing\(attention == 1 ? "" : "s") want attention", title: "Life")
-                        .accessibilityIdentifier("life.screen")
+                        .accessibilityIdentifier("life.screen") // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
                     Spacer()
                     Chip(text: store.tick.formatted(.dateTime.weekday(.abbreviated)))
                 }

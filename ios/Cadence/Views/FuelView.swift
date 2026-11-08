@@ -22,8 +22,8 @@ struct FuelView: View {
             Card {
                 HStack(spacing: 16) {
                     ZStack {
-                        Ring(progress: f.kcal / p.kcal, area: .fuel, width: 8, marker: store.ringStats().day.first { $0.key == "calories" }?.pace).frame(width: 92, height: 92)
-                        Ring(progress: f.protein / p.proteinTarget, area: .train, width: 7, marker: store.ringStats().day.first { $0.key == "protein" }?.pace).frame(width: 66, height: 66)
+                        Ring(progress: f.kcal / p.kcal, area: .fuel, width: 8, marker: store.ringStats().day.first { $0.key == .calories }?.pace).frame(width: 92, height: 92)
+                        Ring(progress: f.protein / p.proteinTarget, area: .train, width: 7, marker: store.ringStats().day.first { $0.key == .protein }?.pace).frame(width: 66, height: 66)
                         Text("\(Int(f.protein)) g").font(.geist(14, .bold))
                     }
                     VStack(alignment: .leading, spacing: 6) {

@@ -397,12 +397,14 @@ final class RegressionRingKeyTests: RegressionCase {
     func testRingKeysAreStable() throws {
         let store = try makeStore { _ in }
         let rings = store.ringStats()
-        XCTAssertEqual(rings.main.map(\.key), ["sleep", "recovery", "strain"])
-        XCTAssertEqual(rings.day.map(\.key), ["calories", "protein", "water", "move", "promises"])
+        XCTAssertEqual(rings.main.map(\.key.rawValue), ["sleep", "recovery", "strain"])
+        XCTAssertEqual(rings.day.map(\.key.rawValue), ["calories", "protein", "water", "move", "promises"])
         let all = rings.main + rings.day
-        XCTAssertEqual(Set(all.map(\.key)).count, all.count, "no two rings share a key")
-        XCTAssertEqual(all.map(\.id), all.map(\.key), "a ring's id is its key")
-        let renamed = RingStat(key: "sleep", name: "Sono", value: 0, target: 1, pace: nil, area: .sleep, center: "–", goal: "")
+        XCTAssertEqual(all.map(\.key), RingKey.allCases, "every key is on Today once, so a lookup by any key finds its ring")
+        XCTAssertEqual(all.map(\.id), all.map(\.key.rawValue), "a ring's id is its key")
+        XCTAssertEqual(all.map(\.accessibilityID), RingKey.allCases.map { "ring.\($0.rawValue)" }, "the identifiers the UI tests read")
+        let renamed = RingStat(key: .sleep, name: "Sono", value: 0, target: 1, pace: nil, area: .sleep, center: "–", goal: "")
         XCTAssertEqual(renamed.id, "sleep", "a new name keeps the key")
+        XCTAssertEqual(renamed.accessibilityID, "ring.sleep", "and the identifier")
     }
 }
