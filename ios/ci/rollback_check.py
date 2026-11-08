@@ -30,8 +30,11 @@ def warn(cond, what):
 queue = lambda s: (s.get("dirty") or {}, sorted(s.get("tombstones") or []), s.get("rev"))
 # Phase 2.2 answers carry a "source"; the 2 Nov build doesn't know the field and drops it when it saves (then the
 # origin reads as unknown, never as yours). Records are compared without it; what happens to it is checked apart.
-bare = lambda logs: {k: {f: v for f, v in r.items() if f != "source"} for k, r in (logs or {}).items()}
-sources = lambda logs: {k: r.get("source") for k, r in (logs or {}).items()}
+# Phase 2.8's «Não se aplica» (notApplicable) is handled the same way: the 2 Nov build drops it too (then it reads as a
+# plain skip); the new build must keep it.
+ANSWER_EXTRAS = ("source", "notApplicable")
+bare = lambda logs: {k: {f: v for f, v in r.items() if f not in ANSWER_EXTRAS} for k, r in (logs or {}).items()}
+sources = lambda logs: {k: tuple(r.get(f) for f in ANSWER_EXTRAS) for k, r in (logs or {}).items()}
 old_steps = {"1-old", "3-old-again", "5-old-control"}
 
 # The container's content survives every install (the marker was put in once, at the start)

@@ -8,7 +8,9 @@ fixture = {
     # an answer from before phase 2.2 (no source), one imported from the band and one you gave (phase 2.2)
     "logs": {"P1|2026-11-04": {"promiseId": "P1", "date": "2026-11-04", "status": "done", "at": 1793790000000},
              "P1|2026-11-03": {"promiseId": "P1", "date": "2026-11-03", "status": "done", "at": 1793700000000, "source": "fitbit"},
-             "P1|2026-11-02": {"promiseId": "P1", "date": "2026-11-02", "status": "skipped", "at": 1793610000000, "source": "you"}},
+             "P1|2026-11-02": {"promiseId": "P1", "date": "2026-11-02", "status": "skipped", "at": 1793610000000, "source": "you"},
+             # «Não se aplica» from the end-of-day review (phase 2.8): a skip with notApplicable, which older builds read as skipped
+             "P1|2026-11-01": {"promiseId": "P1", "date": "2026-11-01", "status": "skipped", "at": 1793520000000, "source": "you", "notApplicable": True}},
     "days": {"2026-11-03": {"date": "2026-11-03", "rating": 4, "note": "Dia bom: ação e ténis", "top3": ["Pernas"], "top3Done": [True],
                             "closedAt": 1793741954837.537, "score": 45, "points": 45, "energy": 4}},
     # The whole profile, as the app writes it (every build saves all its fields): with only a few fields, whether a
