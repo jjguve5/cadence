@@ -62,6 +62,7 @@ struct TodayView: View {
     private var header: some View {
         HStack(alignment: .bottom) {
             Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: greeting)
+                .accessibilityIdentifier("today.screen") // tells the UI tests this tab's root is showing; never translated
             Spacer()
             Button { capturing = true } label: {
                 Image(systemName: "plus").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)

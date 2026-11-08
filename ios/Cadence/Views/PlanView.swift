@@ -69,6 +69,7 @@ struct PlanView: View {
         NavigationStack {
             Screen(glow: .water) {
                 Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: "Plan")
+                    .accessibilityIdentifier("plan.screen")
                     .padding(.top, 8)
                 NowCard(focusing: $focusing)
                 EnergyRibbon()

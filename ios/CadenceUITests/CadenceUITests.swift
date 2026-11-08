@@ -22,34 +22,44 @@ final class CadenceUITests: XCTestCase {
         let a = XCUIApplication()
         a.launchEnvironment = ["CADENCE_UITEST": scenario, "CADENCE_UITEST_MINUTE": String(minute), "CADENCE_UITEST_RESET": reset ? "1" : "0"]
         a.launch()
-        // Today is recognised by an identifier on its screen, not by the tab's name, so translating it can't break this
-        XCTAssertTrue(a.descendants(matching: .any)[Tab.today.landmark].firstMatch.waitForExistence(timeout: 20), "Cadence didn't reach the Today tab")
+        // Today is recognised by the identifier on its title, not by the tab's name, so translating it can't break this
+        XCTAssertTrue(a.descendants(matching: .any)[Tab.today.screen].firstMatch.waitForExistence(timeout: 20), "Cadence didn't reach the Today tab")
         app = a
         return a
     }
 
-    /// The tabs have no accessibility identifier yet, and adding one means changing the app (proposed for phase 2.1).
-    /// Until then a tab is tapped by its place in the tab bar and the test then requires an identifier that only its
-    /// screen has: a translated tab name can't break navigation, and a moved or missing tab fails instead of passing.
-    /// Plan and Life have no identifier on their screens yet, so no test opens them (phase 2.1 adds both).
-    private enum Tab: Int {
-        case today = 0, plan = 1, body = 2, hygiene = 3, life = 4
-        var landmark: String {
-            switch self {
-            case .today: return "capture.open"
-            case .body: return "body.training"
-            case .hygiene: return "shower.card"
-            case .plan, .life: return ""
-            }
-        }
+    /// The five tabs. Each tab button has the identifier tab.<name> and the title of its screen <name>.screen, both
+    /// internal and never translated: a test finds a tab by its identifier, not by its name or its place in the bar
+    /// (Hygiene can be switched off, which moves Life), and then requires that tab's own screen.
+    private enum Tab: String, CaseIterable {
+        case today, plan, body, hygiene, life
+        var button: String { "tab.\(rawValue)" }
+        var screen: String { "\(rawValue).screen" }
     }
 
     private func open(_ tab: Tab, file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertFalse(tab.landmark.isEmpty, "\(tab) has no identifier on its screen yet", file: file, line: line)
-        let button = app.tabBars.buttons.element(boundBy: tab.rawValue)
-        XCTAssertTrue(button.waitForExistence(timeout: 5), "no tab at place \(tab.rawValue)", file: file, line: line)
+        let button = app.tabBars.buttons[tab.button]
+        XCTAssertTrue(button.waitForExistence(timeout: 5), "no \(tab.button) in the tab bar", file: file, line: line)
         button.tap()
-        XCTAssertTrue(el(tab.landmark).waitForExistence(timeout: 5), "tab \(tab.rawValue) didn't open \(tab) (\(tab.landmark) missing)", file: file, line: line)
+        XCTAssertTrue(el(tab.screen).waitForExistence(timeout: 5), "\(tab.button) didn't open \(tab.screen)", file: file, line: line)
+    }
+
+    /// Every tab in `tabs` is in the bar (and no other), opens its own screen and only that one, and still has a name
+    /// for VoiceOver that isn't the identifier. Ends back on Today.
+    private func checkEveryTab(_ tabs: [Tab], file: StaticString = #filePath, line: UInt = #line) {
+        let buttons = app.tabBars.buttons
+        XCTAssertEqual(buttons.count, tabs.count, "tabs in the bar", file: file, line: line)
+        let found = Set((0..<buttons.count).map { buttons.element(boundBy: $0).identifier })
+        XCTAssertEqual(found, Set(tabs.map(\.button)), "tab identifiers", file: file, line: line)
+        for tab in tabs + [.today] {
+            open(tab, file: file, line: line)
+            for other in Tab.allCases where other != tab {
+                XCTAssertFalse(el(other.screen).exists, "\(other.screen) is showing while \(tab.button) is selected", file: file, line: line)
+            }
+            let label = app.tabBars.buttons[tab.button].label
+            XCTAssertFalse(label.isEmpty, "\(tab.button) has no name for VoiceOver", file: file, line: line)
+            XCTAssertNotEqual(label, tab.button, "\(tab.button) reads its identifier aloud", file: file, line: line)
+        }
     }
 
     /// Text the tests read back from the screen. It is English today and changes on purpose with the app's strings in
@@ -103,6 +113,14 @@ final class CadenceUITests: XCTestCase {
         XCTAssertFalse(el("rings.toggle").exists, "nothing to expand: all the rings are always there")
         XCTAssertTrue(el("ring.water").exists)
         shot("rings", app)
+    }
+
+    // MARK: Navigation
+
+    func testEveryTabOpensItsOwnScreen() {
+        launch("normal")
+        checkEveryTab(Tab.allCases)
+        shot("tabs", app)
     }
 
     // MARK: Recommendations and the minimum viable day

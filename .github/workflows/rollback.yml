@@ -5,9 +5,10 @@ name: Rollback test (simulator)
 # queue and the copies; then a control run of the old build on a file it wrote itself.
 on:
   push:
-    # fase2-base: phase 2.0 runs this same check without touching fase1-protecao-local. A manual run isn't possible:
-    # GitHub only offers workflow_dispatch for workflows on the default branch, and this file isn't on main.
-    branches: [fase1-protecao-local, fase2-base]
+    # fase2-*: every phase 2 branch (fase2-base and each phase after it) runs this same check without touching
+    # fase1-protecao-local. A manual run isn't possible: GitHub only offers workflow_dispatch for workflows on the
+    # default branch, and this file isn't on main.
+    branches: [fase1-protecao-local, "fase2-*"]
     paths: ["ios/**", ".github/workflows/rollback.yml"]
 concurrency:
   group: rollback-${{ github.ref }}

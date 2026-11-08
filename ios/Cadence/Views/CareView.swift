@@ -25,7 +25,7 @@ struct HygieneView: View {
     var body: some View {
         NavigationStack {
         Screen(glow: Color(hex: 0x5FE3D0)) {
-            Title(eyebrow: "Teeth, showers, grooming and routines", title: "Hygiene").padding(.top, 8)
+            Title(eyebrow: "Teeth, showers, grooming and routines", title: "Hygiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {

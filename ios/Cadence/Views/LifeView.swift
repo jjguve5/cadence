@@ -19,6 +19,7 @@ struct LifeView: View {
             Screen(glow: Color(hex: 0x1D2550)) {
                 HStack(alignment: .bottom) {
                     Title(eyebrow: attention == 0 ? "All calm" : "\(attention) thing\(attention == 1 ? "" : "s") want attention", title: "Life")
+                        .accessibilityIdentifier("life.screen")
                     Spacer()
                     Chip(text: store.tick.formatted(.dateTime.weekday(.abbreviated)))
                 }

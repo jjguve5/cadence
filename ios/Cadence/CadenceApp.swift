@@ -65,11 +65,12 @@ struct RootView: View {
                 RecoveryView() // the data couldn't be read or saved: nothing else until it's safe
             } else if store.connection.configured {
                 TabView(selection: $tab) {
-                    TodayView().tabItem { Label("Today", systemImage: "house") }.tag(0)
-                    PlanView().tabItem { Label("Plan", systemImage: "calendar") }.tag(1)
-                    BodyView().tabItem { Label("Body", systemImage: "heart.text.square") }.tag(2)
-                    if store.profile.on("care") { HygieneView().tabItem { Label("Hygiene", systemImage: "shower.fill") }.tag(3) }
-                    LifeView().tabItem { Label("Life", systemImage: "square.stack.3d.up") }.tag(4)
+                    // tab.* identifiers are internal and never translated: the UI tests find each tab by them
+                    TodayView().tabItem { Label("Today", systemImage: "house").accessibilityIdentifier("tab.today") }.tag(0)
+                    PlanView().tabItem { Label("Plan", systemImage: "calendar").accessibilityIdentifier("tab.plan") }.tag(1)
+                    BodyView().tabItem { Label("Body", systemImage: "heart.text.square").accessibilityIdentifier("tab.body") }.tag(2)
+                    if store.profile.on("care") { HygieneView().tabItem { Label("Hygiene", systemImage: "shower.fill").accessibilityIdentifier("tab.hygiene") }.tag(3) }
+                    LifeView().tabItem { Label("Life", systemImage: "square.stack.3d.up").accessibilityIdentifier("tab.life") }.tag(4)
                 }
                 .tint(.mint)
             } else {

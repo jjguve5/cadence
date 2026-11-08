@@ -9,6 +9,7 @@ struct BodyView: View {
         NavigationStack {
             Screen(glow: .sleep) {
                 Title(eyebrow: "Sleep, recovery and signals", title: "Body")
+                    .accessibilityIdentifier("body.screen")
                     .padding(.top, 8)
                 if store.profile.on("fuel") { NavigationLink { FuelView() } label: { fuelCard }.buttonStyle(.plain) }
                 if store.profile.on("training") {
