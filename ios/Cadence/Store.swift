@@ -679,7 +679,7 @@ final class Store: ObservableObject {
             guard code == 200 else { return }
             let reply = try JSONDecoder().decode(HealthReply.self, from: data)
             if UserDefaults.standard.integer(forKey: "healthSchema") < 2 { health = [:]; UserDefaults.standard.set(2, forKey: "healthSchema") }
-            for d in reply.days { health[d.date] = d }
+            for d in reply.days { health[d.date] = d.mainSleepFirst() }
             device = reply.device
             healthErrors = reply.errors ?? [:]
             lastHealth = Date()

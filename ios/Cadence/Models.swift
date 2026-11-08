@@ -276,6 +276,38 @@ struct SleepRecord: Codable, Equatable {
 
 struct Nap: Codable, Equatable { var start: String; var end: String; var asleep: Int }
 
+extension HealthDay {
+    /// A sleep this short that starts in the daytime is a nap, whatever mark it came with (decision D39)
+    static func isDaytimeNap(start: String, asleep: Int) -> Bool {
+        guard asleep < 180, let date = ISO8601DateFormatter().date(from: start) else { return false }
+        return (9 * 60..<20 * 60).contains(Day.minuteOfDay(date))
+    }
+
+    /// The day's sleep is its main one, and the rest stay naps; they are never added up. The server goes by the «main
+    /// sleep» mark from Google, which can land on a nap: a one-hour nap then read as the whole night. So the longest sleep
+    /// that isn't a daytime nap is the night, and a day with only a daytime nap has no night («Sem dados», not «1 h»). Worked
+    /// out each time the days arrive from the server; a day that needs no change is returned as it came, stages included.
+    func mainSleepFirst() -> HealthDay {
+        let others = naps ?? []
+        let mainIsNap = sleep.map { HealthDay.isDaytimeNap(start: $0.start, asleep: $0.asleep) } ?? false
+        let current = mainIsNap ? nil : sleep
+        let longer = others.filter { !HealthDay.isDaytimeNap(start: $0.start, asleep: $0.asleep) && $0.asleep > (current?.asleep ?? 0) }
+            .max { $0.asleep < $1.asleep }
+        guard mainIsNap || longer != nil else { return self }
+        var day = self
+        var rest = others
+        if let longer {
+            rest.removeAll { $0 == longer }
+            day.sleep = SleepRecord(start: longer.start, end: longer.end, offset: sleep?.offset, asleep: longer.asleep)
+        } else {
+            day.sleep = nil
+        }
+        if let old = sleep { rest.append(Nap(start: old.start, end: old.end, asleep: old.asleep)) }
+        day.naps = rest.isEmpty ? nil : rest.sorted { $0.start < $1.start }
+        return day
+    }
+}
+
 struct HealthDay: Codable, Equatable, Identifiable {
     var date: String
     var sleep: SleepRecord?
