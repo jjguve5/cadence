@@ -6,7 +6,7 @@ struct Chore: Record, Equatable {
     static let kind = "chore"
     var id = UUID().uuidString
     var title: String
-    var room = "Home"
+    var room = "Casa" // free text, only shown in the chore's form
     var everyDays = 7
     var minutes = 10
     var history: [String] = []
@@ -73,13 +73,13 @@ extension Store {
     /// Watering that knows the weather: rain since the last watering counts for outdoor plants, heat brings it forward
     func plantDue(_ p: Plant) -> (due: Bool, note: String) {
         let since = p.daysSince ?? 999
-        guard p.outdoor else { return (since >= p.everyDays, since >= p.everyDays ? "Water today" : "in \(p.everyDays - since) days") }
+        guard p.outdoor else { return (since >= p.everyDays, since >= p.everyDays ? "Regar hoje" : "daqui a \(p.everyDays - since) dias") }
         let w = WeatherStore.shared.today
         let rainedToday = (w?.hours.filter { $0.minute < 1440 && $0.rain >= 70 }.count ?? 0) >= 2
         let hot = (w?.high ?? 20) >= 28
-        if rainedToday { return (false, "Rain today waters it") }
+        if rainedToday { return (false, "A chuva de hoje rega-a") }
         let interval = hot ? max(1, p.everyDays - 2) : p.everyDays
-        return (since >= interval, since >= interval ? (hot ? "Hot day: water it" : "Water today") : "in \(interval - since) days")
+        return (since >= interval, since >= interval ? (hot ? "Dia quente: regar" : "Regar hoje") : "daqui a \(interval - since) dias")
     }
 
     var documentsSoon: [DocumentItem] {
@@ -91,7 +91,7 @@ extension Store {
         var out: [String] = []
         for t in all(Trip.self) where t.end >= Day.today {
             for d in all(DocumentItem.self) where d.kind == "document" && d.expires <= Day.add(180, to: t.end) {
-                out.append("\(d.title) expires \(Day.date(d.expires).formatted(.dateTime.day().month().year())): within 6 months of your trip to \(t.destination).")
+                out.append("\(d.title) expira a \(Day.date(d.expires).formatted(.dateTime.day().month().year())), menos de 6 meses depois da viagem a \(t.destination).")
             }
         }
         return out
@@ -145,8 +145,8 @@ extension Store {
         let existing = Set(all(ReviewCard.self).map(\.back))
         for s in all(ReadingSession.self) {
             guard let q = s.quote, !existing.contains(q) else { continue }
-            let book = s.bookId.flatMap { record(Book.self, $0) }?.title ?? "a book"
-            save(ReviewCard(front: "A quote from \(book)", back: q, deck: "Quotes"))
+            let book = s.bookId.flatMap { record(Book.self, $0) }?.title ?? "um livro"
+            save(ReviewCard(front: "Uma citação de \(book)", back: q, deck: "Quotes"))
         }
     }
 }

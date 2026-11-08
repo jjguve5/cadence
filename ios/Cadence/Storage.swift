@@ -249,6 +249,6 @@ enum Storage {
     static func name(ofType type: String) -> String {
         ["water": "água", "food": "comida", "promise": "hábitos", "log": "conclusões", "day": "dias", "profile": "perfil",
          "feedback": "feedback", "shower": "duches", "brush": "escovagem", "session": "treinos", "journal": "diário",
-         "mood": "humor", "weight": "peso", "groom": "aparência", "med": "medicamentos", "medlog": "tomas"][type] ?? type
+         "mood": "humor", "weight": "peso", "groom": "cuidados pessoais", "med": "medicamentos", "medlog": "tomas"][type] ?? type
     }
 }

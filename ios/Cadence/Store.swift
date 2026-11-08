@@ -560,7 +560,7 @@ final class Store: ObservableObject {
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard code == 200 else { syncFailed(code == 403 ? "The server refused this for now: saved on the phone, retrying later" : "Sync failed (\(code)): saved on the phone"); return }
+            guard code == 200 else { syncFailed(code == 403 ? "O servidor recusou por agora: ficou guardado no iPhone e volta a tentar mais tarde" : "A sincronização falhou (\(code)): ficou guardado no iPhone"); return }
             let reply = try JSONDecoder().decode(SyncReply.self, from: data)
             let settled = Self.settle(sent: sent, dirty: dirty, returned: Set(reply.changes.map { "\($0.type):\($0.id)" }))
             dirty = settled.dirty
@@ -592,7 +592,7 @@ final class Store: ObservableObject {
             persist()
             if !reply.changes.isEmpty { Reminders.shared.reschedule() }
         } catch {
-            syncFailed("Offline: changes wait on the phone")
+            syncFailed("Sem ligação: as alterações esperam no iPhone")
         }
     }
 

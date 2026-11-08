@@ -11,7 +11,7 @@ struct CareView: View {
         Screen(glow: Color(hex: 0x5FE3D0)) {
             MedicinesCard(editing: $editingMed)
         }
-        .navigationTitle("Medicines")
+        .navigationTitle("Medicamentos")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(item: $editingMed) { MedicineEditor(med: $0) }
     }
@@ -26,23 +26,23 @@ struct HygieneView: View {
         NavigationStack {
         Screen(glow: Color(hex: 0x5FE3D0)) {
             // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
-            Title(eyebrow: "Teeth, showers, grooming and routines", title: "Hygiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
+            Title(eyebrow: "Dentes, duches, cuidados pessoais e rotinas", title: "Higiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Eyebrow(text: "Brushing", icon: "mouth.fill", color: Color(hex: 0x5FE3D0))
+                        Eyebrow(text: "Escovagem", icon: "mouth.fill", color: Color(hex: 0x5FE3D0))
                         let today = store.brushes()
-                        Text(today.isEmpty ? "Not yet today" : "\(today.count)× today · \(today.map { duration($0.seconds / 60) }.joined(separator: ", "))").font(.geist(14))
-                        if store.brushHeadDue { Text("3 months on this brush head: time for a new one.").font(.geist(12)).foregroundStyle(Color.warn) }
+                        Text(today.isEmpty ? "Hoje ainda não" : "\(today.count)× hoje · \(today.map { duration($0.seconds / 60) }.joined(separator: ", "))").font(.geist(14))
+                        if store.brushHeadDue { Text("3 meses com esta cabeça de escova: está na altura de a trocar.").font(.geist(12)).foregroundStyle(Color.warn) }
                     }
                     Spacer()
                     Button { store.brushingOpen = true } label: { Image(systemName: "play.fill").foregroundStyle(Color(hex: 0x032018)).frame(width: 44, height: 44).background(Circle().fill(Color(hex: 0x5FE3D0))) }
                 }
-                if store.brushHeadDue { SoftButton(title: "Changed it", icon: "checkmark") { store.put("brushhead", Day.today, .bool(true)) } }
+                if store.brushHeadDue { SoftButton(title: "Já troquei", icon: "checkmark") { store.put("brushhead", Day.today, .bool(true)) } }
             }
             ShowerCard()
             Card {
-                Eyebrow(text: "Grooming", icon: "scissors")
+                Eyebrow(text: "Cuidados pessoais", icon: "scissors")
                 ForEach(store.all(GroomingItem.self).sorted { $0.freshness < $1.freshness }) { g in
                     HStack(spacing: 10) {
                         Image(systemName: g.icon).foregroundStyle(Color.soft).frame(width: 22)
@@ -50,7 +50,7 @@ struct HygieneView: View {
                             HStack {
                                 Text(g.title).font(.geist(14, .medium))
                                 Spacer()
-                                Text(g.daysSince.map { "\($0) d ago · every ~\(g.rhythm)" } ?? "never logged").font(.geist(11.5)).foregroundStyle((g.daysSince ?? 999) >= g.rhythm ? Color.warn : Color.faint)
+                                Text(g.daysSince.map { "há \($0) d · a cada ~\(g.rhythm) d" } ?? "nunca registado").font(.geist(11.5)).foregroundStyle((g.daysSince ?? 999) >= g.rhythm ? Color.warn : Color.faint)
                             }
                             Bar(progress: g.freshness, area: g.freshness < 0.15 ? .fuel : .mint)
                         }
@@ -58,16 +58,16 @@ struct HygieneView: View {
                     }
                 }
                 if let trip = store.nextTrip, !store.groomingBefore(trip).isEmpty {
-                    Text("Trip to \(trip.destination) on \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) the day before.").font(.geist(12.5)).foregroundStyle(Color.fuel)
+                    Text("Viagem a \(trip.destination), \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) na véspera.").font(.geist(12.5)).foregroundStyle(Color.fuel)
                 }
-                Text("Starts from sensible intervals, then learns your own and flags drift.").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("Começa com intervalos razoáveis, depois aprende os teus e avisa quando te afastas deles.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             Card {
-                HStack { Eyebrow(text: "Routines", icon: "list.number"); Spacer(); Button { editingRoutine = CareRoutine(title: "", steps: []) } label: { Image(systemName: "plus") }.tint(.mint) }
+                HStack { Eyebrow(text: "Rotinas", icon: "list.number"); Spacer(); Button { editingRoutine = CareRoutine(title: "", steps: []) } label: { Image(systemName: "plus") }.tint(.mint) }
                 ForEach(store.all(CareRoutine.self).sorted { $0.title < $1.title }) { r in
                     HStack {
                         Image(systemName: r.icon).foregroundStyle(Color.soft).frame(width: 22)
-                        VStack(alignment: .leading) { Text(r.title).font(.geist(14, .medium)); Text("\(r.steps.count) steps · \(duration(r.steps.map(\.seconds).reduce(0, +) / 60))").font(.geist(11.5)).foregroundStyle(Color.faint) }
+                        VStack(alignment: .leading) { Text(r.title).font(.geist(14, .medium)); Text("\(r.steps.count) \(r.steps.count == 1 ? "passo" : "passos") · \(duration(r.steps.map(\.seconds).reduce(0, +) / 60))").font(.geist(11.5)).foregroundStyle(Color.faint) }
                         Spacer()
                         Button { editingRoutine = r } label: { Image(systemName: "pencil").foregroundStyle(Color.soft) }.buttonStyle(.plain)
                         Button { playing = r } label: { Image(systemName: "play.circle.fill").font(.geist(26)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
@@ -88,9 +88,9 @@ struct MedicinesCard: View {
     @Binding var editing: Medicine?
     var body: some View {
         Card(tint: .mind) {
-            HStack { Eyebrow(text: "Medicines and products", icon: "pills.fill", color: .mind); Spacer(); Button { editing = Medicine(name: "") } label: { Image(systemName: "plus") }.tint(.mind) }
+            HStack { Eyebrow(text: "Medicamentos e produtos", icon: "pills.fill", color: .mind); Spacer(); Button { editing = Medicine(name: "") } label: { Image(systemName: "plus") }.tint(.mind) }
             let doses = store.doses()
-            if doses.isEmpty { Text("Nothing scheduled today.").font(.geist(13)).foregroundStyle(Color.soft) }
+            if doses.isEmpty { Text("Nada marcado para hoje.").font(.geist(13)).foregroundStyle(Color.soft) }
             ForEach(Array(doses.enumerated()), id: \.offset) { _, d in
                 HStack {
                     Text(clock(d.minute)).font(.mono(12)).foregroundStyle(Color.faint)
@@ -99,19 +99,19 @@ struct MedicinesCard: View {
                         Text([d.med.dose, d.med.how].filter { !$0.isEmpty }.joined(separator: " · ")).font(.geist(11.5)).foregroundStyle(Color.soft)
                     }
                     Spacer()
-                    if let log = d.log { Chip(text: log.taken ? "taken" : "skipped", color: log.taken ? .good : .faint) }
+                    if let log = d.log { Chip(text: log.taken ? "tomado" : "saltado", color: log.taken ? .good : .faint) }
                     else {
-                        Button("Skip") { store.take(d.med, minute: d.minute, taken: false) }.font(.geist(12)).tint(.soft)
+                        Button("Saltar") { store.take(d.med, minute: d.minute, taken: false) }.font(.geist(12)).tint(.soft)
                         Button { store.take(d.med, minute: d.minute) } label: { Image(systemName: "checkmark.circle.fill").font(.geist(22)).foregroundStyle(Color.mind) }.buttonStyle(.plain)
                     }
                 }
             }
             ForEach(store.all(Medicine.self)) { m in
                 if let left = store.dosesLeft(m), Double(left.doses) <= m.refillAt {
-                    Text("\(m.name): \(left.doses) doses left, runs out \(Day.date(left.runsOut).formatted(.dateTime.day().month())). Added to shopping.").font(.geist(12)).foregroundStyle(Color.warn)
+                    Text("\(m.name): restam \(left.doses) doses, acaba a \(Day.date(left.runsOut).formatted(.dateTime.day().month())). Adicionado à lista de compras.").font(.geist(12)).foregroundStyle(Color.warn)
                 }
             }
-            NavigationLink { MedicinesList(editing: $editing) } label: { Text("All products and history").font(.geist(13, .semibold)).foregroundStyle(Color.mind) }
+            NavigationLink { MedicinesList(editing: $editing) } label: { Text("Todos os produtos e histórico").font(.geist(13, .semibold)).foregroundStyle(Color.mind) }
         }
     }
 }
@@ -125,24 +125,24 @@ struct MedicinesList: View {
                 Button { editing = m } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(m.name).foregroundStyle(Color.ink)
-                        Text("\(m.times.map(clock).joined(separator: ", ")) · \(m.schedule.summary)" + (m.end.map { " · until \(Day.date($0).formatted(.dateTime.day().month()))" } ?? " · ongoing")).font(.caption).foregroundStyle(Color.soft)
-                        if let a = store.adherence(m) { Text("Taken \(Int(a * 100))% of the last 30 days").font(.caption2).foregroundStyle(a > 0.9 ? Color.good : Color.warn) }
+                        Text("\(m.times.map(clock).joined(separator: ", ")) · \(m.schedule.summary)" + (m.end.map { " · até \(Day.date($0).formatted(.dateTime.day().month()))" } ?? " · contínuo")).font(.caption).foregroundStyle(Color.soft)
+                        if let a = store.adherence(m) { Text("Tomado em \(Int(a * 100))% dos últimos 30 dias").font(.caption2).foregroundStyle(a > 0.9 ? Color.good : Color.warn) }
                     }
                 }
             }
             Section {
-                ShareLink(item: medicineCSV(), preview: SharePreview("Medicine history")) { Label("Export history for a doctor", systemImage: "square.and.arrow.up") }
+                ShareLink(item: medicineCSV(), preview: SharePreview("Histórico de medicamentos")) { Label("Exportar o histórico para o médico", systemImage: "square.and.arrow.up") }
             }
         }
         .cadenceList()
-        .navigationTitle("Medicines")
+        .navigationTitle("Medicamentos")
     }
 
     private func medicineCSV() -> String {
-        var rows = ["date,time,product,dose,taken"]
+        var rows = ["data,hora,produto,dose,tomado"]
         for log in store.all(MedLog.self).sorted(by: { ($0.date, $0.minute) < ($1.date, $1.minute) }) {
             let m = store.record(Medicine.self, log.medId)
-            rows.append("\(log.date),\(clock(log.minute)),\(m?.name ?? "?"),\(m?.dose ?? ""),\(log.taken ? "yes" : "no")")
+            rows.append("\(log.date),\(clock(log.minute)),\(m?.name ?? "?"),\(m?.dose ?? ""),\(log.taken ? "sim" : "não")")
         }
         return rows.joined(separator: "\n")
     }
@@ -158,44 +158,44 @@ struct MedicineEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Name", text: $med.name)
-                    Picker("Kind", selection: $med.kind) { ForEach(["medicine", "supplement", "skincare", "drops", "other"], id: \.self) { Text($0.capitalized).tag($0) } }
-                    TextField("Dose (e.g. 1 tablet, 2 drops)", text: $med.dose)
-                    TextField("How (with food, empty stomach…)", text: $med.how)
-                    Toggle("Must-do (asks again until answered)", isOn: $med.mustDo)
+                    TextField("Nome", text: $med.name)
+                    Picker("Tipo", selection: $med.kind) { ForEach(["medicine", "supplement", "skincare", "drops", "other"], id: \.self) { Text(medicineKindLabel($0)).tag($0) } }
+                    TextField("Dose (ex.: 1 comprimido, 2 gotas)", text: $med.dose)
+                    TextField("Como (com comida, em jejum…)", text: $med.how)
+                    Toggle("Essencial (pergunta outra vez até responderes)", isOn: $med.mustDo)
                 }
-                Section("Times per day") {
-                    ForEach(med.times.sorted(), id: \.self) { t in Text(clock(t)).swipeActions { Button("Remove", role: .destructive) { med.times.removeAll { $0 == t } } } }
-                    HStack { DatePicker("Add", selection: $newTime, displayedComponents: .hourAndMinute); Button("Add") { let m = Day.minuteOfDay(newTime); if !med.times.contains(m) { med.times.append(m) } } }
+                Section("Horários") {
+                    ForEach(med.times.sorted(), id: \.self) { t in Text(clock(t)).swipeActions { Button("Remover", role: .destructive) { med.times.removeAll { $0 == t } } } }
+                    HStack { DatePicker("Adicionar", selection: $newTime, displayedComponents: .hourAndMinute); Button("Adicionar") { let m = Day.minuteOfDay(newTime); if !med.times.contains(m) { med.times.append(m) } } }
                 }
-                Section("Schedule") {
-                    Picker("Repeats", selection: $med.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
-                    if med.schedule.rule == .everyNDays { Stepper("Every \(med.schedule.every) days", value: $med.schedule.every, in: 1...60) }
+                Section("Frequência") {
+                    Picker("Repete", selection: $med.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }
+                    if med.schedule.rule == .everyNDays { Stepper("A cada \(med.schedule.every) dias", value: $med.schedule.every, in: 1...60) }
                     if med.schedule.rule == .weekdays {
                         HStack {
                             ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { wd in
                                 let on = med.schedule.weekdays.contains(wd)
-                                Text(["S", "M", "T", "W", "T", "F", "S"][wd - 1]).frame(width: 32, height: 32).background(Circle().fill(on ? Color.mind : .white.opacity(0.08)))
+                                Text(["D", "S", "T", "Q", "Q", "S", "S"][wd - 1]).frame(width: 32, height: 32).background(Circle().fill(on ? Color.mind : .white.opacity(0.08)))
                                     .onTapGesture { if on { med.schedule.weekdays.removeAll { $0 == wd } } else { med.schedule.weekdays.append(wd) } }
                             }
                         }
                     }
-                    DatePicker("Starts", selection: Binding(get: { Day.date(med.start) }, set: { med.start = Day.key($0) }), displayedComponents: .date)
-                    Toggle("Temporary course", isOn: Binding(get: { med.end != nil }, set: { med.end = $0 ? Day.add(7, to: med.start) : nil }))
-                    if med.end != nil { DatePicker("Ends", selection: Binding(get: { Day.date(med.end ?? Day.today) }, set: { med.end = Day.key($0) }), displayedComponents: .date) }
+                    DatePicker("Começa", selection: Binding(get: { Day.date(med.start) }, set: { med.start = Day.key($0) }), displayedComponents: .date)
+                    Toggle("Tratamento temporário", isOn: Binding(get: { med.end != nil }, set: { med.end = $0 ? Day.add(7, to: med.start) : nil }))
+                    if med.end != nil { DatePicker("Acaba", selection: Binding(get: { Day.date(med.end ?? Day.today) }, set: { med.end = Day.key($0) }), displayedComponents: .date) }
                 }
                 Section("Stock") {
-                    TextField("Units left (optional)", value: $med.stock, format: .number).keyboardType(.decimalPad)
-                    Stepper("\(kg(med.perDose)) per dose", value: $med.perDose, in: 0.5...10, step: 0.5)
-                    Stepper("Remind at \(Int(med.refillAt)) doses left", value: $med.refillAt, in: 1...60)
+                    TextField("Unidades restantes (opcional)", value: $med.stock, format: .number).keyboardType(.decimalPad)
+                    Stepper("\(kg(med.perDose)) por dose", value: $med.perDose, in: 0.5...10, step: 0.5)
+                    Stepper("Avisar quando restarem \(Int(med.refillAt)) doses", value: $med.refillAt, in: 1...60)
                 }
-                if store.record(Medicine.self, med.id) != nil { Button("Delete", role: .destructive) { store.remove(med); dismiss() } }
+                if store.record(Medicine.self, med.id) != nil { Button("Apagar", role: .destructive) { store.remove(med); dismiss() } }
             }
             .cadenceList()
-            .navigationTitle(med.name.isEmpty ? "New product" : med.name)
+            .navigationTitle(med.name.isEmpty ? "Novo produto" : med.name)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { med.times.sort(); store.save(med); Reminders.shared.reschedule(); dismiss() }.disabled(med.name.isEmpty || med.times.isEmpty) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Guardar") { med.times.sort(); store.save(med); Reminders.shared.reschedule(); dismiss() }.disabled(med.name.isEmpty || med.times.isEmpty) }
             }
         }
     }
@@ -208,20 +208,20 @@ struct RoutineEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $routine.title)
+                TextField("Nome", text: $routine.title)
                 ForEach($routine.steps) { $s in
-                    HStack { TextField("Step", text: $s.title); Stepper("\(s.seconds) s", value: $s.seconds, in: 5...900, step: 5).fixedSize() }
+                    HStack { TextField("Passo", text: $s.title); Stepper("\(s.seconds) s", value: $s.seconds, in: 5...900, step: 5).fixedSize() }
                 }
                 .onDelete { routine.steps.remove(atOffsets: $0) }
                 .onMove { routine.steps.move(fromOffsets: $0, toOffset: $1) }
-                Button("Add step") { routine.steps.append(RoutineStep(title: "", seconds: 30)) }
-                if store.record(CareRoutine.self, routine.id) != nil { Button("Delete routine", role: .destructive) { store.remove(routine); dismiss() } }
+                Button("Adicionar passo") { routine.steps.append(RoutineStep(title: "", seconds: 30)) }
+                if store.record(CareRoutine.self, routine.id) != nil { Button("Apagar rotina", role: .destructive) { store.remove(routine); dismiss() } }
             }
             .cadenceList()
-            .navigationTitle(routine.title.isEmpty ? "New routine" : routine.title)
+            .navigationTitle(routine.title.isEmpty ? "Nova rotina" : routine.title)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save") { store.save(routine); dismiss() }.disabled(routine.title.isEmpty) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Guardar") { store.save(routine); dismiss() }.disabled(routine.title.isEmpty) }
             }
         }
     }
@@ -238,28 +238,28 @@ struct BrushStep {
 
 enum BrushPlan: String, CaseIterable {
     case sextants, thorough, quadrants
-    var label: String { ["sextants": "6 zones · 2 min", "thorough": "12 steps · 2 min", "quadrants": "4 zones · 2 min"][rawValue]! }
+    var label: String { ["sextants": "6 zonas · 2 min", "thorough": "12 passos · 2 min", "quadrants": "4 zonas · 2 min"][rawValue]! }
 
     var steps: [BrushStep] {
-        let outer = "Bristles at 45° to the gumline, small gentle circles."
-        let inner = "Tilt the brush, short strokes along the gums."
-        let chew = "Scrub back and forth over the tops."
+        let outer = "Cerdas a 45° da linha da gengiva, pequenos círculos suaves."
+        let inner = "Inclina a escova, movimentos curtos ao longo das gengivas."
+        let chew = "Para a frente e para trás nas superfícies de mastigação."
         switch self {
         case .quadrants:
-            return [("upper-right", "Upper right"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-right", "Lower right")].map {
-                BrushStep(area: $0.0, surface: "all", seconds: 30, title: $0.1, tip: "Outside, inside, then the tops. " + outer)
+            return [("upper-right", "Em cima à direita"), ("upper-left", "Em cima à esquerda"), ("lower-left", "Em baixo à esquerda"), ("lower-right", "Em baixo à direita")].map {
+                BrushStep(area: $0.0, surface: "all", seconds: 30, title: $0.1, tip: "Por fora, por dentro e depois por cima. " + outer)
             }
         case .thorough:
             var out: [BrushStep] = []
-            for (a, name) in [("upper-right", "Upper right"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-right", "Lower right")] {
-                out.append(BrushStep(area: a, surface: "outer", seconds: 10, title: "\(name) · outside", tip: outer))
-                out.append(BrushStep(area: a, surface: "inner", seconds: 10, title: "\(name) · inside", tip: inner))
-                out.append(BrushStep(area: a, surface: "chewing", seconds: 10, title: "\(name) · tops", tip: chew))
+            for (a, name) in [("upper-right", "Em cima à direita"), ("upper-left", "Em cima à esquerda"), ("lower-left", "Em baixo à esquerda"), ("lower-right", "Em baixo à direita")] {
+                out.append(BrushStep(area: a, surface: "outer", seconds: 10, title: "\(name) · por fora", tip: outer))
+                out.append(BrushStep(area: a, surface: "inner", seconds: 10, title: "\(name) · por dentro", tip: inner))
+                out.append(BrushStep(area: a, surface: "chewing", seconds: 10, title: "\(name) · por cima", tip: chew))
             }
             return out
         case .sextants:
-            return [("upper-right", "Upper right"), ("upper-front", "Upper front"), ("upper-left", "Upper left"), ("lower-left", "Lower left"), ("lower-front", "Lower front"), ("lower-right", "Lower right")].map {
-                BrushStep(area: $0.0, surface: "all", seconds: 20, title: $0.1, tip: $0.0.hasSuffix("front") ? "Brush upright for the backs of the front teeth. " + outer : "Outside, inside, then the tops. " + outer)
+            return [("upper-right", "Em cima à direita"), ("upper-front", "Em cima à frente"), ("upper-left", "Em cima à esquerda"), ("lower-left", "Em baixo à esquerda"), ("lower-front", "Em baixo à frente"), ("lower-right", "Em baixo à direita")].map {
+                BrushStep(area: $0.0, surface: "all", seconds: 20, title: $0.1, tip: $0.0.hasSuffix("front") ? "Escova na vertical a parte de trás dos dentes da frente. " + outer : "Por fora, por dentro e depois por cima. " + outer)
             }
         }
     }
@@ -299,8 +299,8 @@ struct BrushingView: View {
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 16) {
-                HStack { Spacer(); Button("Close") { clear(); dismiss() }.foregroundStyle(Color.soft) }
-                Text(finished ? "Done" : step?.title ?? "Brush").font(.geist(26, .bold))
+                HStack { Spacer(); Button("Fechar") { clear(); dismiss() }.foregroundStyle(Color.soft) }
+                Text(finished ? "Concluído" : step?.title ?? "Lavar os dentes").font(.geist(26, .bold))
                 ToothChart(area: step?.area, surface: step?.surface, sextants: plan == .sextants).frame(maxHeight: 340)
                 if let step {
                     Text(step.tip).font(.geist(14)).foregroundStyle(Color.soft).multilineTextAlignment(.center).frame(minHeight: 40)
@@ -310,15 +310,15 @@ struct BrushingView: View {
                         }
                     }
                 }
-                Text(start == nil ? timeText(total) : finished ? "0:00" : timeText(stepLeft) + "  ·  " + timeText(total - elapsed) + " left")
+                Text(start == nil ? timeText(total) : finished ? "0:00" : timeText(stepLeft) + "  ·  " + timeText(total - elapsed) + " em falta")
                     .font(.system(size: start == nil ? 44 : 22, weight: .medium, design: .monospaced))
                 if start == nil {
                     Picker("", selection: $planName) { ForEach(BrushPlan.allCases, id: \.self) { Text($0.label).tag($0.rawValue) } }.pickerStyle(.segmented)
-                    PrimaryButton(title: "Start") { startedAt = Date().timeIntervalSince1970; now = Date() }
+                    PrimaryButton(title: "Começar") { startedAt = Date().timeIntervalSince1970; now = Date() }
                 } else if finished {
-                    Toggle("Floss", isOn: $floss).tint(.mint)
-                    Toggle("Mouthwash", isOn: $mouthwash).tint(.mint)
-                    PrimaryButton(title: "Save") {
+                    Toggle("Fio dentário", isOn: $floss).tint(.mint)
+                    Toggle("Elixir", isOn: $mouthwash).tint(.mint)
+                    PrimaryButton(title: "Guardar") {
                         store.save(BrushLog(seconds: Int(total), floss: floss, mouthwash: mouthwash))
                         if let p = store.due().first(where: { $0.title.lowercased().contains("brush") && store.status($0) == nil && abs(store.time(of: $0) - Day.minuteOfDay()) < 180 }) { store.log(p, .done) }
                         clear()
@@ -473,10 +473,10 @@ struct ToothChart: View {
                     ctx.fill(band, with: .color(mint))
                 }
             }
-            ctx.draw(Text("your right").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width - 36, y: size.height / 2))
-            ctx.draw(Text("your left").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: 34, y: size.height / 2))
-            ctx.draw(Text("upper").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.24))
-            ctx.draw(Text("lower").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.76))
+            ctx.draw(Text("tua direita").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width - 36, y: size.height / 2))
+            ctx.draw(Text("tua esquerda").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: 34, y: size.height / 2))
+            ctx.draw(Text("em cima").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.24))
+            ctx.draw(Text("em baixo").font(.geist(11)).foregroundColor(Color.faint), at: CGPoint(x: size.width / 2, y: size.height * 0.76))
         }
         .aspectRatio(360.0 / 420.0, contentMode: .fit)
     }
@@ -500,26 +500,26 @@ struct RoutinePlayer: View {
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 22) {
-                HStack { Text(routine.title).font(.geist(15, .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Close") { dismiss() }.foregroundStyle(Color.soft) }
+                HStack { Text(routine.title).font(.geist(15, .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Fechar") { dismiss() }.foregroundStyle(Color.soft) }
                 Spacer()
                 if let step {
-                    Text("Step \(index + 1) of \(routine.steps.count)").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text("Passo \(index + 1) de \(routine.steps.count)").font(.geist(13)).foregroundStyle(Color.soft)
                     Text(step.title).font(.geist(30, .bold)).multilineTextAlignment(.center)
                     ZStack {
                         Ring(progress: 1 - max(0, left) / Double(max(1, step.seconds)), area: .mint, width: 9)
                         Text(String(format: "%d:%02d", Int(max(0, left)) / 60, Int(max(0, left)) % 60)).font(.mono(36))
                     }
                     .frame(width: 200, height: 200)
-                    Text("Done by \(Date().addingTimeInterval(Double(remaining)).formatted(date: .omitted, time: .shortened))").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text("Termina às \(Date().addingTimeInterval(Double(remaining)).formatted(date: .omitted, time: .shortened))").font(.geist(13)).foregroundStyle(Color.soft)
                 } else {
                     PipAnimation(mood: .celebrate).frame(width: 160, height: 160)
-                    Text("Routine done").font(.geist(26, .bold))
+                    Text("Rotina concluída").font(.geist(26, .bold))
                 }
                 Spacer()
                 HStack {
-                    SoftButton(title: paused == nil ? "Pause" : "Resume") { if let p = paused { stepStart = stepStart.addingTimeInterval(Date().timeIntervalSince(p)); paused = nil } else { paused = Date() } }
+                    SoftButton(title: paused == nil ? "Pausa" : "Retomar") { if let p = paused { stepStart = stepStart.addingTimeInterval(Date().timeIntervalSince(p)); paused = nil } else { paused = Date() } }
                     SoftButton(title: "+30 s") { stepStart = stepStart.addingTimeInterval(30) }
-                    SoftButton(title: "Skip") { advance() }
+                    SoftButton(title: "Saltar") { advance() }
                 }
             }
             .padding(24)
@@ -535,7 +535,7 @@ struct RoutinePlayer: View {
         index += 1
         stepStart = Date()
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        say(routine.steps.indices.contains(index) ? "Next: " + routine.steps[index].title : "All done")
+        say(routine.steps.indices.contains(index) ? "A seguir: " + routine.steps[index].title : "Tudo feito")
     }
 
     private func say(_ text: String?) {
@@ -554,9 +554,9 @@ struct ShowerCard: View {
         let yesterdayOpen = Day.minuteOfDay() < 12 * 60 && !covered.contains(Day.add(-1, to: Day.today))
         Card {
             HStack {
-                Eyebrow(text: "Shower", icon: "shower.fill")
+                Eyebrow(text: "Duche", icon: "shower.fill")
                 Spacer()
-                Text("\(week.dropLast().filter(covered.contains).count) of the last 6 days").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("\(week.dropLast().filter(covered.contains).count) dos últimos 6 dias").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             HStack(spacing: 6) {
                 ForEach(week, id: \.self) { d in
@@ -565,24 +565,24 @@ struct ShowerCard: View {
                         Text(Day.date(d).formatted(.dateTime.weekday(.narrow))).font(.geist(10)).foregroundStyle(Color.faint)
                     }
                     .frame(maxWidth: .infinity)
-                    .accessibilityElement().accessibilityLabel("\(Day.date(d).formatted(.dateTime.weekday(.wide))): \(covered.contains(d) ? "showered" : "no shower")")
+                    .accessibilityElement().accessibilityLabel("\(Day.date(d).formatted(.dateTime.weekday(.wide))): \(covered.contains(d) ? "duche tomado" : "sem duche")")
                 }
             }
             if covered.contains(Day.today) {
-                Text("Done for today").font(.geist(14)).foregroundStyle(Color.good)
+                Text("Feito por hoje").font(.geist(14)).foregroundStyle(Color.good)
             } else if yesterdayOpen {
-                Text("Yesterday's shower is still open: one this morning counts for it.").font(.geist(13.5))
+                Text("O duche de ontem ainda está em aberto: um esta manhã conta para ontem.").font(.geist(13.5))
             } else if let s = store.showerPlan() {
-                Text(s.when == .tonight ? "Tonight around \(clock(Day.minuteOfDay(s.at)))" : "Tomorrow morning around \(clock(Day.minuteOfDay(s.at)))").font(.geist(14, .medium))
+                Text(s.when == .tonight ? "Esta noite, por volta das \(clock(Day.minuteOfDay(s.at)))" : "Amanhã de manhã, por volta das \(clock(Day.minuteOfDay(s.at)))").font(.geist(14, .medium))
                 Text(s.why).font(.geist(12)).foregroundStyle(Color.soft)
-                Picker("When", selection: Binding(get: { s.when }, set: { store.pickShower($0) })) {
-                    Text("Tonight").tag(ShowerRules.When.tonight)
-                    Text("Tomorrow morning").tag(ShowerRules.When.morning)
+                Picker("Quando", selection: Binding(get: { s.when }, set: { store.pickShower($0) })) {
+                    Text("Esta noite").tag(ShowerRules.When.tonight)
+                    Text("Amanhã de manhã").tag(ShowerRules.When.morning)
                 }
                 .pickerStyle(.segmented)
             }
             if !covered.contains(Day.today) || yesterdayOpen {
-                SoftButton(title: "Showered now", icon: "checkmark") { store.logShower() }.accessibilityIdentifier("shower.log")
+                SoftButton(title: "Já tomei duche", icon: "checkmark") { store.logShower() }.accessibilityIdentifier("shower.log")
             }
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("shower.card")

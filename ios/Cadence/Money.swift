@@ -57,7 +57,7 @@ struct Wallet: Record, Equatable {
     var id = UUID().uuidString
     var name: String // Coverflex meal card, flexible benefits
     var balance: Double
-    var spendsOn = "Food" // what it can pay for
+    var spendsOn = "Comida" // what it can pay for: free text, only shown
     var topUp: Double = 0 // monthly
     var useBy: String?
 }
@@ -93,6 +93,19 @@ struct CategoryRule: Record, Equatable {
 }
 
 let moneyCategories = ["Groceries", "Eating out", "Delivery", "Transport", "Bills", "Rent / house", "Gym", "Subscriptions", "Clothes", "Health", "Fun", "Travel", "Gifts", "Income", "Transfer", "Other"]
+
+/// The categories stay stored in English (Transaction.category, Recurring.category, CategoryRule and the rules that
+/// compare them); this is the name shown
+func moneyCategoryLabel(_ category: String) -> String {
+    ["Groceries": "Supermercado", "Eating out": "Restaurantes", "Delivery": "Entregas", "Transport": "Transportes", "Bills": "Contas",
+     "Rent / house": "Renda / casa", "Gym": "Ginásio", "Subscriptions": "Subscrições", "Clothes": "Roupa", "Health": "Saúde", "Fun": "Lazer",
+     "Travel": "Viagens", "Gifts": "Presentes", "Income": "Rendimentos", "Transfer": "Transferências", "Other": "Outros"][category] ?? category
+}
+
+/// Transaction.source stays "bank", "applepay", "receipt" or "manual"; this is the word shown
+func transactionSourceLabel(_ source: String) -> String {
+    ["bank": "banco", "applepay": "Apple Pay", "receipt": "fatura", "manual": "manual"][source] ?? source
+}
 
 func euro(_ v: Double, decimals: Bool = false) -> String {
     let f = NumberFormatter()
@@ -221,11 +234,11 @@ extension Store {
             let months = Set(list.map { $0.date.prefix(7) })
             let amounts = list.map { -$0.amount }
             guard months.count >= 2, let lo = amounts.min(), let hi = amounts.max(), hi - lo < max(1, lo * 0.15) else { continue }
-            if !known.contains(key) { out.append("\(list[0].merchant): \(euro(hi, decimals: true)) every month, not in your list") }
+            if !known.contains(key) { out.append("\(list[0].merchant): \(euro(hi, decimals: true)) todos os meses, fora da tua lista") }
         }
         for r in all(Recurring.self) where r.amount < 0 {
             if let last = byMerchant[merchantKey(r.title)]?.max(by: { $0.date < $1.date }), -last.amount > -r.amount + 0.5 {
-                out.append("\(r.title) went up: \(euro(-last.amount, decimals: true)) instead of \(euro(-r.amount, decimals: true))")
+                out.append("\(r.title) subiu: \(euro(-last.amount, decimals: true)) em vez de \(euro(-r.amount, decimals: true))")
             }
         }
         return out
@@ -258,16 +271,16 @@ extension Store {
     /// Pulls new bank transactions and says what happened
     @discardableResult
     func pullBank() async -> String {
-        guard let req = request("bank.php?pull=1") else { return "Not connected to your server." }
-        guard let (data, resp) = try? await URLSession.shared.data(for: req) else { return "Offline: try again later." }
+        guard let req = request("bank.php?pull=1") else { return "Sem ligação ao teu servidor." }
+        guard let (data, resp) = try? await URLSession.shared.data(for: req) else { return "Sem ligação: tenta mais tarde." }
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         struct R: Decodable { var added: Int?; var banks: [String: String]?; var error: String? }
         let r = try? JSONDecoder().decode(R.self, from: data)
-        if code == 409 { return "Bank sync isn't set up yet. It needs a free Enable Banking application on your server: see \"Bank sync and Apple Pay setup\" at the bottom." }
-        guard code == 200, let r else { return r?.error ?? "The bank didn't answer (\(code))." }
+        if code == 409 { return "A sincronização bancária ainda não está configurada. Precisa de uma aplicação gratuita da Enable Banking no teu servidor: vê «Configurar o banco e o Apple Pay», no fundo." }
+        guard code == 200, let r else { return r?.error ?? "O banco não respondeu (\(code))." }
         await sync()
         matchApplePay()
-        if (r.banks ?? [:]).isEmpty { return "No bank connected yet: connect one in the setup at the bottom." }
-        return "\(r.added ?? 0) new transactions. " + (r.banks ?? [:]).map { "\($0.key): \($0.value)" }.joined(separator: " · ")
+        if (r.banks ?? [:]).isEmpty { return "Ainda não há nenhum banco ligado: liga um na configuração, no fundo." }
+        return "\(r.added ?? 0) \((r.added ?? 0) == 1 ? "transação nova" : "transações novas"). " + (r.banks ?? [:]).map { "\($0.key): \($0.value)" }.joined(separator: " · ")
     }
 }

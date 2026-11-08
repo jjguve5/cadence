@@ -63,15 +63,15 @@ enum ShowerRules {
     /// you leave too early for one. Returns the choice and why.
     static func suggest(now: Int, windDown: Int, lightsOut: Int, eveningAfter: String?, movedToday: Bool, wake: Int, leaveTomorrow: Int?, nightFeels: Double? = nil) -> (When, String) {
         let tightMorning = leaveTomorrow.map { $0 - wake < 60 } ?? false
-        if windDown - now < 30 { return (.morning, "Too late for one tonight" + (tightMorning ? ": a quick one before you leave at \(clock(leaveTomorrow!))" : ", so tomorrow morning")) }
+        if windDown - now < 30 { return (.morning, "Já é tarde para um duche esta noite" + (tightMorning ? ": um rápido antes de saíres às \(clock(leaveTomorrow!))" : ", por isso amanhã de manhã")) }
         if let f = nightFeels, f >= 24 {
-            let why = "It stays around \(Int(f.rounded()))° tonight, so you'd sweat through the night"
-            return tightMorning ? (.tonight, why + ", but you leave at \(clock(leaveTomorrow!)): a cool one tonight") : (.morning, why + ": shower in the morning")
+            let why = "Esta noite fica à volta dos \(Int(f.rounded()))°, por isso ias transpirar durante a noite"
+            return tightMorning ? (.tonight, why + ", mas sais às \(clock(leaveTomorrow!)): um duche fresco esta noite") : (.morning, why + ": duche de manhã")
         }
-        if tightMorning { return (.tonight, "You leave at \(clock(leaveTomorrow!)) tomorrow, so the morning is tight") }
-        if movedToday { return (.tonight, "After today's workout") }
-        if let a = eveningAfter { return (.morning, "Back from \(a) close to bedtime: shower in the morning instead") }
-        return (.tonight, "About 1–2 h before bed a warm shower helps you fall asleep")
+        if tightMorning { return (.tonight, "Amanhã sais às \(clock(leaveTomorrow!)), por isso a manhã é apertada") }
+        if movedToday { return (.tonight, "Depois do treino de hoje") }
+        if let a = eveningAfter { return (.morning, "Regressas de \(a) perto da hora de deitar: duche de manhã, em vez de à noite") }
+        return (.tonight, "Um duche morno 1–2 h antes de deitar ajuda a adormecer")
     }
 }
 
@@ -108,6 +108,11 @@ struct Medicine: Record, Equatable {
     var refillAt: Double = 7 // doses left
 
     func isActive(on day: String) -> Bool { day >= start && (end.map { day <= $0 } ?? true) && schedule.isDue(on: day) }
+}
+
+/// Medicine.kind stays a stored tag ("medicine", "supplement"…); this is the name shown
+func medicineKindLabel(_ kind: String) -> String {
+    ["medicine": "Medicamento", "supplement": "Suplemento", "skincare": "Cuidados de pele", "drops": "Gotas", "other": "Outro"][kind] ?? kind.capitalized
 }
 
 struct MedLog: Record, Equatable {
@@ -155,13 +160,13 @@ extension Store {
     // Seeds so the care area is useful at once
     func seedCare() {
         if all(GroomingItem.self).isEmpty {
-            for (t, i, icon) in [("Trim beard", 7, "scissors"), ("Cut hand nails", 10, "hand.raised"), ("Cut toenails", 28, "figure.walk"), ("Haircut", 35, "comb"), ("Eyebrows", 30, "eye")] {
+            for (t, i, icon) in [("Aparar a barba", 7, "scissors"), ("Cortar as unhas das mãos", 10, "hand.raised"), ("Cortar as unhas dos pés", 28, "figure.walk"), ("Cortar o cabelo", 35, "comb"), ("Arranjar as sobrancelhas", 30, "eye")] {
                 save(GroomingItem(title: t, icon: icon, interval: i))
             }
         }
         if all(CareRoutine.self).isEmpty {
-            save(CareRoutine(title: "Night skincare", icon: "moon.stars", steps: [RoutineStep(title: "Cleanser", seconds: 60), RoutineStep(title: "Wait, then serum", seconds: 60), RoutineStep(title: "Moisturiser", seconds: 30)]))
-            save(CareRoutine(title: "Morning", icon: "sun.max", steps: [RoutineStep(title: "Water, a full glass", seconds: 30), RoutineStep(title: "Cleanser", seconds: 45), RoutineStep(title: "Sunscreen", seconds: 30)]))
+            save(CareRoutine(title: "Rotina da noite", icon: "moon.stars", steps: [RoutineStep(title: "Gel de limpeza", seconds: 60), RoutineStep(title: "Esperar, depois sérum", seconds: 60), RoutineStep(title: "Hidratante", seconds: 30)]))
+            save(CareRoutine(title: "Rotina da manhã", icon: "sun.max", steps: [RoutineStep(title: "Um copo cheio de água", seconds: 30), RoutineStep(title: "Gel de limpeza", seconds: 45), RoutineStep(title: "Protetor solar", seconds: 30)]))
         }
     }
 
@@ -234,11 +239,11 @@ extension Store {
                                        nightFeels: day == Day.today ? nightFeels(from: plan.perform, to: profile.wakeMinute + 1440) : nil)
         let when = picked ?? auto.0
         // your pick wins, and the reason still shows when it differs from what Cadence would do
-        let why = picked == nil || picked == auto.0 ? auto.1 : "You picked this. Cadence would say \(auto.0 == .tonight ? "tonight" : "tomorrow morning"): \(auto.1.prefix(1).lowercased() + String(auto.1.dropFirst()))"
+        let why = picked == nil || picked == auto.0 ? auto.1 : "Escolheste tu. O Cadence diria \(auto.0 == .tonight ? "esta noite" : "amanhã de manhã"): \(auto.1.prefix(1).lowercased() + String(auto.1.dropFirst()))"
         if when == .morning { return (.morning, Day.at(profile.wakeMinute + 20, on: tomorrow), why) }
         // training still to come today: the shower is the one right after it, and that session will count
         if let t = trainingSlot(on: day), !t.done, day != Day.today || t.end > Day.minuteOfDay() {
-            return (.tonight, Day.at(t.end, on: day), "Right after \(t.title), which counts as today's shower")
+            return (.tonight, Day.at(t.end, on: day), "Logo depois de \(t.title), que conta como o duche de hoje")
         }
         let m = Engine.outside(min(plan.perform - 90, plan.windDown - 15), busy: busy(on: day))
         return (.tonight, Day.at(max(m, day == Day.today ? Day.minuteOfDay() + 5 : 0), on: day), why)
@@ -301,10 +306,10 @@ extension Store {
         for i in (1...days).reversed() {
             let d = Day.add(-i, to: t.start)
             let shift = stepMinutes * (days - i + 1)
-            out.append((day: d, bedtime: base + shift, note: diff > 0 ? "Bright light early morning, dim after sunset; dinner earlier" : "Bright light in the evening, keep mornings dim"))
+            out.append((day: d, bedtime: base + shift, note: diff > 0 ? "Luz forte logo de manhã, pouca luz depois do pôr do sol; jantar mais cedo" : "Luz forte ao fim do dia, manhãs com pouca luz"))
         }
-        out.append((day: t.start, bedtime: base, note: "On the plane: sleep on \(t.destination)'s night, water every hour, no alcohol"))
-        out.append((day: Day.add(1, to: t.start), bedtime: base, note: "First day there: outdoor light in the local morning, meals on local time"))
+        out.append((day: t.start, bedtime: base, note: "No avião: dorme na noite de \(t.destination), água a cada hora, sem álcool"))
+        out.append((day: Day.add(1, to: t.start), bedtime: base, note: "Primeiro dia lá: luz natural na manhã local, refeições à hora local"))
         return out
     }
 
@@ -319,4 +324,17 @@ extension Store {
         if t.hoursAhead != 0 { items.append("Eye mask and earplugs") }
         return items
     }
+}
+
+/// The packing items stay stored in Trip.packed as the English words above (so what's ticked stays ticked); this is
+/// the text shown for each
+func packingLabel(_ item: String) -> String {
+    let fixed = ["Passport / ID": "Passaporte / cartão de cidadão", "Phone charger": "Carregador do telemóvel", "Fitbit Air charger": "Carregador da Fitbit Air",
+                 "Toothbrush and paste": "Escova e pasta de dentes", "Gym clothes": "Roupa de treino", "Trainers": "Ténis",
+                 "Eye mask and earplugs": "Máscara de dormir e tampões para os ouvidos"]
+    if let pt = fixed[item] { return pt }
+    for (en, pt) in [(" × underwear", " × roupa interior"), (" × socks", " × meias"), (" × T-shirts", " × t-shirts")] where item.hasSuffix(en) {
+        return String(item.dropLast(en.count)) + pt
+    }
+    return item // a medicine's line ("name: 4 doses") reads the same in Portuguese
 }

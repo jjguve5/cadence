@@ -10,7 +10,7 @@ struct HomeView: View {
     var body: some View {
         Screen(glow: Color(hex: 0x8FA8FF)) {
             Card {
-                HStack { Eyebrow(text: "Home freshness", icon: "sparkles"); Spacer(); Button { editingChore = Chore(title: "") } label: { Image(systemName: "plus") }.tint(Color(hex: 0x8FA8FF)) }
+                HStack { Eyebrow(text: "Frescura da casa", icon: "sparkles"); Spacer(); Button { editingChore = Chore(title: "") } label: { Image(systemName: "plus") }.tint(Color(hex: 0x8FA8FF)) }
                 ForEach(store.all(Chore.self).sorted { $0.freshness < $1.freshness }) { c in
                     HStack(spacing: 10) {
                         VStack(alignment: .leading, spacing: 3) {
@@ -22,11 +22,11 @@ struct HomeView: View {
                     .onLongPressGesture { editingChore = c }
                 }
                 if (store.readiness()?.score ?? 70) < 50, !store.tidyQueue.isEmpty {
-                    Text("Low-energy day: just the 10-minute tidy queue: \(store.tidyQueue.map(\.title).joined(separator: ", ")).").font(.geist(12.5)).foregroundStyle(Color.soft)
+                    Text("Dia de pouca energia: só a arrumação de 10 minutos: \(store.tidyQueue.map(\.title).joined(separator: ", ")).").font(.geist(12.5)).foregroundStyle(Color.soft)
                 }
             }
             Card(tint: .good) {
-                HStack { Eyebrow(text: "Plants", icon: "leaf.fill", color: .good); Spacer(); Button { editingPlant = Plant(name: "") } label: { Image(systemName: "plus") }.tint(.good) }
+                HStack { Eyebrow(text: "Plantas", icon: "leaf.fill", color: .good); Spacer(); Button { editingPlant = Plant(name: "") } label: { Image(systemName: "plus") }.tint(.good) }
                 ForEach(store.all(Plant.self)) { p in
                     let due = store.plantDue(p)
                     HStack {
@@ -40,14 +40,14 @@ struct HomeView: View {
                 }
             }
             Card {
-                HStack { Eyebrow(text: "Documents and checkups", icon: "doc.text.fill"); Spacer(); Button { editingDoc = DocumentItem(title: "", expires: Day.add(365, to: Day.today)) } label: { Image(systemName: "plus") }.tint(Color(hex: 0x8FA8FF)) }
+                HStack { Eyebrow(text: "Documentos e consultas", icon: "doc.text.fill"); Spacer(); Button { editingDoc = DocumentItem(title: "", expires: Day.add(365, to: Day.today)) } label: { Image(systemName: "plus") }.tint(Color(hex: 0x8FA8FF)) }
                 ForEach(store.all(DocumentItem.self).sorted { $0.expires < $1.expires }) { d in
                     Button { editingDoc = d } label: {
                         HStack {
                             Text(d.title).font(.geist(14))
                             Spacer()
                             let days = Day.between(Day.today, d.expires)
-                            Chip(text: days < 0 ? "expired" : "\(Day.date(d.expires).formatted(.dateTime.day().month().year()))", color: days <= d.leadDays ? .warn : .soft)
+                            Chip(text: days < 0 ? "expirado" : "\(Day.date(d.expires).formatted(.dateTime.day().month().year()))", color: days <= d.leadDays ? .warn : .soft)
                         }
                     }
                     .buttonStyle(.plain)
@@ -55,17 +55,17 @@ struct HomeView: View {
                 ForEach(store.documentWarnings(), id: \.self) { Text($0).font(.geist(12)).foregroundStyle(Color.warn) }
             }
         }
-        .navigationTitle("Home")
+        .navigationTitle("Casa")
         .navigationBarTitleDisplayMode(.inline)
         .task { seed() }
-        .sheet(item: $editingChore) { c in SimpleEditor(title: "Chore", onDelete: { store.remove(c) }) { ChoreForm(chore: c) } }
-        .sheet(item: $editingPlant) { p in SimpleEditor(title: "Plant", onDelete: { store.remove(p) }) { PlantForm(plant: p) } }
-        .sheet(item: $editingDoc) { d in SimpleEditor(title: "Document", onDelete: { store.remove(d) }) { DocForm(doc: d) } }
+        .sheet(item: $editingChore) { c in SimpleEditor(title: "Tarefa", onDelete: { store.remove(c) }) { ChoreForm(chore: c) } }
+        .sheet(item: $editingPlant) { p in SimpleEditor(title: "Planta", onDelete: { store.remove(p) }) { PlantForm(plant: p) } }
+        .sheet(item: $editingDoc) { d in SimpleEditor(title: "Documento", onDelete: { store.remove(d) }) { DocForm(doc: d) } }
     }
 
     private func seed() {
         guard store.all(Chore.self).isEmpty else { return }
-        for (t, r, e, m) in [("Hoover", "Home", 7, 20), ("Bathroom", "Bathroom", 7, 20), ("Change bed sheets", "Bedroom", 14, 10), ("Kitchen surfaces", "Kitchen", 3, 10), ("Take out recycling", "Kitchen", 4, 5), ("Fridge clean-out", "Kitchen", 14, 10)] {
+        for (t, r, e, m) in [("Aspirar", "Casa", 7, 20), ("Limpar a casa de banho", "Casa de banho", 7, 20), ("Mudar os lençóis", "Quarto", 14, 10), ("Bancadas da cozinha", "Cozinha", 3, 10), ("Levar a reciclagem", "Cozinha", 4, 5), ("Limpar o frigorífico", "Cozinha", 14, 10)] {
             store.save(Chore(title: t, room: r, everyDays: e, minutes: m))
         }
     }
@@ -84,8 +84,8 @@ struct SimpleEditor<Content: View>: View {
                 .navigationTitle(title)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                    ToolbarItem(placement: .destructiveAction) { Button("Delete", role: .destructive) { onDelete(); dismiss() } }
+                    ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } }
+                    ToolbarItem(placement: .destructiveAction) { Button("Apagar", role: .destructive) { onDelete(); dismiss() } }
                 }
         }
     }
@@ -96,11 +96,11 @@ struct ChoreForm: View {
     @State var chore: Chore
     var body: some View {
         Form {
-            TextField("Chore", text: $chore.title)
-            TextField("Room", text: $chore.room)
-            Stepper("Every \(chore.everyDays) days", value: $chore.everyDays, in: 1...90)
-            Stepper("About \(chore.minutes) min", value: $chore.minutes, in: 5...120, step: 5)
-            Button("Save") { store.save(chore) }.disabled(chore.title.isEmpty)
+            TextField("Tarefa", text: $chore.title)
+            TextField("Divisão", text: $chore.room)
+            Stepper("A cada \(chore.everyDays) dias", value: $chore.everyDays, in: 1...90)
+            Stepper("Cerca de \(chore.minutes) min", value: $chore.minutes, in: 5...120, step: 5)
+            Button("Guardar") { store.save(chore) }.disabled(chore.title.isEmpty)
         }
     }
 }
@@ -110,11 +110,11 @@ struct PlantForm: View {
     @State var plant: Plant
     var body: some View {
         Form {
-            TextField("Plant", text: $plant.name)
-            Picker("Lives", selection: $plant.outdoor) { Text("Indoors").tag(false); Text("Outdoors").tag(true) }.pickerStyle(.segmented)
-            Stepper("Water every \(plant.everyDays) days", value: $plant.everyDays, in: 1...30)
-            Text(plant.outdoor ? "Outdoor plants count rain as watering and need more in heat." : "Indoor plants ignore the weather.").font(.footnote).foregroundStyle(Color.soft)
-            Button("Save") { store.save(plant) }.disabled(plant.name.isEmpty)
+            TextField("Planta", text: $plant.name)
+            Picker("Vive", selection: $plant.outdoor) { Text("Interior").tag(false); Text("Exterior").tag(true) }.pickerStyle(.segmented)
+            Stepper("Regar a cada \(plant.everyDays) dias", value: $plant.everyDays, in: 1...30)
+            Text(plant.outdoor ? "As plantas de exterior contam a chuva como rega e precisam de mais com calor." : "As plantas de interior ignoram o tempo.").font(.footnote).foregroundStyle(Color.soft)
+            Button("Guardar") { store.save(plant) }.disabled(plant.name.isEmpty)
         }
     }
 }
@@ -124,12 +124,12 @@ struct DocForm: View {
     @State var doc: DocumentItem
     var body: some View {
         Form {
-            TextField("Passport, ID, licence, IPO…", text: $doc.title)
-            Picker("Kind", selection: $doc.kind) { Text("Document").tag("document"); Text("Checkup").tag("checkup"); Text("Warranty").tag("warranty"); Text("Car").tag("car") }
-            DatePicker("Expires / due", selection: Binding(get: { Day.date(doc.expires) }, set: { doc.expires = Day.key($0) }), displayedComponents: .date)
-            Stepper("Warn \(doc.leadDays) days before", value: $doc.leadDays, in: 7...365, step: 7)
-            TextField("Notes", text: $doc.notes)
-            Button("Save") { store.save(doc) }.disabled(doc.title.isEmpty)
+            TextField("Passaporte, cartão de cidadão, carta de condução, IPO…", text: $doc.title)
+            Picker("Tipo", selection: $doc.kind) { Text("Documento").tag("document"); Text("Consulta").tag("checkup"); Text("Garantia").tag("warranty"); Text("Carro").tag("car") }
+            DatePicker("Expira / prazo", selection: Binding(get: { Day.date(doc.expires) }, set: { doc.expires = Day.key($0) }), displayedComponents: .date)
+            Stepper("Avisar \(doc.leadDays) dias antes", value: $doc.leadDays, in: 7...365, step: 7)
+            TextField("Notas", text: $doc.notes)
+            Button("Guardar") { store.save(doc) }.disabled(doc.title.isEmpty)
         }
     }
 }
@@ -143,52 +143,52 @@ struct PeopleView: View {
             let soon = store.birthdaysSoon
             if !soon.isEmpty {
                 Card(tint: Color(hex: 0xFF9FBF)) {
-                    Eyebrow(text: "Birthdays soon", icon: "gift.fill", color: Color(hex: 0xFF9FBF))
+                    Eyebrow(text: "Aniversários em breve", icon: "gift.fill", color: Color(hex: 0xFF9FBF))
                     ForEach(soon, id: \.name) { b in
                         HStack {
                             Text(b.name).font(.geist(14, .medium))
                             Spacer()
                             Text(Day.date(b.date).formatted(.dateTime.weekday(.abbreviated).day().month())).font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
-                        if let gifts = b.person?.gifts, !gifts.isEmpty { Text("Ideas: " + gifts.joined(separator: ", ")).font(.geist(12)).foregroundStyle(Color.soft) }
+                        if let gifts = b.person?.gifts, !gifts.isEmpty { Text("Ideias: " + gifts.joined(separator: ", ")).font(.geist(12)).foregroundStyle(Color.soft) }
                     }
                 }
             }
             let due = store.keepInTouchDue
             if !due.isEmpty {
                 Card {
-                    Eyebrow(text: "It's been a while", icon: "bubble.left.and.bubble.right.fill")
+                    Eyebrow(text: "Já passou algum tempo", icon: "bubble.left.and.bubble.right.fill")
                     ForEach(due) { p in
                         HStack {
                             Text(p.name).font(.geist(14))
                             Spacer()
-                            Button("What to say") { sayingTo = p }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF)).accessibilityIdentifier("friend.open")
-                            Button("Talked today") { var x = p; x.lastContact = Day.today; store.save(x) }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF))
+                            Button("O que dizer") { sayingTo = p }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF)).accessibilityIdentifier("friend.open")
+                            Button("Falámos hoje") { var x = p; x.lastContact = Day.today; store.save(x) }.font(.geist(12.5, .semibold)).tint(Color(hex: 0xFF9FBF))
                         }
                     }
                 }
             }
             Card {
-                HStack { Eyebrow(text: "People", icon: "person.2.fill"); Spacer(); Button { editing = Person(name: "") } label: { Image(systemName: "plus") }.tint(Color(hex: 0xFF9FBF)) }
+                HStack { Eyebrow(text: "Pessoas", icon: "person.2.fill"); Spacer(); Button { editing = Person(name: "") } label: { Image(systemName: "plus") }.tint(Color(hex: 0xFF9FBF)) }
                 ForEach(store.all(Person.self).sorted { $0.name < $1.name }) { p in
                     HStack(spacing: 12) {
                         Button { editing = p } label: {
                             HStack {
                                 Text(p.name).font(.geist(14))
                                 Spacer()
-                                if p.keepInTouch { Text("every \(p.everyWeeks) wk").font(.geist(11.5)).foregroundStyle(Color.faint) }
+                                if p.keepInTouch { Text("a cada \(p.everyWeeks) sem.").font(.geist(11.5)).foregroundStyle(Color.faint) }
                             }
                         }
                         .buttonStyle(.plain)
-                        Button { sayingTo = p } label: { Image(systemName: "text.bubble") }.tint(Color(hex: 0xFF9FBF)).accessibilityLabel("What to say to \(p.name)")
+                        Button { sayingTo = p } label: { Image(systemName: "text.bubble") }.tint(Color(hex: 0xFF9FBF)).accessibilityLabel("O que dizer a \(p.name)")
                     }
                 }
-                Text("Keep in touch is off unless you set it up for a person. Mentioning someone in a day's note counts as contact.").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("Manter contacto fica desligado até o ativares para uma pessoa. Mencionar alguém na nota de um dia conta como contacto.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
         }
-        .navigationTitle("People")
+        .navigationTitle("Pessoas")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $editing) { p in SimpleEditor(title: p.name.isEmpty ? "New person" : p.name, onDelete: { store.remove(p); store.put(FriendMessages.recordType, p.id, nil) }) { PersonForm(person: p) } }
+        .sheet(item: $editing) { p in SimpleEditor(title: p.name.isEmpty ? "Nova pessoa" : p.name, onDelete: { store.remove(p); store.put(FriendMessages.recordType, p.id, nil) }) { PersonForm(person: p) } }
         .sheet(item: $sayingTo) { p in FriendSuggestionsSheet(person: p) }
         .task {
             // A mention in a closed day's note counts as contact
@@ -206,22 +206,22 @@ struct PersonForm: View {
     @State private var note = ""
     var body: some View {
         Form {
-            TextField("Name", text: $person.name)
-            Toggle("Keep in touch", isOn: $person.keepInTouch)
-            if person.keepInTouch { Stepper("Every \(person.everyWeeks) weeks", value: $person.everyWeeks, in: 1...26) }
-            Toggle("Birthday", isOn: Binding(get: { person.birthday != nil }, set: { person.birthday = $0 ? String(Day.today.dropFirst(5)) : nil }))
+            TextField("Nome", text: $person.name)
+            Toggle("Manter contacto", isOn: $person.keepInTouch)
+            if person.keepInTouch { Stepper("A cada \(person.everyWeeks) semanas", value: $person.everyWeeks, in: 1...26) }
+            Toggle("Aniversário", isOn: Binding(get: { person.birthday != nil }, set: { person.birthday = $0 ? String(Day.today.dropFirst(5)) : nil }))
             if person.birthday != nil {
-                DatePicker("On", selection: Binding(get: { Day.date("2000-" + (person.birthday ?? "01-01")) }, set: { person.birthday = String(Day.key($0).dropFirst(5)) }), displayedComponents: .date)
+                DatePicker("Dia", selection: Binding(get: { Day.date("2000-" + (person.birthday ?? "01-01")) }, set: { person.birthday = String(Day.key($0).dropFirst(5)) }), displayedComponents: .date)
             }
-            Section("Gift ideas") {
+            Section("Ideias de presentes") {
                 ForEach(person.gifts, id: \.self) { Text($0) }.onDelete { person.gifts.remove(atOffsets: $0) }
-                HStack { TextField("Idea", text: $gift); Button("Add") { person.gifts.append(gift); gift = "" }.disabled(gift.isEmpty) }
+                HStack { TextField("Ideia", text: $gift); Button("Adicionar") { person.gifts.append(gift); gift = "" }.disabled(gift.isEmpty) }
             }
-            Section("Moments") {
+            Section("Momentos") {
                 ForEach(person.notes, id: \.self) { Text($0).font(.footnote) }
-                HStack { TextField("A note", text: $note); Button("Add") { person.notes.append("\(Day.today): \(note)"); note = ""; person.lastContact = Day.today }.disabled(note.isEmpty) }
+                HStack { TextField("Uma nota", text: $note); Button("Adicionar") { person.notes.append("\(Day.today): \(note)"); note = ""; person.lastContact = Day.today }.disabled(note.isEmpty) }
             }
-            Button("Save") { store.save(person) }.disabled(person.name.isEmpty)
+            Button("Guardar") { store.save(person) }.disabled(person.name.isEmpty)
         }
     }
 }
@@ -238,35 +238,35 @@ struct LearningView: View {
         let due = store.dueCards()
         Screen(glow: Color(hex: 0x9BE27F)) {
             Card(tint: Color(hex: 0x9BE27F)) {
-                Eyebrow(text: "Review · \(due.count) due", icon: "rectangle.stack.fill", color: Color(hex: 0x9BE27F))
+                Eyebrow(text: "Rever · \(due.count) para hoje", icon: "rectangle.stack.fill", color: Color(hex: 0x9BE27F))
                 if let c = due.first {
                     Text(c.front).font(.geist(17, .semibold))
                     if showBack {
                         Text(c.back).font(.geist(15)).foregroundStyle(Color.soft)
                         HStack {
-                            ForEach([(1, "Again"), (2, "Hard"), (3, "Good"), (4, "Easy")], id: \.0) { g, name in SoftButton(title: name) { store.review(c, grade: g); showBack = false } }
+                            ForEach([(1, "Outra vez"), (2, "Difícil"), (3, "Bem"), (4, "Fácil")], id: \.0) { g, name in SoftButton(title: name) { store.review(c, grade: g); showBack = false } }
                         }
-                    } else { SoftButton(title: "Show answer") { showBack = true } }
-                } else { Text("Nothing due. Spaced repetition brings each card back just before you'd forget it.").font(.geist(13)).foregroundStyle(Color.soft) }
-                if (store.readiness()?.score ?? 70) < 50 { Text("Low readiness: a lighter set today.").font(.geist(11.5)).foregroundStyle(Color.faint) }
+                    } else { SoftButton(title: "Mostrar resposta") { showBack = true } }
+                } else { Text("Nada para rever. A repetição espaçada traz cada cartão de volta mesmo antes de o esqueceres.").font(.geist(13)).foregroundStyle(Color.soft) }
+                if (store.readiness()?.score ?? 70) < 50 { Text("Prontidão baixa: um conjunto mais leve hoje.").font(.geist(11.5)).foregroundStyle(Color.faint) }
             }
             Card {
-                Eyebrow(text: "New card", icon: "plus.rectangle")
-                TextField("Question", text: $front)
-                TextField("Answer", text: $back)
-                HStack { SoftButton(title: "Add") { store.save(ReviewCard(front: front, back: back)); front = ""; back = "" }; SoftButton(title: "Quotes → cards") { store.quotesToCards() } }
+                Eyebrow(text: "Novo cartão", icon: "plus.rectangle")
+                TextField("Pergunta", text: $front)
+                TextField("Resposta", text: $back)
+                HStack { SoftButton(title: "Adicionar") { store.save(ReviewCard(front: front, back: back)); front = ""; back = "" }; SoftButton(title: "Citações → cartões") { store.quotesToCards() } }
             }
             Card {
-                Eyebrow(text: "Daily skill minutes", icon: "music.note")
-                HStack { TextField("Language, instrument…", text: $skill); Stepper("\(minutes)", value: $minutes, in: 5...180, step: 5).fixedSize() }
-                SoftButton(title: "Log") { store.save(SkillLog(skill: skill, minutes: minutes)); skill = "" }
+                Eyebrow(text: "Minutos diários de prática", icon: "music.note")
+                HStack { TextField("Língua, instrumento…", text: $skill); Stepper("\(minutes)", value: $minutes, in: 5...180, step: 5).fixedSize() }
+                SoftButton(title: "Registar") { store.save(SkillLog(skill: skill, minutes: minutes)); skill = "" }
                 let week = store.all(SkillLog.self).filter { Day.between($0.date, Day.today) < 7 }
                 ForEach(Dictionary(grouping: week, by: \.skill).sorted { $0.key < $1.key }, id: \.key) { s, logs in
-                    HStack { Text(s).font(.geist(14)); Spacer(); Text("\(logs.map(\.minutes).reduce(0, +)) min this week").font(.geist(12.5)).foregroundStyle(Color.soft) }
+                    HStack { Text(s).font(.geist(14)); Spacer(); Text("\(logs.map(\.minutes).reduce(0, +)) min esta semana").font(.geist(12.5)).foregroundStyle(Color.soft) }
                 }
             }
         }
-        .navigationTitle("Learning")
+        .navigationTitle("Aprendizagem")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

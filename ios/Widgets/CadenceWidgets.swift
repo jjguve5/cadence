@@ -43,7 +43,7 @@ struct WorkoutLiveActivity: Widget {
                             Text(timerInterval: Date()...end, countsDown: true).font(.headline.monospacedDigit()).foregroundStyle(coral)
                         }
                         Spacer()
-                        Button(intent: WorkoutIntent(.done)) { Label("Done", systemImage: "checkmark") }.tint(good)
+                        Button(intent: WorkoutIntent(.done)) { Label("Feito", systemImage: "checkmark") }.tint(good)
                     }
                 }
             } compactLeading: {
@@ -82,20 +82,20 @@ struct LockScreenWorkout: View {
             HStack(spacing: 4) {
                 button("−2.5", .weightDown)
                 button("−1 rep", .repDown)
-                Button(intent: WorkoutIntent(.done)) { Text("Done ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good)
+                Button(intent: WorkoutIntent(.done)) { Text("Feito ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good)
                 button("+1 rep", .repUp)
                 button("+2.5", .weightUp)
             }
             HStack(spacing: 6) {
                 if let end = s.restEnd, end > Date() {
-                    Text("Rest").font(.caption).foregroundStyle(.secondary)
+                    Text("Descanso").font(.caption).foregroundStyle(.secondary)
                     Text(timerInterval: Date()...end, countsDown: true).font(.caption.monospacedDigit().bold())
                     Spacer()
                     button("−15", .restDown)
                     button("+15", .restUp)
-                    button("Skip", .restSkip)
+                    button("Saltar", .restSkip)
                 } else {
-                    Text("Next: \(s.next)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text("A seguir: \(s.next)").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
         }

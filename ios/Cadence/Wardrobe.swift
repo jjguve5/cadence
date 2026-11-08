@@ -37,8 +37,18 @@ struct OutfitLog: Record, Equatable {
     var worn = false
 }
 
-let garmentTypes = ["base": "Base layer", "top": "Top", "layer": "Jumper / layer", "outer": "Jacket / coat", "bottom": "Trousers / shorts", "shoes": "Shoes", "gym": "Gym kit"]
+let garmentTypes = ["base": "Camada interior", "top": "Parte de cima", "layer": "Camisola / camada", "outer": "Casaco / sobretudo", "bottom": "Calças / calções", "shoes": "Calçado", "gym": "Roupa de treino"]
 let washGroups = ["darks 30°", "whites 40°", "colours 30°", "delicates", "towels 60°", "gym 30°"]
+
+/// The wash groups stay stored as above (Garment.washGroup, laundry records); this is the name shown
+func washGroupLabel(_ group: String) -> String {
+    ["darks 30°": "escuros 30°", "whites 40°": "brancos 40°", "colours 30°": "cores 30°", "delicates": "delicados", "towels 60°": "toalhas 60°", "gym 30°": "treino 30°"][group] ?? group
+}
+
+/// Garment.state stays "clean", "worn", "wash" or "drying"; this is the word shown
+func garmentStateLabel(_ state: String) -> String {
+    ["clean": "disponível", "worn": "usada", "wash": "para lavar", "drying": "a secar"][state] ?? state
+}
 
 enum Cutout {
     /// Lifts the subject off the background (Vision, on the phone) and makes a small thumbnail

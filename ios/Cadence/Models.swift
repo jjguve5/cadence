@@ -64,13 +64,13 @@ func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
 
 enum PromiseKind: String, Codable, CaseIterable {
     case mustDo, routine
-    var label: String { self == .mustDo ? "Must-do" : "Routine" }
+    var label: String { self == .mustDo ? "Essencial" : "Rotina" }
 }
 
 struct Schedule: Codable, Equatable {
     enum Rule: String, Codable, CaseIterable {
         case daily, everyNDays, weekdays
-        var label: String { ["daily": "Every day", "everyNDays": "Every few days", "weekdays": "Chosen days"][rawValue]! }
+        var label: String { ["daily": "Todos os dias", "everyNDays": "A cada poucos dias", "weekdays": "Dias escolhidos"][rawValue]! }
     }
     var rule: Rule = .daily
     var every: Int = 2
@@ -81,7 +81,7 @@ struct Schedule: Codable, Equatable {
     var anchor: String? // wake, windDown, lightsOut: follows your day instead of a clock time
     var offset: Int? // minutes after (or before, negative) the anchor
 
-    static let anchors = ["wake": "after waking", "windDown": "at wind-down", "lightsOut": "before lights out"]
+    static let anchors = ["wake": "depois de acordar", "windDown": "ao desacelerar", "lightsOut": "antes de apagar as luzes"]
 
     func isDue(on day: String) -> Bool {
         switch rule {
@@ -95,10 +95,10 @@ struct Schedule: Codable, Equatable {
 
     var summary: String {
         switch rule {
-        case .daily: return "daily"
-        case .everyNDays: return every == 1 ? "daily" : "every \(every) days"
+        case .daily: return "diariamente"
+        case .everyNDays: return every == 1 ? "diariamente" : "a cada \(every) dias"
         case .weekdays:
-            let names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+            let names = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
             return weekdays.sorted { ($0 + 5) % 7 < ($1 + 5) % 7 }.map { names[$0 - 1] }.joined(separator: " ")
         }
     }

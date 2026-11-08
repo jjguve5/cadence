@@ -9,7 +9,7 @@ struct YouView: View {
     var body: some View {
         NavigationStack {
             Screen(glow: .mind) {
-                Title(eyebrow: "Level \(store.level.level) · \(store.totalPoints.formatted()) points", title: "You")
+                Title(eyebrow: "Nível \(store.level.level) · \(store.totalPoints.formatted()) pontos", title: "Perfil")
                     .padding(.top, 8)
                 NavigationLink { PipPage() } label: {
                     Card(tint: .fuel) {
@@ -24,22 +24,22 @@ struct YouView: View {
                 }
                 .buttonStyle(.plain)
                 Card {
-                    Eyebrow(text: "Last 4 weeks", icon: "square.grid.3x3.fill")
+                    Eyebrow(text: "Últimas 4 semanas", icon: "square.grid.3x3.fill")
                     DaysGrid()
                 }
                 NavigationLink { YouGrowthView() } label: {
                     Card(tint: .mind) {
-                        HStack { Eyebrow(text: "Growth", icon: "chart.line.uptrend.xyaxis", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
-                        Text("Journal, mood, goals, experiments, weekly review, Cadence age, badges · this week: \(store.challenge().text.lowercased())").font(.geist(13)).foregroundStyle(Color.soft)
+                        HStack { Eyebrow(text: "Crescimento", icon: "chart.line.uptrend.xyaxis", color: .mind); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                        Text("Diário, humor, objetivos, experiências, revisão semanal, idade Cadence, medalhas · esta semana: \(store.challenge().text.lowercased())").font(.geist(13)).foregroundStyle(Color.soft)
                     }
                 }
                 .accessibilityIdentifier("you.growth")
                 .buttonStyle(.plain)
                 VStack(spacing: 0) {
-                    link("Promises", "bell", PromisesView())
-                    link("Learning", "graduationcap", LearningView())
-                    link("Settings", "gearshape", SettingsView())
-                    link("Credits", "heart", CreditsView())
+                    link("Hábitos", "bell", PromisesView())
+                    link("Aprendizagem", "graduationcap", LearningView())
+                    link("Definições", "gearshape", SettingsView())
+                    link("Créditos", "heart", CreditsView())
                 }
                 .background(RoundedRectangle(cornerRadius: 22).fill(.white.opacity(0.055)))
             }
@@ -62,8 +62,8 @@ struct DaysGrid: View {
     var body: some View {
         let start = Day.add(-27, to: Day.weekStart(Day.today) == Day.today ? Day.today : Day.weekStart(Day.today))
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-            ForEach(["M", "T", "W", "T", "F", "S", "S"].indices, id: \.self) { i in
-                Text(["M", "T", "W", "T", "F", "S", "S"][i]).font(.geist(10)).foregroundStyle(Color.faint)
+            ForEach(["S", "T", "Q", "Q", "S", "S", "D"].indices, id: \.self) { i in
+                Text(["S", "T", "Q", "Q", "S", "S", "D"][i]).font(.geist(10)).foregroundStyle(Color.faint)
             }
             ForEach(0..<35, id: \.self) { i in
                 let d = Day.add(i, to: start)
@@ -90,55 +90,55 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                NavigationLink { SmartSetup() } label: { Label("Smart setup: targets from your body and goal", systemImage: "wand.and.stars") }
-                HStack { Text("Goal"); Spacer(); GoalMenu() }
+                NavigationLink { SmartSetup() } label: { Label("Configuração inteligente: metas a partir do teu corpo e objetivo", systemImage: "wand.and.stars") }
+                HStack { Text("Objetivo"); Spacer(); GoalMenu() }
             }
-            Section("You") {
-                TextField("Name", text: Binding(get: { store.profile.name }, set: { v in store.update { $0.name = v } }))
-                DatePicker("Wake time", selection: minuteBinding(\.wakeMinute), displayedComponents: .hourAndMinute)
-                Stepper("Sleep need \(duration(store.profile.sleepNeed))", value: Binding(get: { store.profile.sleepNeed }, set: { v in store.update { $0.sleepNeed = v } }), in: 360...600, step: 15)
-                Stepper("Wind-down \(store.profile.windDownLead) min before bed", value: Binding(get: { store.profile.windDownLead }, set: { v in store.update { $0.windDownLead = v } }), in: 15...90, step: 15)
-                Stepper("Step goal \(store.profile.stepGoal.formatted())", value: Binding(get: { store.profile.stepGoal }, set: { v in store.update { $0.stepGoal = v } }), in: 2000...20000, step: 500)
+            Section("Sobre ti") {
+                TextField("Nome", text: Binding(get: { store.profile.name }, set: { v in store.update { $0.name = v } }))
+                DatePicker("Hora de acordar", selection: minuteBinding(\.wakeMinute), displayedComponents: .hourAndMinute)
+                Stepper("Sono necessário \(duration(store.profile.sleepNeed))", value: Binding(get: { store.profile.sleepNeed }, set: { v in store.update { $0.sleepNeed = v } }), in: 360...600, step: 15)
+                Stepper("Desacelerar \(store.profile.windDownLead) min antes de deitar", value: Binding(get: { store.profile.windDownLead }, set: { v in store.update { $0.windDownLead = v } }), in: 15...90, step: 15)
+                Stepper("Meta de passos \(store.profile.stepGoal.formatted())", value: Binding(get: { store.profile.stepGoal }, set: { v in store.update { $0.stepGoal = v } }), in: 2000...20000, step: 500)
             }
             Section {
-                DatePicker("Quiet from", selection: minuteBinding(\.quietStart), displayedComponents: .hourAndMinute)
-                DatePicker("Quiet until", selection: minuteBinding(\.quietEnd), displayedComponents: .hourAndMinute)
-                Stepper("Up to \(store.profile.notificationBudget) a day", value: Binding(get: { store.profile.notificationBudget }, set: { v in store.update { $0.notificationBudget = v } }), in: 3...30)
-            } header: { Text("Notifications") } footer: { Text("Must-dos, medicines and leave-by alerts always get through; everything else is ranked and waits.") }
+                DatePicker("Silêncio a partir das", selection: minuteBinding(\.quietStart), displayedComponents: .hourAndMinute)
+                DatePicker("Silêncio até às", selection: minuteBinding(\.quietEnd), displayedComponents: .hourAndMinute)
+                Stepper("Até \(store.profile.notificationBudget) por dia", value: Binding(get: { store.profile.notificationBudget }, set: { v in store.update { $0.notificationBudget = v } }), in: 3...30)
+            } header: { Text("Notificações") } footer: { Text("Essenciais, medicamentos e avisos da hora de saída passam sempre; o resto é ordenado por importância e espera.") }
             Section {
-                Picker("Sleep and heart data", selection: Binding(get: { store.profile.healthSource }, set: { v in store.update { $0.healthSource = v }; Task { await store.refreshHealth(force: true) } })) {
+                Picker("Dados de sono e coração", selection: Binding(get: { store.profile.healthSource }, set: { v in store.update { $0.healthSource = v }; Task { await store.refreshHealth(force: true) } })) {
                     Text("Fitbit").tag("fitbit")
-                    Text("Apple Health only").tag("apple")
+                    Text("Só Apple Health").tag("apple")
                 }
                 if let p = store.appleHealthProblem { Text(p).font(.footnote).foregroundStyle(Color.warn) }
-                Button("Read Apple Health now") { Task { await store.refreshAppleHealth(everything: !store.profile.usesBand) } }
-            } header: { Text("Health data") } footer: { Text(store.profile.usesBand ? "Sleep, HRV and steps come from the Air; weight and water also come from Apple Health. Weights you type always win." : "Everything comes from Apple Health: sleep, HRV, resting heart rate, steps, weight and water. An Apple Watch gives the best data.") }
+                Button("Ler o Apple Health agora") { Task { await store.refreshAppleHealth(everything: !store.profile.usesBand) } }
+            } header: { Text("Dados de saúde") } footer: { Text(store.profile.usesBand ? "Sono, VFC e passos vêm da Air; o peso e a água também vêm do Apple Health. O peso que escreves ganha sempre." : "Tudo vem do Apple Health: sono, VFC, FC em repouso, passos, peso e água. Um Apple Watch dá os melhores dados.") }
             if store.profile.usesBand {
             Section {
-                Button("Connect Google Health") { Task { await connectGoogle() } }
+                Button("Ligar o Google Health") { Task { await connectGoogle() } }
                 if let googleMessage { Text(googleMessage).font(.footnote).foregroundStyle(Color.soft) }
                 if let d = store.device {
-                    LabeledContent("Tracker", value: d.name ?? "–")
-                    LabeledContent("Battery", value: d.battery.map { "\($0)%" } ?? "–")
+                    LabeledContent("Pulseira", value: d.name ?? "–")
+                    LabeledContent("Bateria", value: d.battery.map { "\($0)%" } ?? "–")
                 }
-                LabeledContent("Days of data", value: "\(store.health.count)")
+                LabeledContent("Dias com dados", value: "\(store.health.count)")
                 if !store.healthErrors.isEmpty {
                     ForEach(store.healthErrors.sorted(by: { $0.key < $1.key }), id: \.key) { k, v in Text("\(k): \(v)").font(.caption2).foregroundStyle(Color.warn) }
                 }
-            } header: { Text("Fitbit Air") } footer: { Text("While the Google app is in testing, its sign-in lasts 7 days: connect again when Today asks.") }
+            } header: { Text("Fitbit Air") } footer: { Text("Enquanto a app da Google está em testes, o início de sessão dura 7 dias: volta a ligar quando Hoje pedir.") }
             }
             PeopleSection()
             Section {
-                ForEach([("fuel", "Fuel and water"), ("training", "Training"), ("care", "Care and medicines"), ("money", "Money"), ("wardrobe", "Wardrobe and laundry"), ("kitchen", "Meal prep and shopping"), ("home", "Home and documents"), ("people", "People"), ("travel", "Travel"), ("learning", "Learning")], id: \.0) { key, name in
+                ForEach([("fuel", "Comida e água"), ("training", "Treino"), ("care", "Higiene e medicamentos"), ("money", "Dinheiro"), ("wardrobe", "Roupeiro e lavandaria"), ("kitchen", "Cozinha e compras"), ("home", "Casa e documentos"), ("people", "Pessoas"), ("travel", "Viagens"), ("learning", "Aprendizagem")], id: \.0) { key, name in
                     Toggle(name, isOn: Binding(get: { store.profile.on(key) }, set: { on in store.update { p in p.areasOff.removeAll { $0 == key }; if !on { p.areasOff.append(key) } } }))
                 }
-            } header: { Text("Areas") } footer: { Text("Start small and switch areas on when you want them. The score only counts what's on.") }
+            } header: { Text("Áreas") } footer: { Text("Começa com pouco e liga as áreas quando as quiseres. A pontuação só conta o que está ligado.") }
             Section {
-                LabeledContent("Widgets", value: store.widgetsAvailable ? "working" : "not available with this signing")
-            } footer: { Text(store.widgetsAvailable ? "Long-press the home screen and add Cadence." : "Live numbers on widgets need an App Group, which free signing doesn't give. Instead the widget is a set of shortcuts: water, brushing, quick add.") }
+                LabeledContent("Widgets", value: store.widgetsAvailable ? "a funcionar" : "indisponível com esta assinatura")
+            } footer: { Text(store.widgetsAvailable ? "Toca sem largar no ecrã principal e adiciona o Cadence." : "Números em tempo real nos widgets precisam de um App Group, que a assinatura gratuita não dá. Em vez disso, o widget é um conjunto de atalhos: água, escovagem, registo rápido.") }
             Section {
-                Button(store.homeCoordinate == nil ? "I'm home: remember this place" : "I'm home: update this place") { Task { await store.setHomeHere() } }.accessibilityIdentifier("home.set")
-            } header: { Text("Home") } footer: { Text("Used on this phone only, to remind you to unpack the gym bag when you arrive after a workout. Without it, the reminder comes 45 minutes after you finish.") }
+                Button(store.homeCoordinate == nil ? "Estou em casa: lembrar este sítio" : "Estou em casa: atualizar este sítio") { Task { await store.setHomeHere() } }.accessibilityIdentifier("home.set")
+            } header: { Text("Casa") } footer: { Text("Usado só neste iPhone, para te lembrar de desfazer o saco do ginásio quando chegas depois de um treino. Sem isto, o lembrete chega 45 minutos depois de acabares.") }
             Section {
                 LabeledContent("Estado", value: store.lastSaved.map { "verificado às " + $0.formatted(date: .omitted, time: .shortened) } ?? "sem gravações nesta sessão")
                 LabeledContent("Registos", value: "\(store.personalRecordCount)")
@@ -156,27 +156,27 @@ struct SettingsView: View {
             } header: { Text("Armazenamento local") } footer: {
                 Text(store.storageNote ?? "Os teus dados ficam guardados neste iPhone. Cada gravação é verificada antes de substituir a anterior, e há uma cópia local por dia.")
             }
-            Section("Your data") {
-                ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Export everything (JSON)", systemImage: "square.and.arrow.up") }
+            Section("Os teus dados") {
+                ShareLink(item: store.exportJSON(), preview: SharePreview("Cadence export.json")) { Label("Exportar tudo (JSON)", systemImage: "square.and.arrow.up") }
             }
-            Section("Server") {
-                LabeledContent("Address", value: store.connection.server)
-                Button("Sync now") { Task { await store.refreshAll(force: true); await store.refreshHealth(force: true) } }
+            Section("Servidor") {
+                LabeledContent("Endereço", value: store.connection.server)
+                Button("Sincronizar agora") { Task { await store.refreshAll(force: true); await store.refreshHealth(force: true) } }
                 if let e = store.syncError { Text(e).font(.footnote).foregroundStyle(Color.warn) }
-                Button("Forget this server", role: .destructive) { store.connection = Connection() }
+                Button("Esquecer este servidor", role: .destructive) { store.connection = Connection() }
             }
         }
         .cadenceList()
-        .navigationTitle("Settings")
+        .navigationTitle("Definições")
     }
 
     private func connectGoogle() async {
         guard let url = store.googleURL() else { return }
         do {
             let back = try await webAuth.authenticate(using: url, callbackURLScheme: "cadence")
-            if back.absoluteString.contains("ok=1") { googleMessage = "Connected."; store.googleConnected() } else { googleMessage = "Not connected. Try again." }
+            if back.absoluteString.contains("ok=1") { googleMessage = "Ligado."; store.googleConnected() } else { googleMessage = "Não ficou ligado. Tenta de novo." }
         } catch {
-            googleMessage = "Cancelled."
+            googleMessage = "Cancelado."
         }
     }
 }
@@ -184,15 +184,15 @@ struct SettingsView: View {
 struct CreditsView: View {
     var body: some View {
         List {
-            Section("Pip") { Text("An original character for Cadence, animated in After Effects and played with Lottie.") }
-            Section("Exercise data") { Text("Exercise data by RepDB (repdb.co)") }
-            Section("Body map") { Text("Based on GymMane by InlitX (GPL-3.0)") }
-            Section("Science") {
-                Text("Readiness against your own 14-day baseline; sleep regularity from Windred et al., Sleep 2024; illness signs from Natarajan et al., npj Digital Medicine 2020.")
+            Section("Pip") { Text("Uma personagem original do Cadence, animada no After Effects e reproduzida com Lottie.") }
+            Section("Dados de exercícios") { Text("Dados de exercícios da RepDB (repdb.co)") }
+            Section("Mapa do corpo") { Text("Baseado no GymMane, de InlitX (GPL-3.0)") }
+            Section("Ciência") {
+                Text("Prontidão face à tua própria referência de 14 dias; regularidade do sono segundo Windred et al., Sleep 2024; sinais de doença segundo Natarajan et al., npj Digital Medicine 2020.")
             }
         }
         .cadenceList()
-        .navigationTitle("Credits")
+        .navigationTitle("Créditos")
     }
 }
 
@@ -207,16 +207,16 @@ struct SetupView: View {
             VStack(spacing: 10) {
                 PipAnimation(mood: .happy).frame(width: 200, height: 200)
                 Text("Cadence").font(.serif(38))
-                Text("Scan the setup QR code with the Camera app, or paste your server's address and token.").multilineTextAlignment(.center).foregroundStyle(Color.soft)
+                Text("Lê o código QR de configuração com a app Câmara, ou cola o endereço e o token do teu servidor.").multilineTextAlignment(.center).foregroundStyle(Color.soft)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 40)
             Card {
-                TextField("Server address", text: $server).textInputAutocapitalization(.never).keyboardType(.URL).autocorrectionDisabled()
+                TextField("Endereço do servidor", text: $server).textInputAutocapitalization(.never).keyboardType(.URL).autocorrectionDisabled()
                 Divider()
                 SecureField("Token", text: $token)
             }
-            PrimaryButton(title: "Connect") {
+            PrimaryButton(title: "Ligar") {
                 store.connection = Connection(server: server.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "/")), token: token.trimmingCharacters(in: .whitespaces))
                 Task { await store.refreshAll() }
             }
@@ -240,19 +240,19 @@ struct PeopleSection: View {
                 Section {
                     ForEach(people) { p in Text(p.name) }
                     HStack {
-                        TextField("Friend's name", text: $name)
-                        Button("Invite") { Task { await add() } }.disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                        TextField("Nome da pessoa", text: $name)
+                        Button("Convidar") { Task { await add() } }.disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                     if let added {
                         VStack(alignment: .center, spacing: 8) {
                             if let qr = Self.qr(added.setup) { Image(uiImage: qr).interpolation(.none).resizable().frame(width: 200, height: 200) }
-                            Text("\(added.name) scans this with the iPhone camera after installing Cadence. It's shown once.").font(.footnote).multilineTextAlignment(.center)
-                            ShareLink(item: added.setup) { Label("Send the setup link", systemImage: "square.and.arrow.up") }
+                            Text("\(added.name) lê isto com a câmara do iPhone depois de instalar o Cadence. Só aparece uma vez.").font(.footnote).multilineTextAlignment(.center)
+                            ShareLink(item: added.setup) { Label("Enviar a ligação de configuração", systemImage: "square.and.arrow.up") }
                         }
                         .frame(maxWidth: .infinity)
                     }
                     if let error { Text(error).font(.footnote).foregroundStyle(Color.warn) }
-                } header: { Text("People") } footer: { Text("Each person gets their own token and their own data on your server; nobody sees anyone else's.") }
+                } header: { Text("Pessoas") } footer: { Text("Cada pessoa tem o seu token e os seus dados no teu servidor; ninguém vê os dos outros.") }
             }
         }
         .task { await load() }
@@ -267,7 +267,7 @@ struct PeopleSection: View {
     private func add() async {
         guard let body = try? JSONEncoder().encode(["name": name]), let req = store.request("people.php", body: body),
               let (data, r) = try? await URLSession.shared.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200,
-              let a = try? JSONDecoder().decode(Added.self, from: data) else { error = "Couldn't add them: check the connection."; return }
+              let a = try? JSONDecoder().decode(Added.self, from: data) else { error = "Não foi possível adicionar: verifica a ligação."; return }
         added = a
         name = ""
         error = nil

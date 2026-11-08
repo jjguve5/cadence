@@ -18,7 +18,7 @@ struct LifeView: View {
         NavigationStack {
             Screen(glow: Color(hex: 0x1D2550)) {
                 HStack(alignment: .bottom) {
-                    Title(eyebrow: attention == 0 ? "All calm" : "\(attention) thing\(attention == 1 ? "" : "s") want attention", title: "Life")
+                    Title(eyebrow: attention == 0 ? "Tudo calmo" : "\(attention) \(attention == 1 ? "coisa pede" : "coisas pedem") atenção", title: "Vida")
                         .accessibilityIdentifier("life.screen") // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
                     Spacer()
                     Chip(text: store.tick.formatted(.dateTime.weekday(.abbreviated)))
@@ -53,16 +53,16 @@ struct LifeView: View {
         let next = store.upcomingRenewals.first { $0.0.amount < 0 }
         let gold = Color(hex: 0xFFD166)
         return Card(tint: gold) {
-            header("Money", "eurosign.circle.fill", gold)
+            header("Dinheiro", "eurosign.circle.fill", gold)
             HStack(alignment: .firstTextBaseline) {
                 Text(euro(m.safePerDay)).font(.geist(30, .bold)).tracking(-0.6)
-                Text("a day safe to spend").font(.geist(12.5)).foregroundStyle(Color.soft)
+                Text("por dia livre para gastar").font(.geist(12.5)).foregroundStyle(Color.soft)
                 Spacer()
-                if !store.reviewInbox.isEmpty { Chip(text: "\(store.reviewInbox.count) to review", color: .warn) }
+                if !store.reviewInbox.isEmpty { Chip(text: "\(store.reviewInbox.count) por rever", color: .warn) }
             }
             Bar(progress: m.income > 0 ? (m.fixed + m.spent) / m.income : 0, area: .fuel)
             HStack {
-                Text("On track to save \(euro(m.projectedSaving))").font(.geist(12.5)).foregroundStyle(m.projectedSaving >= m.goals ? Color.good : Color.warn)
+                Text("A caminho de poupar \(euro(m.projectedSaving))").font(.geist(12.5)).foregroundStyle(m.projectedSaving >= m.goals ? Color.good : Color.warn)
                 Spacer()
                 if let n = next { Text("\(n.0.title) \(Day.date(n.1).formatted(.dateTime.day().month()))").font(.mono(11.5)).foregroundStyle(Color.faint) }
             }
@@ -75,12 +75,12 @@ struct LifeView: View {
         let outfit = store.outfit()
         let loads = store.laundryLoads()
         return Card(tint: Color(hex: 0x7FB8FF)) {
-            header("Wear today", "tshirt.fill", Color(hex: 0x7FB8FF))
+            header("Vestir hoje", "tshirt.fill", Color(hex: 0x7FB8FF))
             if let call = store.weatherCall() {
-                Text((call.umbrella ? "Umbrella · " : "") + ["", "T-shirt weather", "Light layer", "Jumper and a jacket", "Coat and layers"][call.layers]).font(.geist(14, .semibold))
+                Text((call.umbrella ? "Guarda-chuva · " : "") + ["", "Tempo de t-shirt", "Uma camada leve", "Camisola e casaco", "Casaco quente e camadas"][call.layers]).font(.geist(14, .semibold))
             }
             if outfit.isEmpty {
-                Text("Add clothes and Cadence matches them to the weather and your day.").font(.geist(12.5)).foregroundStyle(Color.soft)
+                Text("Adiciona peças e o Cadence combina-as com o tempo e o teu dia.").font(.geist(12.5)).foregroundStyle(Color.soft)
             } else {
                 HStack(spacing: 6) {
                     ForEach(outfit.prefix(5)) { g in GarmentImage(garment: g).frame(width: 52, height: 52) }
@@ -88,7 +88,7 @@ struct LifeView: View {
                 }
             }
             if let load = loads.first {
-                HStack { Text("Laundry · \(load.group)").font(.geist(12.5)); Spacer(); Text(load.full ? "ready to wash" : "\(load.items.count) of 11").font(.geist(12)).foregroundStyle(load.full ? Color.warn : Color.faint) }
+                HStack { Text("Lavandaria · \(washGroupLabel(load.group))").font(.geist(12.5)); Spacer(); Text(load.full ? "pronta a lavar" : "\(load.items.count) de 11").font(.geist(12)).foregroundStyle(load.full ? Color.warn : Color.faint) }
             }
         }
     }
@@ -100,13 +100,13 @@ struct LifeView: View {
         let list = store.shoppingList()
         let soon = fridge.first { !$0.frozen && Day.between(Day.today, $0.eatBy) <= 1 }
         return Card(tint: Color(hex: 0xFFCF70)) {
-            header("Kitchen", "frying.pan.fill", Color(hex: 0xFFCF70))
+            header("Cozinha", "frying.pan.fill", Color(hex: 0xFFCF70))
             HStack(spacing: 18) {
-                stat("\(fridge.count)", "in the fridge")
-                stat("\(list.count)", "to buy")
-                stat("\(Int(store.planCoverage(store.week).protein * 100))%", "week's protein planned")
+                stat("\(fridge.count)", "no frigorífico")
+                stat("\(list.count)", "por comprar")
+                stat("\(Int(store.planCoverage(store.week).protein * 100))%", "proteína planeada")
             }
-            if let soon { Text("Eat \(soon.name.lowercased()) by \(Day.date(soon.eatBy).formatted(.dateTime.weekday(.wide)))").font(.geist(12.5)).foregroundStyle(Color.warn) }
+            if let soon { Text("Come \(soon.name.lowercased()) até \(Day.date(soon.eatBy).formatted(.dateTime.weekday(.wide)))").font(.geist(12.5)).foregroundStyle(Color.warn) }
         }
     }
 
@@ -122,13 +122,13 @@ struct LifeView: View {
     private var homeCard: some View {
         let chores = store.all(Chore.self).sorted { $0.freshness < $1.freshness }.prefix(3)
         return Card {
-            header("Home · freshness", "house.fill", Color(hex: 0x8FA8FF))
+            header("Casa · frescura", "house.fill", Color(hex: 0x8FA8FF))
             ForEach(Array(chores)) { c in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(c.title).font(.geist(13.5))
                         Spacer()
-                        Text(c.freshness < 0.1 ? "overdue" : c.daysSince.map { "\(max(0, c.everyDays - $0)) d left" } ?? "start it").font(.geist(11.5)).foregroundStyle(c.freshness < 0.1 ? Color.bad : Color.soft)
+                        Text(c.freshness < 0.1 ? "em atraso" : c.daysSince.map { "faltam \(max(0, c.everyDays - $0)) d" } ?? "começar").font(.geist(11.5)).foregroundStyle(c.freshness < 0.1 ? Color.bad : Color.soft)
                     }
                     GeometryReader { g in
                         ZStack(alignment: .leading) {
@@ -140,14 +140,14 @@ struct LifeView: View {
                     .frame(height: 5)
                 }
             }
-            if !store.tidyQueue.isEmpty { Chip(text: "10-min tidy queue", color: .mint, fill: Color.mint.opacity(0.15)) }
+            if !store.tidyQueue.isEmpty { Chip(text: "Arrumação de 10 min", color: .mint, fill: Color.mint.opacity(0.15)) }
         }
     }
 
     private var plantsCard: some View {
         let plants = store.all(Plant.self)
         return Card {
-            header("Plants", "leaf.fill", .good)
+            header("Plantas", "leaf.fill", .good)
             ForEach(plants.prefix(3)) { p in
                 let due = store.plantDue(p)
                 HStack { Text(p.name).font(.geist(13.5)); Spacer(); Text(due.note).font(.geist(11.5)).foregroundStyle(due.due ? Color.warn : Color.soft) }
@@ -160,16 +160,16 @@ struct LifeView: View {
         let renewals = store.upcomingRenewals.filter { $0.0.amount < 0 }.prefix(2)
         let subs = store.all(Recurring.self).filter { $0.subscription && $0.amount < 0 }.map { -$0.amount / Double(max(1, $0.everyMonths)) }.reduce(0, +)
         return Card(tint: docs.isEmpty ? nil : .warn) {
-            header("Documents and bills", "doc.text.fill", docs.isEmpty ? .soft : .warn)
-            if docs.isEmpty && renewals.isEmpty { Text("Passport, ID, car inspection, warranties and renewals, with warnings in time.").font(.geist(12.5)).foregroundStyle(Color.soft) }
+            header("Documentos e contas", "doc.text.fill", docs.isEmpty ? .soft : .warn)
+            if docs.isEmpty && renewals.isEmpty { Text("Passaporte, cartão de cidadão, inspeção do carro, garantias e renovações, com avisos a tempo.").font(.geist(12.5)).foregroundStyle(Color.soft) }
             ForEach(docs.prefix(2)) { d in
                 let months = max(0, Day.between(Day.today, d.expires) / 30)
-                HStack { Text(d.title).font(.geist(13.5)); Spacer(); Chip(text: months <= 1 ? "\(max(0, Day.between(Day.today, d.expires))) days left" : "\(months) months left", color: .warn) }
+                HStack { Text(d.title).font(.geist(13.5)); Spacer(); Chip(text: months <= 1 ? "faltam \(max(0, Day.between(Day.today, d.expires))) dias" : "faltam \(months) meses", color: .warn) }
             }
             ForEach(Array(renewals), id: \.0.id) { r, d in
-                HStack { Text(r.title).font(.geist(13.5)); Spacer(); Text("\(euro(-r.amount, decimals: true)) · \(Day.between(Day.today, d) == 0 ? "today" : "in \(Day.between(Day.today, d)) days")").font(.mono(11.5)).foregroundStyle(Color.soft) }
+                HStack { Text(r.title).font(.geist(13.5)); Spacer(); Text("\(euro(-r.amount, decimals: true)) · \(Day.between(Day.today, d) == 0 ? "hoje" : "daqui a \(Day.between(Day.today, d)) dias")").font(.mono(11.5)).foregroundStyle(Color.soft) }
             }
-            if subs > 0 { HStack { Text("Subscriptions").font(.geist(13.5)); Spacer(); Text("\(euro(subs)) / month").font(.mono(11.5)).foregroundStyle(Color.soft) } }
+            if subs > 0 { HStack { Text("Subscrições").font(.geist(13.5)); Spacer(); Text("\(euro(subs)) / mês").font(.mono(11.5)).foregroundStyle(Color.soft) } }
         }
     }
 
@@ -179,14 +179,14 @@ struct LifeView: View {
         let due = store.keepInTouchDue
         let birthdays = store.birthdaysSoon
         return Card(tint: due.isEmpty && birthdays.isEmpty ? nil : Color(hex: 0xFF9FBF)) {
-            header("People", "person.2.fill", Color(hex: 0xFF9FBF))
-            if due.isEmpty && birthdays.isEmpty { Text("Birthdays, gift ideas and the people you want to keep in touch with.").font(.geist(12.5)).foregroundStyle(Color.soft) }
+            header("Pessoas", "person.2.fill", Color(hex: 0xFF9FBF))
+            if due.isEmpty && birthdays.isEmpty { Text("Aniversários, ideias de presentes e as pessoas com quem queres manter contacto.").font(.geist(12.5)).foregroundStyle(Color.soft) }
             ForEach(due.prefix(2)) { p in
                 let over = (p.lastContact.map { Day.between($0, Day.today) } ?? p.everyWeeks * 7) - p.everyWeeks * 7
-                HStack { Text("\(p.name) · every \(p.everyWeeks) weeks").font(.geist(13.5)); Spacer(); Chip(text: over > 0 ? "\(over) days over" : "due") }
+                HStack { Text("\(p.name) · a cada \(p.everyWeeks) semanas").font(.geist(13.5)); Spacer(); Chip(text: over > 0 ? "\(over) dias de atraso" : "é altura") }
             }
             ForEach(birthdays.prefix(2), id: \.name) { b in
-                HStack { Text("\(b.name)'s birthday · \(Day.date(b.date).formatted(.dateTime.weekday(.wide)))").font(.geist(13.5)); Spacer(); if b.person?.gifts.isEmpty == false { Text("gift idea saved").font(.geist(11.5)).foregroundStyle(Color.soft) } }
+                HStack { Text("Aniversário de \(b.name) · \(Day.date(b.date).formatted(.dateTime.weekday(.wide)))").font(.geist(13.5)); Spacer(); if b.person?.gifts.isEmpty == false { Text("ideia de presente guardada").font(.geist(11.5)).foregroundStyle(Color.soft) } }
             }
         }
     }

@@ -8,7 +8,7 @@ import UIKit
 enum FriendLanguage: String, CaseIterable, Identifiable, Sendable {
     case pt, en
     var id: String { rawValue }
-    var label: String { self == .pt ? "Português" : "English" }
+    var label: String { self == .pt ? "Português" : "Inglês" }
 }
 
 enum FriendCategory: String, CaseIterable, Sendable {
@@ -232,7 +232,7 @@ struct FriendSuggestionsSheet: View {
         let language = FriendMessages.language(for: person.id, in: store)
         NavigationStack {
             Screen(glow: accent) {
-                Picker("Language", selection: Binding(get: { language }, set: { choose($0) })) {
+                Picker("Língua", selection: Binding(get: { language }, set: { choose($0) })) {
                     ForEach(FriendLanguage.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -240,15 +240,15 @@ struct FriendSuggestionsSheet: View {
                 ForEach(FriendMessages.showing(for: person.id, language: language, in: store)) { s in
                     row(s)
                 }
-                SoftButton(title: "Another one", icon: "arrow.triangle.2.circlepath") {
+                SoftButton(title: "Outra sugestão", icon: "arrow.triangle.2.circlepath") {
                     FriendMessages.next(for: person.id, language: language, categories: FriendMessages.categories(for: person), in: store)
                 }
                 .accessibilityIdentifier("friend.another")
-                Text("Each one shows up once for \(person.name). Copy it, change it, make it yours.").font(.geist(11.5)).foregroundStyle(Color.faint)
+                Text("Cada uma aparece uma só vez para \(person.name). Copia, muda, torna-a tua.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
             .navigationTitle(person.name)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fechar") { dismiss() } } }
         }
         .onAppear { FriendMessages.fill(for: person.id, language: language, categories: FriendMessages.categories(for: person), in: store) }
     }
@@ -265,10 +265,10 @@ struct FriendSuggestionsSheet: View {
                     copied = s.id
                     FriendMessages.markUsed(s, for: person.id, in: store)
                 } label: {
-                    Label(copied == s.id ? "Copied" : "Copy", systemImage: copied == s.id ? "checkmark" : "doc.on.doc").font(.geist(12.5, .semibold))
+                    Label(copied == s.id ? "Copiado" : "Copiar", systemImage: copied == s.id ? "checkmark" : "doc.on.doc").font(.geist(12.5, .semibold))
                 }
                 .accessibilityIdentifier("friend.copy")
-                ShareLink(item: text) { Label("Share", systemImage: "square.and.arrow.up").font(.geist(12.5, .semibold)) }
+                ShareLink(item: text) { Label("Partilhar", systemImage: "square.and.arrow.up").font(.geist(12.5, .semibold)) }
                     .simultaneousGesture(TapGesture().onEnded { FriendMessages.markUsed(s, for: person.id, in: store) })
                     .accessibilityIdentifier("friend.share")
                 Spacer()
