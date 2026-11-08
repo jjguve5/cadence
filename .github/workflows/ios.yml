@@ -95,6 +95,8 @@ jobs:
             > logs/unit-tests.log 2>&1
           echo "UNIT_EXIT=$?" >> "$GITHUB_ENV"
           grep -E "Test Case .*(passed|failed)|error:|Executed|TEST (EXECUTE )?(SUCCEEDED|FAILED)" logs/unit-tests.log | tail -120
+          # every failure, wherever it is in the log (the tail above can hide one: run 42489139391)
+          echo "--- failures in unit-tests ---"; grep -E "error: -\[|Test Case .* failed" logs/unit-tests.log || echo "none"
 
       - name: UI tests
         run: |
@@ -105,6 +107,8 @@ jobs:
             > logs/ui-tests.log 2>&1
           echo "UI_EXIT=$?" >> "$GITHUB_ENV"
           grep -E "Test Case .*(passed|failed)|error:|Executed|TEST (EXECUTE )?(SUCCEEDED|FAILED)" logs/ui-tests.log | tail -120
+          # every failure, wherever it is in the log (the tail above can hide one: run 42489139391)
+          echo "--- failures in ui-tests ---"; grep -E "error: -\[|Test Case .* failed" logs/ui-tests.log || echo "none"
 
       - name: Small-screen screenshots
         if: env.SMALL_ID != ''
@@ -118,6 +122,8 @@ jobs:
             -retry-tests-on-failure -test-iterations 2 -resultBundlePath results/UITests-small.xcresult > logs/ui-tests-small.log 2>&1
           echo "SMALL_EXIT=$?" >> "$GITHUB_ENV"
           grep -E "Test Case .*(passed|failed)|Executed" logs/ui-tests-small.log | tail -20
+          # every failure, wherever it is in the log (the tail above can hide one: run 42489139391)
+          echo "--- failures in ui-tests-small ---"; grep -E "error: -\[|Test Case .* failed" logs/ui-tests-small.log || echo "none"
 
       - name: Export screenshots, summaries and simulator logs
         if: always()
