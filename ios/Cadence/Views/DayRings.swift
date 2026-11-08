@@ -1,5 +1,7 @@
 // The rings on Today: sleep, recovery and strain on top, the day's five below. Every ring has a bar for the target right
 // now. On the five a full circle is the whole day; on the top three the circle is a fixed scale and the bar the target.
+// No data is not zero (phase 2.4): a ring with nothing from the band is dashed, with no number and «sem dados»; food and
+// water with nothing logged keep their number with «sem registos», never as a failure. The source stays in sight.
 import SwiftUI
 
 /// The rings' internal keys. A key is the ring's id, its accessibility identifier (ring.<key>) and what code looks a
@@ -19,11 +21,36 @@ struct RingStat: Identifiable {
     var center: String
     var goal: String
     var now: String?
+    /// Nothing to show (no band data): a dashed ring, no number, «sem dados»
+    var noData = false
+    /// Shown in place of the pace line, never as a failure («sem registos»)
+    var note: String? = nil
     var id: String { key.rawValue }
     /// What the UI tests find the ring by
     var accessibilityID: String { "ring.\(key.rawValue)" }
     var progress: Double { value / max(0.001, target) }
-    var behind: Bool { pace.map { progress + 0.05 < $0 } ?? false }
+    var behind: Bool {
+        guard !noData, note == nil else { return false }
+        return pace.map { progress + 0.05 < $0 } ?? false
+    }
+
+    static let noDataText = "sem dados", noRecordsText = "sem registos"
+
+    /// The rings in one line, when an urgent step takes the top of Today: "Sono 7h 05m · recuperação 58 · esforço 12%"
+    static func summary(_ rings: [RingStat]) -> String {
+        rings.enumerated().map { i, s in (i == 0 ? s.name : s.name.lowercased()) + " " + (s.noData ? noDataText : s.center) }.joined(separator: " · ")
+    }
+}
+
+/// How long ago, in the design's words: "há 8 min", "há 2 h", "há 3 dias"
+enum TodayFormat {
+    static func ago(minutes m: Int) -> String {
+        if m < 1 { return "agora mesmo" }
+        if m < 60 { return "há \(m) min" }
+        if m < 24 * 60 { return "há \(m / 60) h" }
+        let d = m / (24 * 60)
+        return d == 1 ? "há 1 dia" : "há \(d) dias"
+    }
 }
 
 @MainActor
@@ -100,33 +127,71 @@ extension Store {
         let asleep = h?.sleep?.asleep
         let strain = strainToday, strainGoal = strainTarget
         let sleepScale = Double(max(600, p.sleepNeed + 60)), usual = usualRecovery
+        // No data is not zero: sleep, recovery and strain with nothing from the band (a workout logged here counts
+        // for strain), and steps with no count, are «sem dados». Food and water with nothing logged today keep their
+        // number, with «sem registos» instead of the pace line.
+        let strainKnown = h?.azm != nil || h?.steps != nil || sessions(on: Day.today).contains { $0.end != nil }
+        let stepsKnown = h?.steps != nil
+        let foodLogged = !foods().isEmpty
+        let waterLogged = all(WaterEntry.self).contains { $0.date == Day.today }
+        let none = RingStat.noDataText
+        let foodNote: String? = foodLogged ? nil : RingStat.noRecordsText
+        let waterNote: String? = waterLogged ? nil : RingStat.noRecordsText
         func k(_ v: Double) -> String { v >= 1000 ? String(format: "%.1fk", v / 1000) : "\(Int(v))" }
         func litres(_ v: Double) -> String { String(format: "%.1fL", v / 1000) }
-        let main = [
+        let sleepGoal: String = asleep == nil ? none : "precisas de \(duration(p.sleepNeed))"
+        let recoveryGoal: String = r == nil ? none : "habitual \(usual)"
+        let strainAim: String = "alvo \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")
+        let strainCenter: String = strainKnown ? "\(Int(strain / Engine.strainMax * 100))%" : "—"
+        let stepsCenter: String = stepsKnown ? k(steps) : "—"
+        let stepsGoal: String = stepsKnown ? "de \(k(Double(p.stepGoal)))" : none
+        let stepsNow: String? = stepsKnown ? "agora \(k(Double(p.stepGoal) * walk))" : nil
+        let main: [RingStat] = [
             // sleep and recovery run on a fixed scale too, with the bar on what you need and what's usual for you
-            RingStat(key: .sleep, name: "Sono", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "–", goal: "precisas de \(duration(p.sleepNeed))"),
-            RingStat(key: .recovery, name: "Recuperação", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "–", goal: "habitual \(usual)"),
+            RingStat(key: .sleep, name: "Sono", value: Double(asleep ?? 0), target: sleepScale, pace: Double(p.sleepNeed) / sleepScale, area: .sleep, center: asleep.map { duration($0) } ?? "—", goal: sleepGoal, noData: asleep == nil),
+            RingStat(key: .recovery, name: "Recuperação", value: Double(r?.score ?? 0), target: 100, pace: Double(usual) / 100, area: .mint, center: r.map { "\($0.score)" } ?? "—", goal: recoveryGoal, noData: r == nil),
             // strain runs on a fixed 0–100% scale, so the circle is the maximum and the bar is today's target on it
-            RingStat(key: .strain, name: "Esforço", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: "\(Int(strain / Engine.strainMax * 100))%", goal: "alvo \(Int(strainGoal / Engine.strainMax * 100))%" + (strain >= strainGoal ? " ✓" : "")),
+            RingStat(key: .strain, name: "Esforço", value: strain, target: Engine.strainMax, pace: strainGoal / Engine.strainMax, area: .train, center: strainCenter, goal: strainKnown ? strainAim : none, noData: !strainKnown),
         ]
-        let day = [
-            RingStat(key: .calories, name: "Calorias", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "de \(k(p.kcal))", now: "agora \(k(p.kcal * eat))"),
-            RingStat(key: .protein, name: "Proteína", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "de \(Int(p.proteinTarget))g", now: "agora \(Int(p.proteinTarget * eat))g"),
-            RingStat(key: .water, name: "Água", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "de \(litres(goal))", now: "agora \(litres(goal * drink))"),
-            RingStat(key: .move, name: "Passos", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: k(steps), goal: "de \(k(Double(p.stepGoal)))", now: "agora \(k(Double(p.stepGoal) * walk))"),
+        let day: [RingStat] = [
+            RingStat(key: .calories, name: "Calorias", value: f.kcal, target: p.kcal, pace: eat, area: .fuel, center: k(f.kcal), goal: "de \(k(p.kcal))", now: "agora \(k(p.kcal * eat))", note: foodNote),
+            RingStat(key: .protein, name: "Proteína", value: f.protein, target: p.proteinTarget, pace: eat, area: .train, center: "\(Int(f.protein))g", goal: "de \(Int(p.proteinTarget))g", now: "agora \(Int(p.proteinTarget * eat))g", note: foodNote),
+            RingStat(key: .water, name: "Água", value: f.water, target: goal, pace: drink, area: .water, center: litres(f.water), goal: "de \(litres(goal))", now: "agora \(litres(goal * drink))", note: waterNote),
+            RingStat(key: .move, name: "Passos", value: steps, target: Double(p.stepGoal), pace: walk, area: .mint, center: stepsCenter, goal: stepsGoal, now: stepsNow, noData: !stepsKnown),
             RingStat(key: .promises, name: "Hábitos", value: Double(done), target: Double(max(1, due.count)), pace: due.isEmpty ? 0 : Double(dueNow) / Double(due.count), area: .mind, center: "\(done)/\(due.count)", goal: "de \(due.count)", now: "agora \(dueNow)"),
         ]
         return (main, day)
     }
+
+    /// Where the rings' band data came from and when, for the source line: "Fitbit Air · há 8 min". Nil when nothing
+    /// has come yet.
+    var ringsSource: String? {
+        if profile.usesBand {
+            guard let s = device?.lastSync else { return nil }
+            let minutes = Int(Date().timeIntervalSince(ISO8601DateFormatter.lenient(s)) / 60)
+            return "\(device?.name ?? "Fitbit") · \(TodayFormat.ago(minutes: minutes))"
+        }
+        guard let last = lastHealth else { return nil }
+        return "Apple Health · \(TodayFormat.ago(minutes: Int(Date().timeIntervalSince(last) / 60)))"
+    }
 }
 
+/// «Como estás»: the rings and where their data came from. The quick logs that were at the bottom are their own card
+/// on Today now («Registar», ordered by use).
 struct DayRings: View {
     @EnvironmentObject var store: Store
-    @Binding var loggingFood: Bool
 
     var body: some View {
         let stats = store.ringStats()
+        let nothingTonight = stats.main.filter { $0.key == .sleep || $0.key == .recovery }.allSatisfy(\.noData)
         Card {
+            HStack(spacing: 8) {
+                Eyebrow(text: "Como estás")
+                if nothingTonight { StateTag(state: .noData, text: "Sem dados desta noite") }
+                else if let source = store.ringsSource { SourceLine(text: source).lineLimit(1) }
+                Spacer(minLength: 0)
+            }
+            .accessibilityElement(children: .combine).accessibilityIdentifier("today.rings.source")
             HStack(spacing: 8) {
                 ForEach(stats.main) { mainRing($0) }
             }
@@ -136,19 +201,6 @@ struct DayRings: View {
             }
             HStack {
                 Text("Barra: o teu alvo neste momento. No sono, o que precisas; na recuperação, o teu habitual; no esforço, o alvo de hoje (uma estimativa). Nos restantes: onde devias estar agora, com o círculo completo para o dia inteiro.").font(.geist(10.5)).foregroundStyle(Color.faint)
-                Spacer()
-            }
-            HStack {
-                Button { loggingFood = true } label: {
-                    Label("Comida", systemImage: "plus").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
-                        .padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(Area.fuel.gradient))
-                }
-                .buttonStyle(Pressable())
-                Button { store.addWater(250) } label: {
-                    Label("250 ml", systemImage: "drop.fill").font(.geist(12.5, .semibold)).foregroundStyle(Color(hex: 0x03202A))
-                        .padding(.horizontal, 12).padding(.vertical, 7).background(Capsule().fill(Area.water.gradient))
-                }
-                .buttonStyle(Pressable())
                 Spacer()
             }
         }
@@ -167,8 +219,9 @@ struct DayRings: View {
     private func mainLabel(_ s: RingStat) -> some View {
         VStack(spacing: 5) {
             ZStack {
-                Ring(progress: s.progress, area: s.area, width: 9, marker: s.pace)
-                Text(s.center).font(.geist(15, .bold)).minimumScaleFactor(0.6).lineLimit(1).padding(.horizontal, 12)
+                Ring(progress: s.progress, area: s.area, width: 9, marker: s.pace, noData: s.noData)
+                Text(s.center).font(.geist(15, .bold)).foregroundStyle(s.noData ? Color.faint : Color.primary).minimumScaleFactor(0.6).lineLimit(1).padding(.horizontal, 12)
+                    .accessibilityHidden(s.noData) // no number: VoiceOver reads the name and «sem dados»
             }
             .frame(width: 88, height: 88)
             Text(s.name).font(.geist(13, .semibold))
@@ -180,13 +233,15 @@ struct DayRings: View {
     private func smallRing(_ s: RingStat) -> some View {
         VStack(spacing: 3) {
             ZStack {
-                Ring(progress: s.progress, area: s.area, width: 5, marker: s.pace)
-                Text(s.center).font(.geist(10.5, .semibold)).minimumScaleFactor(0.6).lineLimit(1).padding(.horizontal, 6)
+                Ring(progress: s.progress, area: s.area, width: 5, marker: s.pace, noData: s.noData)
+                Text(s.center).font(.geist(10.5, .semibold)).foregroundStyle(s.noData ? Color.faint : Color.primary).minimumScaleFactor(0.6).lineLimit(1).padding(.horizontal, 6)
+                    .accessibilityHidden(s.noData)
             }
             .frame(width: 52, height: 52)
             Text(s.name).font(.geist(10.5)).foregroundStyle(Color.soft).lineLimit(1).minimumScaleFactor(0.7)
             Text(s.goal).font(.geist(10)).foregroundStyle(Color.faint).lineLimit(1).minimumScaleFactor(0.7)
-            if let now = s.now { Text(now).font(.geist(10, s.behind ? .semibold : .regular)).foregroundStyle(s.behind ? Color.warn : Color.faint).lineLimit(1).minimumScaleFactor(0.7) }
+            if let note = s.note { Text(note).font(.geist(10)).foregroundStyle(Color.faint).lineLimit(1).minimumScaleFactor(0.7) }
+            else if let now = s.now { Text(now).font(.geist(10, s.behind ? .semibold : .regular)).foregroundStyle(s.behind ? Color.warn : Color.faint).lineLimit(1).minimumScaleFactor(0.7) }
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine).accessibilityIdentifier(s.accessibilityID)

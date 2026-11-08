@@ -1,8 +1,10 @@
-// Today: the morning brief, readiness with its reasons, what's next, rings, today's promises, closing the day.
+// Today: «Agora» (one step at a time, Now.swift), how you are (the rings with their source), quick logs ordered by use,
+// readiness with its reasons, today's habits, closing the day.
 import SwiftUI
 
 struct TodayView: View {
     @EnvironmentObject var store: Store
+    @ObservedObject private var agenda = Agenda.shared // the calendar feeds «Agora»: redraw when it changes
     @State private var closing = false
     @State private var editing: PromiseItem?
     @State private var briefHidden = false
@@ -10,6 +12,7 @@ struct TodayView: View {
     @State private var settingUp = false
     @State private var capturing = false
     @State private var showingYou = false
+    @State private var ringsOpen = false // an urgent step shrinks the rings to a line; tapping it opens them
 
     private var greeting: String {
         let m = Day.minuteOfDay(store.tick)
@@ -17,34 +20,47 @@ struct TodayView: View {
     }
 
     var body: some View {
+        let minute = store.nowMinute
+        let step = store.nowStep(minute: minute)
+        let urgent = step?.isUrgent ?? false
+        let later = store.nowLater(after: step, minute: minute)
         NavigationStack {
-            Screen(glow: .mint) {
-                header
-                if store.needsGoogle { googleCard }
-                if store.health.isEmpty, store.device == nil, !TestMode.active { sourceCard }
-                if !store.profile.setupDone {
-                    Button { settingUp = true } label: {
-                        Card(tint: .mint) {
-                            Eyebrow(text: "Configuração inteligente · 1 minuto", icon: "wand.and.stars", color: .mint)
-                            Text("Responde a umas perguntas e o Cadence define as tuas calorias, proteína, água, passos e sono com base na investigação, com a razão de cada um.").font(.geist(13.5)).foregroundStyle(Color.ink)
+            ScrollViewReader { proxy in
+                Screen(glow: .mint) {
+                    header
+                    // An urgent step takes the place of «Agora» at the top; the rings and the rest of the day shrink to a line
+                    if urgent, let step { TodayNowCard(step: step, minute: minute, later: later, showLater: false) }
+                    if store.needsGoogle { googleCard }
+                    if store.health.isEmpty, store.device == nil, !TestMode.active { sourceCard }
+                    if !store.profile.setupDone {
+                        Button { settingUp = true } label: {
+                            Card(tint: .mint) {
+                                Eyebrow(text: "Configuração inteligente · 1 minuto", icon: "wand.and.stars", color: .mint)
+                                Text("Responde a umas perguntas e o Cadence define as tuas calorias, proteína, água, passos e sono com base na investigação, com a razão de cada um.").font(.geist(13.5)).foregroundStyle(Color.ink)
+                            }
                         }
+                        .buttonStyle(Pressable())
                     }
-                    .buttonStyle(Pressable())
+                    if store.journalDue { JournalCard(canPostpone: true) }
+                    MinimumDayBanner()
+                    if urgent && !ringsOpen { ringsLine } else { DayRings() }
+                    if urgent, !later.isEmpty { laterLine(later) { showHabits(proxy) } }
+                    if urgent { quickLogs }
+                    FocusCard()
+                    // «Agora» where "A seguir" was, so the cards above it keep their place
+                    if !urgent, let step { TodayNowCard(step: step, minute: minute, later: later) { showHabits(proxy) } }
+                    if !urgent { quickLogs }
+                    unsentCard
+                    FoodGoalsCard()
+                    ShowerTodayCard()
+                    GymBagCard()
+                    readinessCard
+                    if Day.minuteOfDay(store.tick) < 11 * 60 || store.weatherCall()?.umbrella == true { WeatherCard() }
+                    promisesCard.id(TodayView.habitsAnchor)
+                    top3Card
+                    closeCard
+                    syncLine
                 }
-                if store.journalDue { JournalCard(canPostpone: true) }
-                MinimumDayBanner()
-                DayRings(loggingFood: $loggingFood)
-                FocusCard()
-                nextUp
-                FoodGoalsCard()
-                ShowerTodayCard()
-                GymBagCard()
-                readinessCard
-                if Day.minuteOfDay(store.tick) < 11 * 60 || store.weatherCall()?.umbrella == true { WeatherCard() }
-                promisesCard
-                top3Card
-                closeCard
-                syncLine
             }
             .refreshable { await store.refreshAll(force: true) }
             .sheet(isPresented: $closing) { CloseDayView() }
@@ -159,28 +175,98 @@ struct TodayView: View {
         .buttonStyle(Pressable())
     }
 
-    private var nextUp: some View {
-        let minute = Day.minuteOfDay(store.tick)
-        let next = store.due().first { store.status($0) == nil && store.time(of: $0) + 90 >= minute }
-        return Group {
-            if let next {
-                Card {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Eyebrow(text: "A seguir", icon: "play")
-                            Text(next.title).font(.geist(16, .bold))
-                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "essencial" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
-                        }
-                        Spacer()
-                        let brush = next.title.lowercased().contains("brush"), read = next.title.lowercased().hasPrefix("read")
-                        Button { if brush { store.brushingOpen = true } else if read { store.readingOpen = true } else { store.log(next, .done) } } label: {
-                            Image(systemName: brush || read ? "play.fill" : "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
-                                .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
-                        }
-                        .accessibilityLabel(brush || read ? "Começar \(next.title)" : "Marcar \(next.title) como feito").accessibilityIdentifier("next.action")
+    static let habitsAnchor = "today.habits"
+
+    /// «Depois» and the rings' line take you to the rest of today
+    private func showHabits(_ proxy: ScrollViewProxy) {
+        withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo(TodayView.habitsAnchor, anchor: .top) }
+    }
+
+    /// With an urgent step, the rings in one line; a tap opens them again
+    private var ringsLine: some View {
+        Button { withAnimation(.easeOut(duration: 0.2)) { ringsOpen = true } } label: {
+            Card {
+                HStack(spacing: 8) {
+                    Text(RingStat.summary(store.ringStats().main)).font(.geist(13)).foregroundStyle(Color.soft).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down").font(.caption).foregroundStyle(Color.faint)
+                }
+                .frame(minHeight: 20)
+            }
+        }
+        .buttonStyle(Pressable())
+        .accessibilityHint("Mostra os anéis").accessibilityIdentifier("today.rings.line")
+    }
+
+    /// With an urgent step, the rest of the day in one line; a tap shows today's habits
+    private func laterLine(_ later: [NowLater], open: @escaping () -> Void) -> some View {
+        Button(action: open) {
+            Card {
+                HStack(spacing: 8) {
+                    Text("Depois: " + NowRule.laterText(later)).font(.geist(13)).foregroundStyle(Color.soft).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down").font(.caption).foregroundStyle(Color.faint)
+                }
+                .frame(minHeight: 20)
+            }
+        }
+        .buttonStyle(Pressable())
+        .accessibilityHint("Mostra os hábitos de hoje").accessibilityIdentifier("now.later")
+    }
+
+    /// «Registar»: the quick logs, the one you use most first (TodayQuickLog)
+    private var quickLogs: some View {
+        Card {
+            HStack(spacing: 8) {
+                Eyebrow(text: "Registar")
+                Text("pela ordem que mais usas").font(.geist(11)).foregroundStyle(Color.faint).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 8) {
+                ForEach(TodayQuickLog.ordered(uses: store.quickLogUses()), id: \.self) { quickButton($0) }
+            }
+        }
+    }
+
+    @ViewBuilder private func quickButton(_ q: TodayQuickLog) -> some View {
+        switch q {
+        case .food:
+            Button { loggingFood = true } label: {
+                Label("Comida", systemImage: "plus").font(.geist(13, .semibold)).foregroundStyle(Color(hex: 0x2B1A05))
+                    .frame(maxWidth: .infinity, minHeight: 44).background(Capsule().fill(Area.fuel.gradient))
+            }
+            .buttonStyle(Pressable())
+            .accessibilityLabel("Registar comida").accessibilityIdentifier("today.quick.food")
+        case .water:
+            Button { store.logWaterNow(250) } label: {
+                Label("250 ml", systemImage: "drop.fill").font(.geist(13, .semibold)).foregroundStyle(Color(hex: 0x03202A))
+                    .frame(maxWidth: .infinity, minHeight: 44).background(Capsule().fill(Area.water.gradient))
+            }
+            .buttonStyle(Pressable())
+            .accessibilityLabel("Registar 250 ml de água").accessibilityIdentifier("today.quick.water")
+        }
+    }
+
+    /// Records the server hasn't taken yet, when sending is failing: «Ver o que falta» opens them in Perfil
+    @ViewBuilder private var unsentCard: some View {
+        let pending = store.pendingSyncCount
+        if TodayRules.showsUnsent(pending: pending, failing: store.syncError != nil || store.syncHold != nil || !store.syncRefused.isEmpty) {
+            Card(tint: DataState.error.color) {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        StateTag(state: .error, text: "Precisa de ação")
+                        Text(TodayRules.unsentText(pending)).font(.geist(13)).fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer(minLength: 4)
+                    NavigationLink { SettingsView() } label: {
+                        Text("Ver o que falta").font(.geist(13, .semibold)).foregroundStyle(Color.ink)
+                            .padding(.horizontal, 14).frame(minHeight: 44).background(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                    }
+                    .buttonStyle(Pressable())
+                    .accessibilityIdentifier("today.unsent.open")
                 }
             }
+            .accessibilityElement(children: .contain).accessibilityIdentifier("today.unsent")
         }
     }
 
@@ -356,5 +442,177 @@ struct ReadinessView: View {
         }
         .navigationTitle("Prontidão")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - «Agora»
+
+/// «Agora»: the one step the rule picks (NowRule.pick, decision D3). The rest of today stays a tap away («Depois»).
+/// Its main button is "next.action", as "A seguir"'s was.
+struct TodayNowCard: View {
+    @EnvironmentObject var store: Store
+    var step: NowStep
+    var minute: Int
+    var later: [NowLater]
+    var showLater = true
+    var openLater: () -> Void = {}
+
+    var body: some View {
+        switch step {
+        case .leave(let d): leave(d)
+        case .workout(let w): workout(w)
+        case .habit(let p): habit(p)
+        case .beforeLeaving, .routine: EmptyView() // phases 2.9 and 2.5 draw their step here
+        }
+    }
+
+    /// An event to leave for: when to leave, from what, and the two answers. Neither changes the Google event.
+    private func leave(_ d: NowDeparture) -> some View {
+        let left = d.leave - minute
+        let tag: String = left > 0 ? "Daqui a \(left) min" : "Hora de sair"
+        let title: String = left > 0 ? "Sair até às \(clock(d.leave)) para \(d.title)" : "Sair agora para \(d.title)"
+        let place: String = d.place.map { " · " + $0 } ?? ""
+        let when: String = "às " + clock(d.start) + place
+        let reason: String
+        if let trip = d.trip { reason = "\(d.lead) min porta a porta, com margem (\(trip))" } else { reason = "Sem estimativa de viagem: saída \(d.lead) min antes" }
+        return Card(state: .pending) {
+            HStack(spacing: 8) {
+                Eyebrow(text: "Agora", color: DataState.pending.color)
+                StateTag(state: .pending, text: tag)
+                Spacer(minLength: 0)
+            }
+            Text(title).font(.geist(17, .semibold)).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Text(when).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
+                SourceLine(text: "Google Calendar").layoutPriority(1)
+            }
+            Text(reason).font(.geist(11.5)).foregroundStyle(Color.faint).fixedSize(horizontal: false, vertical: true)
+            // Phase 2.9: «Preparar para sair», the main button, goes here and opens Antes de sair
+            HStack(spacing: 8) {
+                Button { store.answerNow(d, snooze: true, minute: minute) } label: {
+                    Text("Adiar \(NowRule.snoozeMinutes) min").font(.geist(13, .semibold)).foregroundStyle(Color.ink)
+                        .padding(.horizontal, 14).frame(minHeight: 44).background(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                }
+                .accessibilityIdentifier("now.snooze")
+                Button { store.answerNow(d, snooze: false, minute: minute) } label: {
+                    Text("Já não vou").font(.geist(13, .semibold)).foregroundStyle(Color.soft).padding(.horizontal, 8).frame(minHeight: 44)
+                }
+                .accessibilityHint("Esconde este aviso. O evento do Google não muda.").accessibilityIdentifier("now.gone")
+                Spacer(minLength: 0)
+            }
+            .buttonStyle(Pressable())
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("now.leave")
+    }
+
+    private func workout(_ w: NowWorkout) -> some View {
+        let started = Day.minuteOfDay(Date(timeIntervalSince1970: w.start / 1000))
+        return Card {
+            Eyebrow(text: "Agora", color: .mint)
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(w.name).font(.geist(17, .semibold))
+                    Text("Treino em curso · começou às \(clock(started))").font(.geist(12)).foregroundStyle(Color.soft)
+                }
+                Spacer(minLength: 8)
+                Button { store.openWorkout = OpenSession(id: w.id) } label: {
+                    Label("Continuar", systemImage: "play.fill").font(.geist(14, .semibold)).foregroundStyle(Color(hex: 0x05140F))
+                        .padding(.horizontal, 16).frame(minHeight: 44).background(Capsule().fill(Area.mint.gradient))
+                }
+                .buttonStyle(Pressable())
+                .accessibilityLabel("Continuar \(w.name)").accessibilityIdentifier("next.action")
+            }
+            laterRow
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("now.workout")
+    }
+
+    /// The next habit, as "A seguir" showed it: brushing and reading start their player, the rest is marked done (with
+    /// Desfazer)
+    private func habit(_ p: PromiseItem) -> some View {
+        let brush = p.title.lowercased().contains("brush"), read = p.title.lowercased().hasPrefix("read")
+        return Card {
+            Eyebrow(text: "Agora", color: .mint)
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(p.title).font(.geist(16, .bold))
+                    Text("\(store.timeLabel(p)) · \(p.kind == .mustDo ? "essencial" : p.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
+                }
+                Spacer()
+                Button { if brush { store.brushingOpen = true } else if read { store.readingOpen = true } else { store.markNowDone(p) } } label: {
+                    Image(systemName: brush || read ? "play.fill" : "checkmark").font(.geist(17, .bold)).foregroundStyle(Color(hex: 0x032018))
+                        .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
+                }
+                .accessibilityLabel(brush || read ? "Começar \(p.title)" : "Marcar \(p.title) como feito").accessibilityIdentifier("next.action")
+            }
+            laterRow
+        }
+        .accessibilityElement(children: .contain).accessibilityIdentifier("now.habit")
+    }
+
+    /// «Depois»: what comes after, in one line; a tap shows today's habits
+    @ViewBuilder private var laterRow: some View {
+        if showLater, !later.isEmpty {
+            Divider().overlay(Color.white.opacity(0.06))
+            Button(action: openLater) {
+                HStack(spacing: 8) {
+                    Text("Depois: " + NowRule.laterText(later)).font(.geist(12.5)).foregroundStyle(Color.soft).lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.down").font(.caption).foregroundStyle(Color.faint)
+                }
+                .frame(minHeight: 44).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Mostra os hábitos de hoje").accessibilityIdentifier("now.later")
+        }
+    }
+}
+
+// MARK: - Quick logs and records not sent
+
+/// The quick logs on Today, ordered by use (decision of phase 2.4): how many times each was used in the 14 days before
+/// today, so the order doesn't move under your finger during the day. A tie keeps today's order, the order of the cases.
+enum TodayQuickLog: String, CaseIterable {
+    case food, water
+
+    static func ordered(uses: [TodayQuickLog: Int]) -> [TodayQuickLog] {
+        allCases.enumerated().sorted { a, b in
+            let ua = uses[a.element] ?? 0, ub = uses[b.element] ?? 0
+            return ua != ub ? ua > ub : a.offset < b.offset
+        }.map { $0.element }
+    }
+}
+
+enum TodayRules {
+    /// «Ver o que falta» only when something is waiting and sending it is failing: a technical warning only when
+    /// there is something to see
+    static func showsUnsent(pending: Int, failing: Bool) -> Bool { pending > 0 && failing }
+
+    static func unsentText(_ n: Int) -> String {
+        n == 1 ? "1 registo ainda não chegou ao servidor. Está guardado neste iPhone." : "\(n) registos ainda não chegaram ao servidor. Estão guardados neste iPhone."
+    }
+}
+
+@MainActor
+extension Store {
+    /// How many times each quick log was used in the 14 days before `today`: food you logged yourself (not what a
+    /// routine adds when you tick it) and water, each moment counted once (a meal of three foods is one use)
+    func quickLogUses(today: String = Day.today) -> [TodayQuickLog: Int] {
+        let days = Set((1...14).map { Day.add(-$0, to: today) })
+        let food = Set(all(FoodEntry.self).filter { $0.promiseId == nil && days.contains($0.date) }.map { "\($0.date) \($0.minute)" })
+        let water = Set(all(WaterEntry.self).filter { days.contains($0.date) }.map { "\($0.date) \($0.minute)" })
+        return [.food: food.count, .water: water.count]
+    }
+
+    /// The water quick log: logs at once and shows Desfazer, which removes just what it added
+    func logWaterNow(_ ml: Double) {
+        guard canChange else { return }
+        let before = Set(records(WaterEntry.kind).keys)
+        addWater(ml)
+        let added = records(WaterEntry.kind).keys.filter { !before.contains($0) }
+        guard !added.isEmpty else { return }
+        UndoCenter.shared.show("Água +\(Int(ml)) ml") { [weak self] in
+            for id in added { self?.put(WaterEntry.kind, id, nil) }
+        }
     }
 }

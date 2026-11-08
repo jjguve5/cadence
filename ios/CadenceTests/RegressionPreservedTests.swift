@@ -539,3 +539,31 @@ final class RegressionJournalTextTests: XCTestCase {
         XCTAssertEqual(journalText("Unknown question"), "Unknown question", "an unknown key shows as itself")
     }
 }
+
+// MARK: - Today (phase 2.4)
+
+final class RegressionTodayTests: RegressionCase {
+    /// «Agora» is one step chosen by the D3 rule, not habits only (what "A seguir" looked at before 2.4): a workout in
+    /// progress comes before the next habit. The rule itself is tested in NowTests.
+    @MainActor
+    func testAgoraIsNotHabitsOnly() throws {
+        let creatine = PromiseItem(id: "H1", title: "Creatina", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 23 * 60))
+        let store = try makeStore { s in
+            s.promises[creatine.id] = creatine
+            s.add(WorkoutSession(id: "S1", name: "Pernas", start: nowMs() - 600_000, order: []))
+        }
+        guard case .workout(let w)? = store.nowStep(minute: 8 * 60, events: []) else { return XCTFail("a workout in progress is the step") }
+        XCTAssertEqual(w.id, "S1")
+    }
+
+    /// A ring with no data is «sem dados» with no number (drawn dashed, Ring(noData:)), never an empty arc read as zero
+    @MainActor
+    func testARingWithNoDataIsNotZero() throws {
+        let rings = try makeStore().ringStats()
+        for r in rings.main + rings.day where r.key == .sleep || r.key == .recovery || r.key == .strain || r.key == .move {
+            XCTAssertTrue(r.noData, "\(r.key)")
+            XCTAssertEqual(r.goal, "sem dados", "\(r.key)")
+            XCTAssertFalse(r.center.contains("0"), "\(r.key): no number")
+        }
+    }
+}
