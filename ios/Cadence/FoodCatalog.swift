@@ -17,6 +17,53 @@ struct CommonFood: Identifiable, Hashable {
                                         "Snacks": "Lanches", "Fruit": "Fruta", "Dairy": "Laticínios", "Desserts": "Sobremesas", "Drinks": "Bebidas"]
         return labels[group] ?? group
     }
+
+    /// What this food counts for in the day's goals, from the catalogue (phase 2.7: the group comes from the food):
+    /// every fruit in the catalogue is fruit; the rest by the catalogue's own name ("Sopa de legumes" is a soup, "Salada
+    /// mista" a portion of vegetables). FoodGoals.noGroup when it counts for none.
+    var goals: String {
+        if group == "Fruit" { return FoodGoals.fruit }
+        return FoodGoals.legacyGroup(name: name)
+    }
+}
+
+/// What a portion's text says about the units it allows (phase 2.7 decision). Nothing is guessed: grams only when the
+/// text gives the weight (or it is a spoon: tablespoon 15 g, teaspoon 5 g), units only when it counts things.
+enum FoodPortion {
+    /// Words that measure rather than count: "1 prato" is a plate of food, not one unit of it
+    private static let measures: Set<String> = ["prato", "malga", "taca", "chavena", "copo", "caneca", "imperial", "dose", "porcao", "pote", "medida",
+                                               "punhado", "colher", "colheres", "pacote", "acompanhamento", "menu", "pires", "quarto", "ml", "l", "g", "kg"]
+
+    private static func folded(_ text: String) -> String { text.lowercased().folding(options: .diacriticInsensitive, locale: nil) }
+
+    /// The number the text starts with ("2 ovos" → 2), if it starts with one
+    private static func leadingNumber(_ t: String) -> Double? {
+        let digits = t.prefix { $0.isNumber }
+        return digits.isEmpty ? nil : Double(String(digits))
+    }
+
+    /// The weight of the portion: "1 pote de 170 g" → 170, "um punhado, 30 g" → 30, "1 colher de sopa" → 15
+    static func grams(_ text: String) -> Double? {
+        let t = folded(text)
+        if let r = t.range(of: #"\d+([.,]\d+)?\s?g\b"#, options: .regularExpression) {
+            let number = t[r].filter { $0.isNumber || $0 == "." || $0 == "," }.replacingOccurrences(of: ",", with: ".")
+            if let g = Double(number), g > 0 { return g }
+        }
+        let n = leadingNumber(t) ?? 1
+        if t.contains("colher de sopa") || t.contains("colheres de sopa") { return n * FoodUnit.tablespoonGrams }
+        if t.contains("colher de cha") || t.contains("colheres de cha") { return n * FoodUnit.teaspoonGrams }
+        return nil
+    }
+
+    /// How many countable things the portion is: "2 ovos" → 2, "1 média" → 1, "8 peças" → 8, "1, com molho" → 1;
+    /// nil for plates, bowls, glasses and anything else that measures
+    static func count(_ text: String) -> Double? {
+        let t = folded(text)
+        guard let n = leadingNumber(t), n > 0 else { return nil }
+        let words = t.split { !$0.isLetter && !$0.isNumber }.map(String.init)
+        if words.count > 1, measures.contains(words[1]) { return nil }
+        return n
+    }
 }
 
 let commonFoods: [CommonFood] = [

@@ -1,4 +1,5 @@
-// Build a meal with a live estimate, the add-ons offered after logging a full meal, and the daily food goals card.
+// Build a meal with a live estimate, then confirm it (phase 2.7: the confirmation saves, and offers the add-ons for a
+// full meal), and the daily food goals card.
 import SwiftUI
 
 private let chipColumns = [GridItem(.adaptive(minimum: 104), spacing: 8)]
@@ -52,6 +53,9 @@ struct MealBuilderView: View {
     @State private var naming = false
     @State private var favouriteName = ""
     @State private var savedNote: String?
+    /// What the confirmation shows: nothing is saved before «Guardar refeição»
+    @State private var confirmItems: [FoodItem] = []
+    @State private var confirming = false
 
     init(onDone: (() -> Void)? = nil) { self.onDone = onDone }
 
@@ -67,14 +71,16 @@ struct MealBuilderView: View {
         if draft[keyPath: path].contains(id) { draft[keyPath: path].remove(id) } else { draft[keyPath: path].insert(id) }
     }
 
+    /// «Continuar»: the plate and its add-ons go to the confirmation
     private func logMeal() {
-        for e in MealBuilder.entries(draft) { store.logFood(e) }
-        finish()
+        confirmItems = MealBuilder.items(draft)
+        confirming = true
     }
 
+    /// A favourite opens the confirmation too: its amount is taken as typical until you confirm it
     private func logFavourite(_ m: SavedMeal) {
-        store.logFood(FoodEntry(name: m.name, kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat, caffeine: m.caffeine, mealId: m.id, group: m.group))
-        finish()
+        confirmItems = [FoodItem(saved: m)]
+        confirming = true
     }
 
     /// The same name replaces the old favourite and keeps how often it was used
@@ -102,6 +108,9 @@ struct MealBuilderView: View {
         }
         .safeAreaInset(edge: .bottom) { estimateBar }
         .onChange(of: draft) { savedNote = nil }
+        .navigationDestination(isPresented: $confirming) {
+            FoodConfirmView(items: $confirmItems, onBack: { confirming = false }, onFinish: { finish() })
+        }
         .navigationTitle("Montar uma refeição")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -111,12 +120,12 @@ struct MealBuilderView: View {
             TextField("Nome", text: $favouriteName)
             Button("Guardar") { saveFavourite() }
             Button("Cancelar", role: .cancel) {}
-        } message: { Text("Da próxima vez, regista-a com um toque, aqui ou em Registar comida.") }
+        } message: { Text("Da próxima vez, encontra-a aqui ou em Registar comida.") }
     }
 
     private var favouritesCard: some View {
         Card(tint: .fuel) {
-            Eyebrow(text: "Os teus favoritos · um toque para registar", icon: "star.fill", color: .fuel)
+            Eyebrow(text: "Os teus favoritos", icon: "star.fill", color: .fuel)
             ForEach(favourites) { m in
                 Button { logFavourite(m) } label: {
                     HStack {
@@ -277,7 +286,7 @@ struct MealBuilderView: View {
                 }
                 .disabled(empty)
                 .accessibilityIdentifier("builder.favourite.save")
-                PrimaryButton(title: "Registar refeição", area: .fuel) { logMeal() }
+                PrimaryButton(title: "Continuar", area: .fuel) { logMeal() }
                     .disabled(empty)
                     .opacity(empty ? 0.5 : 1)
                     .accessibilityIdentifier("builder.save")
@@ -296,51 +305,6 @@ struct MealBuilderView: View {
 
     private func partDetail(_ p: FoodPart) -> String {
         p.note.isEmpty ? "\(Int(p.grams)) g" : "\(Int(p.grams)) g · \(p.note)"
-    }
-}
-
-/// Offered after logging a full meal: each tap logs or takes back an add-on with its own estimate
-struct MealAddOnsView: View {
-    @EnvironmentObject var store: Store
-    private let meal: String
-    private let done: () -> Void
-    @State private var logged: [String: FoodEntry] = [:]
-
-    init(meal: String, done: @escaping () -> Void) {
-        self.meal = meal
-        self.done = done
-    }
-
-    private func toggle(_ a: AddOn) {
-        if let e = logged[a.id] {
-            store.remove(e)
-            logged[a.id] = nil
-        } else {
-            let e = a.entry()
-            store.logFood(e)
-            logged[a.id] = e
-        }
-    }
-
-    var body: some View {
-        let added = logged.values.map(\.kcal).reduce(0, +)
-        return Screen(glow: .fuel) {
-            Card(tint: .good) {
-                Eyebrow(text: "Registado", icon: "checkmark", color: .good)
-                Text(meal).font(.geist(15, .semibold))
-                Text(logged.isEmpty ? "Mais alguma coisa? Cada extra tem a sua estimativa." : "Extras: \(logged.count) · cerca de \(Int(added)) kcal (estimativa)").font(.geist(13)).foregroundStyle(Color.soft)
-            }
-            Card { AddOnGrid(selected: Set(logged.keys)) { a in toggle(a) } }
-        }
-        .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: logged.isEmpty ? "Mais nada" : "Concluído", area: .fuel) { done() }
-                .accessibilityIdentifier("addons.done")
-                .padding(.horizontal, 16).padding(.vertical, 8)
-        }
-        .sensoryFeedback(.selection, trigger: logged.count)
-        .navigationTitle("Juntar a esta refeição")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
     }
 }
 
