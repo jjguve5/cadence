@@ -42,12 +42,6 @@ final class RegressionPlannedChangeTests: RegressionCase {
         XCTAssertEqual(store.shoppingList().map(\.name), ["Whey", "Whey"], "today: no check for duplicates across sources")
     }
 
-    /// Phase 2.7 (Comida): the food group is chosen per item and a flavour isn't a fruit. Update: a protein drink
-    /// "aroma manga" counts for no group (an old entry without a stored group may keep the name rule).
-    func testCurrentAFlavourWordCountsAsFruit() {
-        XCTAssertEqual(FoodGoals.groups(name: "Proteína Aroma Manga"), [FoodGoals.fruit], "today: «manga» in the name makes it fruit")
-    }
-
     /// Phases 2.2 and 2.9: data from the band can mark a habit done, but it must show as «Importado», not as confirmed
     /// by you, and «Vou dormir» becomes a separate intention. Phase 2.2 did its part: the answer keeps its source (the
     /// health source, "fitbit" by default). Phase 2.9 updates this test when the UI shows it as imported and «Vou dormir»
@@ -91,7 +85,6 @@ final class RegressionPlannedChangeTests: RegressionCase {
 // - 2.5 Higiene: the routine player saves nothing at the end; "Added to shopping" saves nothing.
 // - 2.6 Treino: the suggested weight is written into the set (TrainingView); warm-ups go on every exercise above
 //   bar + 10 kg instead of the first exercise of each muscle group.
-// - 2.7 Comida: several paths save on one tap with no confirmation (portion pick, recent foods, caffeine drinks).
 // - 2.3 PT-PT: tab names and the texts the UI tests read (UIText in CadenceUITests). Since phase 2.1 tab screens and
 //   rings have internal identifiers (<name>.screen, ring.<key>) that a translation doesn't change, and the UI tests
 //   find a tab through its screen, not by its name or place.

@@ -158,7 +158,9 @@ extension Store {
     func apply(_ intent: CaptureIntent) -> (message: String, undo: () -> Void) {
         switch intent {
         case .food(let foods, _):
-            let entries = foods.map { FoodEntry(name: $0.name, kcal: $0.kcal, protein: $0.protein) }
+            // Confirmed from the summary: one typical portion of each, the catalogue food's group always saved, and the
+            // amount kept as an estimate (what was typed names the food, not how much of it) (phase 2.7)
+            let entries = foods.map { FoodItem(common: $0, factor: 1, confirmed: false).entry() }
             entries.forEach(logFood)
             return ("\(foods.count) \(foods.count == 1 ? "alimento registado" : "alimentos registados")", { entries.forEach { self.remove($0) } })
         case .spend(let a, let c, let m):

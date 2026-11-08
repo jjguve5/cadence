@@ -110,8 +110,9 @@ struct AddOn: Identifiable, Hashable {
 
     var macros: Macros { Macros(kcal: kcal, protein: protein, carbs: carbs, fat: fat) }
 
+    /// The add-on as logged: one portion, its own group, the amount an estimate (phase 2.7)
     func entry(date: String = Day.today, minute: Int = Day.minuteOfDay()) -> FoodEntry {
-        FoodEntry(date: date, minute: minute, name: name, kcal: kcal, protein: protein, carbs: carbs, fat: fat, caffeine: caffeine, group: group)
+        FoodItem(addOn: self).entry(date: date, minute: minute)
     }
 }
 
@@ -371,15 +372,21 @@ enum MealBuilder {
         return tokens.isEmpty ? FoodGoals.meal : tokens.joined(separator: ",")
     }
 
-    /// What Save logs: the plate, then each add-on as its own food
-    static func entries(_ d: MealDraft, date: String = Day.today, minute: Int = Day.minuteOfDay()) -> [FoodEntry] {
-        var out: [FoodEntry] = []
+    /// What goes to the confirmation (phase 2.7: nothing is saved before «Guardar refeição»): the plate as one food,
+    /// then each add-on as its own
+    static func items(_ d: MealDraft) -> [FoodItem] {
+        var out: [FoodItem] = []
         let p = plate(d).rounded
         if p.kcal > 0 {
-            out.append(FoodEntry(date: date, minute: minute, name: name(d), kcal: p.kcal, protein: p.protein, carbs: p.carbs, fat: p.fat, group: plateGroup(d)))
+            out.append(FoodItem(name: name(d), kcal: p.kcal, protein: p.protein, carbs: p.carbs, fat: p.fat, group: plateGroup(d), portionText: "1 prato"))
         }
-        for a in addOns where d.addOns.contains(a.id) { out.append(a.entry(date: date, minute: minute)) }
+        for a in addOns where d.addOns.contains(a.id) { out.append(FoodItem(addOn: a)) }
         return out
+    }
+
+    /// What saving the meal logs: the plate, then each add-on as its own food (the confirmation's items, as entries)
+    static func entries(_ d: MealDraft, date: String = Day.today, minute: Int = Day.minuteOfDay()) -> [FoodEntry] {
+        items(d).map { $0.entry(date: date, minute: minute) }
     }
 
     /// A favourite holds the whole meal in one tap: plate and add-ons together, with every group they count for
@@ -405,6 +412,9 @@ struct FoodGoalCounts: Equatable {
 
 enum FoodGoals {
     static let fruit = "fruit", soup = "soup", veg = "veg", meal = "meal"
+    /// The stored group of a food that counts for no goal (the builder already saves it for a plate without vegetables).
+    /// An empty group is not "none": it means no group was saved, and the name rule decides (older entries).
+    static let noGroup = meal
     static let fruitTarget = 2, soupTarget = 1, vegTarget = 2
     static let proteinMealGrams = 20.0, proteinMeals = 3
 
@@ -458,6 +468,49 @@ enum FoodGoals {
         // "Iogurte de morango" is a yogurt; "iogurte com banana" has a banana in it
         if has(hay, ["iogurte", "yogurt", "yoghurt"]) { return has(hay, ["com", "with", "and", "e"]) }
         return true
+    }
+
+    /// What a food with no stored group counted as until now: the name rule, as for every older entry (phase 2.7 keeps
+    /// it for those; a food chosen now gets its group from the food itself)
+    static func legacyGroup(name: String) -> String {
+        let g = groups(name: name)
+        return g.isEmpty ? noGroup : g.joined(separator: ",")
+    }
+
+    static func tokens(_ group: String) -> [String] {
+        group.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// A group as shown: "Fruta", "Legumes ×2", "Sopa e legumes", or "Nenhum" when it counts for no goal
+    static func label(_ group: String) -> String {
+        let t = tokens(group)
+        func part(_ token: String, _ name: String) -> String? {
+            let n = t.filter { $0 == token }.count
+            return n == 0 ? nil : n == 1 ? name : "\(name) ×\(n)"
+        }
+        let parts = [part(fruit, "Fruta"), part(soup, "Sopa"), part(veg, "Legumes")].compactMap { $0 }
+        guard let first = parts.first else { return "Nenhum" }
+        let words: [String] = [first] + parts.dropFirst().map { $0.lowercased() }
+        guard words.count > 1, let last = words.last else { return first }
+        return words.dropLast().joined(separator: ", ") + " e " + last
+    }
+
+    /// The picker's value for a stored group: what it counts for, so "bread" reads as none and "fruit,bread" as fruit;
+    /// a mix that counts for more than one goal stays as it is
+    static func choice(for group: String) -> String {
+        let counting = tokens(group).filter { $0 == fruit || $0 == soup || $0 == veg }
+        if counting.isEmpty { return noGroup }
+        if counting.count == 1 { return counting[0] }
+        return group
+    }
+
+    /// The choices for a food's group on the confirmation: none, fruit, soup, vegetables, and the food's own mix when it
+    /// has one (a plate with two vegetable sides is "Legumes ×2"). The value is what is saved.
+    static func choices(current: String) -> [(value: String, label: String)] {
+        var out: [(value: String, label: String)] = [(noGroup, "Nenhum"), (fruit, "Fruta"), (soup, "Sopa"), (veg, "Legumes")]
+        let c = choice(for: current)
+        if !out.contains(where: { $0.value == c }) { out.append((c, label(c))) }
+        return out
     }
 
     /// A set group wins over the name; old entries have none and are read from the name

@@ -47,6 +47,30 @@ final class RegressionFoodTests: RegressionCase {
         XCTAssertEqual(store.waterGoal(on: Fixed.tuesday), 3000, "at the step goal, nothing extra")
         XCTAssertEqual(store.waterGoal(on: Fixed.wednesday), 3100, "rounded to 50 ml")
     }
+
+    /// Phase 2.7 (moved from RegressionPlannedChangeTests): the food group is chosen per item and always saved, and a
+    /// flavour isn't a fruit: a protein drink «aroma manga», typed or from a product, counts for no group until you
+    /// choose one. An old entry without a stored group keeps the name rule, which itself is unchanged.
+    @MainActor
+    func testAFlavourIsNotAFruitOnceTheGroupIsChosenPerItem() throws {
+        let typed = FoodItem(manual: "Proteína Aroma Manga", kcal: 120, protein: 24)
+        let product = FoodItem(product: OFFProduct(name: "Proteína Aroma Manga", kcal100: 40, protein100: 8, carbs100: nil, fat100: nil, serving: 330))
+        for item in [typed, product] {
+            let e = item.entry(date: Fixed.saturday, minute: 600)
+            XCTAssertEqual(e.group, FoodGoals.noGroup, "the group is saved, and it is none until you choose one")
+            XCTAssertEqual(FoodGoals.count([e]), FoodGoalCounts(), "a flavour isn't a fruit")
+        }
+        var chosen = FoodItem(manual: "Manga", kcal: 60, protein: 0.5)
+        chosen.group = FoodGoals.fruit
+        XCTAssertEqual(FoodGoals.count([chosen.entry(date: Fixed.saturday, minute: 620)]).fruit, 1, "fruit when you choose it")
+        let old = FoodEntry(id: "OLD", date: Fixed.saturday, minute: 900, name: "Proteína Aroma Manga", kcal: 120, protein: 24)
+        XCTAssertEqual(FoodGoals.groups(of: old), [FoodGoals.fruit], "an old entry without a stored group keeps the name rule")
+        XCTAssertEqual(FoodGoals.groups(name: "Proteína Aroma Manga"), [FoodGoals.fruit], "the name rule itself is unchanged")
+        let store = try makeStore { $0.add(old) }
+        store.saveMeal([typed], date: Fixed.saturday, minute: 600)
+        XCTAssertEqual(store.foods(on: Fixed.saturday).count, 2)
+        XCTAssertEqual(FoodGoals.count(store.foods(on: Fixed.saturday)).fruit, 1, "only the old entry still counts as fruit")
+    }
 }
 
 // MARK: - Training
