@@ -21,6 +21,16 @@ final class TrainingUITests: CadenceUITestCase {
         XCTAssertTrue(e.exists && e.isHittable, "\(e) never became tappable", file: file, line: line)
     }
 
+    /// For what sits at the top of the workout (the rest, Pausa): back to the top first if it isn't on screen
+    @discardableResult
+    private func revealTop(_ id: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
+        let e = el(id)
+        _ = e.waitForExistence(timeout: 5)
+        var tries = 0
+        while !(e.exists && e.isHittable) && tries < 4 { app.swipeDown(velocity: .slow); tries += 1 }
+        return reveal(id, file: file, line: line)
+    }
+
     /// Before starting: with no history the weights are yours («escolhes tu»), and «Começar treino» opens the exercise
     func testBeforeStartingWithoutHistory() {
         openTraining("training.nohistory")
@@ -42,11 +52,11 @@ final class TrainingUITests: CadenceUITestCase {
         reveal("workout.log").tap() // set 1 of 2
         XCTAssertTrue(el("workout.rest").waitForExistence(timeout: 5), "a working set starts the rest")
         shot("training-rest")
-        reveal("workout.rest.skip").tap()
+        revealTop("workout.rest.skip").tap()
         reveal("workout.rir.2").tap() // the last working set asks what was left in reserve (optional)
         XCTAssertTrue(el("workout.rir.2").isSelected)
         reveal("workout.log").tap() // set 2 of 2
-        reveal("workout.rest.skip").tap()
+        revealTop("workout.rest.skip").tap()
         reveal("workout.finish").tap()
         XCTAssertTrue(el("workout.summary").waitForExistence(timeout: 5), "with sets registered, Terminar shows the summary")
         let proposal = el("workout.next.leg-extension")
@@ -68,7 +78,7 @@ final class TrainingUITests: CadenceUITestCase {
         reveal("training.start.\(template)").tap()
         reveal("workout.log").tap() // the warm-up
         reveal("workout.log").tap() // set 1 of 2
-        reveal("workout.pause").tap()
+        revealTop("workout.pause").tap()
         XCTAssertTrue(el("workout.resume").waitForExistence(timeout: 5), "paused: Retomar")
         XCTAssertTrue(el("workout.paused").exists)
         shot("training-paused")
