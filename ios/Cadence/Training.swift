@@ -60,7 +60,7 @@ final class Catalog: ObservableObject {
 
     func load(force: Bool = false) async {
         if TestMode.active { return }
-        guard force || exercises.isEmpty, !loading, let url = URL(string: "https://raw.githubusercontent.com/RepDB/exercise-dataset/main/exercises.json") else { return }
+        guard force || exercises.isEmpty || !exercises.contains(where: { $0.mechanic != nil }), !loading, let url = URL(string: "https://raw.githubusercontent.com/RepDB/exercise-dataset/main/exercises.json") else { return }
         loading = true
         defer { loading = false }
         guard let (data, _) = try? await URLSession.shared.data(from: url),

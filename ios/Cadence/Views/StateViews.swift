@@ -2,6 +2,7 @@
 // label with its own icon and word (never colour alone), the «Porquê» line, the imported-source line, an estimate
 // mark, the Aceitar · Ajustar · Ignorar trio, a segmented choice and the Desfazer bar (only the last action, 5 s).
 import SwiftUI
+import UIKit
 
 /// What a piece of information is. The first six are the system's; the rest are specialised states that keep the
 /// meaning of their family (a draft or a load in the wash is pending; unavailable or ignored is off).
@@ -147,15 +148,17 @@ struct DecisionButtons: View {
             Button(action: onAccept) {
                 Text(accept).font(.geist(13, .semibold)).foregroundStyle(Color(hex: 0x05140F))
                     .padding(.horizontal, 14).frame(minHeight: 36).background(Capsule().fill(Area.mint.gradient))
+                    .frame(minHeight: 44).contentShape(Rectangle())
             }
             if let adjust, let onAdjust {
                 Button(action: onAdjust) {
                     Text(adjust).font(.geist(13, .semibold)).foregroundStyle(Color.ink)
                         .padding(.horizontal, 14).frame(minHeight: 36).background(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                        .frame(minHeight: 44).contentShape(Rectangle())
                 }
             }
             Button(action: onIgnore) {
-                Text(ignore).font(.geist(13, .semibold)).foregroundStyle(Color.soft).padding(.horizontal, 8).frame(minHeight: 36)
+                Text(ignore).font(.geist(13, .semibold)).foregroundStyle(Color.soft).padding(.horizontal, 8).frame(minHeight: 44).contentShape(Rectangle())
             }
             Spacer(minLength: 0)
         }
@@ -174,6 +177,7 @@ struct Segments<Value: Hashable>: View {
                     Text(label).font(.geist(13, .semibold)).foregroundStyle(selection == value ? Color.ink : Color.soft)
                         .frame(maxWidth: .infinity, minHeight: 32)
                         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selection == value ? Color.white.opacity(0.12) : .clear))
+                        .frame(minHeight: 44).contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selection == value ? .isSelected : [])
@@ -195,13 +199,17 @@ final class UndoCenter: ObservableObject {
 
     @Published private(set) var current: Item?
     var seconds: Double = 5
+    /// With VoiceOver on, the bar stays longer (reaching it takes more than a glance and a tap)
+    var voiceOverSeconds: Double = 20
     private var expiry: Task<Void, Never>?
 
     func show(_ text: String, undo: @escaping () -> Void) {
         let item = Item(text: text, undo: undo)
         current = item
         expiry?.cancel()
-        let wait = seconds
+        let voiceOver = UIAccessibility.isVoiceOverRunning
+        if voiceOver { UIAccessibility.post(notification: .announcement, argument: "\(text). Desfazer disponível.") }
+        let wait = voiceOver ? max(seconds, voiceOverSeconds) : seconds
         expiry = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
             guard !Task.isCancelled else { return }

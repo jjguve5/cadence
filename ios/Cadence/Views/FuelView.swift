@@ -597,7 +597,7 @@ struct FoodConfirmView: View {
         return VStack(alignment: .leading, spacing: 10) {
             if item.units.count > 1 {
                 Segments(options: item.units.map { ($0, $0.short) }, selection: Binding(get: { item.unit }, set: { u in
-                    update(id) { $0 = $0.converted(to: u); $0.quantityConfirmed = true }
+                    update(id) { $0 = $0.converted(to: u) } // a converted amount is still the app's estimate
                 }))
                 .accessibilityIdentifier("food.item.\(id).unit")
             }

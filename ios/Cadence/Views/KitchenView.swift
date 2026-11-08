@@ -233,7 +233,7 @@ struct KitchenView: View {
                         Spacer()
                         let soon = items.min { $0.eatBy < $1.eatBy }!
                         Chip(text: soon.frozen ? "congelada" : "comer até \(Day.date(soon.eatBy).formatted(.dateTime.weekday(.abbreviated)))", color: Day.between(Day.today, soon.eatBy) <= 1 && !soon.frozen ? .warn : .soft)
-                        Button("Comer") { store.eat(soon) }.font(.geist(12.5, .semibold)).tint(.fuel)
+                        Button("Comer") { let undo = store.eat(soon); UndoCenter.shared.show("\(name): registado") { undo() } }.font(.geist(12.5, .semibold)).tint(.fuel)
                     }
                 }
             }

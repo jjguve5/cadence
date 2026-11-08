@@ -184,11 +184,22 @@ extension Store {
 
     var fridge: [Portion] { all(Portion.self).filter { $0.eaten == nil }.sorted { $0.eatBy < $1.eatBy } }
 
-    func eat(_ portion: Portion) {
+    /// «Comer»: the portion leaves the fridge and is logged as eaten. Returns its Desfazer
+    func eat(_ portion: Portion) -> () -> Void {
         var p = portion
         p.eaten = Day.today
         save(p)
-        if let r = record(Recipe.self, p.recipeId) { logFood(FoodEntry(name: r.name, kcal: r.kcal, protein: r.protein)) }
+        var entry: FoodEntry?
+        if let r = record(Recipe.self, p.recipeId) {
+            let e = FoodEntry(name: r.name, kcal: r.kcal, protein: r.protein)
+            logFood(e)
+            entry = e
+        }
+        return { [weak self] in
+            guard let self else { return }
+            self.save(portion)
+            if let entry { self.remove(entry) }
+        }
     }
 
     /// Days until each pantry item runs out, from how fast you use it (routines count: the shake every 2 days uses whey)
@@ -253,7 +264,7 @@ extension Store {
 
     /// The same product, whatever the source: the name without case or surrounding spaces
     nonisolated static func productKey(_ name: String) -> String {
-        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        name.trimmingCharacters(in: .whitespacesAndNewlines).folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil).lowercased()
     }
 
     /// One line for two sources of the same product: the first line's id, name and aisle; the larger quantity when

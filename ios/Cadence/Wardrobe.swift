@@ -217,14 +217,15 @@ extension Store {
         save(OutfitLog(date: day, items: items.map(\.id), worn: true))
     }
 
-    /// One use, counted only when you confirm you wore it: at the wash limit the piece goes for washing
+    /// One use, counted only when you confirm you wore it. At its wash limit the piece stays where it is and shows as
+    /// «Sugerida para lavar» (Garment.stage); only «Para lavar» sends it to the laundry (design v17, decision 96)
     private func countWear(_ garment: Garment, on day: String) {
         var g = garment
         g.wears += 1
         g.totalWears += 1
         g.accepted += 1
         g.lastWorn = day
-        g.state = g.wears >= g.wearsBeforeWash ? "wash" : "worn"
+        g.state = "worn"
         save(g)
     }
 
@@ -335,6 +336,12 @@ extension Store {
             g.washing = nil
             save(g)
         }
+        // nothing of the group left in the machine: no «estender» reminder for it (a value the reminder ignores)
+        for group in Set(items.map(\.washGroup)) where !garments.contains(where: { $0.washGroup == group && $0.washing == true }) {
+            let id = "\(Day.today)-\(group)"
+            if case .number = records("laundry")[id] { put("laundry", id, .bool(false)) }
+        }
+        Reminders.shared.reschedule()
     }
 
     /// A load to plan (Planear lavagem): the group's pieces for washing whose care you set yourself, and the pieces

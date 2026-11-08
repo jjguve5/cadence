@@ -105,7 +105,7 @@ final class FoodUnitTests: XCTestCase {
     /// The group comes from the food: every catalogue fruit is fruit, and no catalogue food counts for less than its
     /// name did until now
     func testCatalogueFoodsCountForTheirOwnGroup() {
-        XCTAssertEqual(common("Tangerine").goals, FoodGoals.fruit)
+        XCTAssertEqual(common("Tangerina").goals, FoodGoals.fruit)
         XCTAssertEqual(common("Sopa de legumes").goals, FoodGoals.soup)
         XCTAssertEqual(common("Salada mista").goals, FoodGoals.veg)
         XCTAssertEqual(common("Batido de proteína").goals, FoodGoals.noGroup)
@@ -198,7 +198,9 @@ final class FoodConfirmationTests: RegressionCase {
         XCTAssertEqual(again.group, FoodGoals.noGroup)
         // older entries without a stored group: a catalogue food takes the catalogue's group, anything else what its
         // name counted as until now
-        XCTAssertEqual(FoodItem.again(FoodEntry(date: Fixed.monday, minute: 500, name: "Tangerine", kcal: 70, protein: 1)).group, FoodGoals.fruit)
+        XCTAssertEqual(FoodItem.again(FoodEntry(date: Fixed.monday, minute: 500, name: "Tangerina", kcal: 70, protein: 1)).group, FoodGoals.fruit)
+        // logged as "Tangerine" before phase 2.3 renamed it: no catalogue match, and the name rule never counted it
+        XCTAssertEqual(FoodItem.again(FoodEntry(date: Fixed.monday, minute: 500, name: "Tangerine", kcal: 70, protein: 1)).group, FoodGoals.noGroup)
         XCTAssertEqual(FoodItem.again(FoodEntry(date: Fixed.monday, minute: 500, name: "Iogurte com banana", kcal: 150, protein: 8)).group, FoodGoals.fruit)
         XCTAssertEqual(FoodItem.again(FoodEntry(date: Fixed.monday, minute: 500, name: "Bacalhau", kcal: 400, protein: 30)).group, FoodGoals.noGroup)
     }

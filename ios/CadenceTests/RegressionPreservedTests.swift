@@ -434,12 +434,18 @@ final class RegressionWardrobeTests: RegressionCase {
         XCTAssertEqual(log.items, ["T1"])
     }
 
+    /// Changed in phase 2.10 by the design v17 (decision 96: «Sugerida para lavar», and states change explicitly): at
+    /// its limit the piece is suggested for washing, no longer moved there by itself; it still isn't offered in outfits
     @MainActor
-    func testReachingTheWashLimitMovesThePieceToWash() throws {
+    func testReachingTheWashLimitSuggestsWashing() throws {
         let store = try makeStore { $0.add(Garment(id: "T2", name: "Training T-shirt", type: "gym", wearsBeforeWash: 2, wears: 1, state: "worn")) }
         let shirt = try XCTUnwrap(store.record(Garment.self, "T2"))
         store.wear([shirt], on: Fixed.saturday)
-        XCTAssertEqual(store.record(Garment.self, "T2")?.state, "wash")
+        let after = try XCTUnwrap(store.record(Garment.self, "T2"))
+        XCTAssertEqual(after.state, "worn")
+        XCTAssertEqual(after.wears, 2)
+        XCTAssertEqual(after.stage, .suggested)
+        XCTAssertFalse(store.outfit(for: Fixed.sunday).map(\.id).contains("T2"), "at its limit, never offered")
     }
 
     @MainActor

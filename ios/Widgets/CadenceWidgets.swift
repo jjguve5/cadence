@@ -43,7 +43,7 @@ struct WorkoutLiveActivity: Widget {
                             Text(timerInterval: Date()...end, countsDown: true).font(.headline.monospacedDigit()).foregroundStyle(coral)
                         }
                         Spacer()
-                        Button(intent: WorkoutIntent(.done)) { Label("Feito", systemImage: "checkmark") }.tint(good)
+                        Button(intent: WorkoutIntent(.done)) { Label("Série feita", systemImage: "checkmark") }.tint(good) // logs a set, as «Registar série»
                     }
                 }
             } compactLeading: {
@@ -82,7 +82,7 @@ struct LockScreenWorkout: View {
             HStack(spacing: 4) {
                 button("−2.5", .weightDown)
                 button("−1 rep", .repDown)
-                Button(intent: WorkoutIntent(.done)) { Text("Concluído ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good)
+                Button(intent: WorkoutIntent(.done)) { Text("Série feita ✓").font(.caption.bold()).frame(maxWidth: .infinity) }.tint(good) // logs a set; «Concluído» closes the workout
                 button("+1 rep", .repUp)
                 button("+2.5", .weightUp)
             }

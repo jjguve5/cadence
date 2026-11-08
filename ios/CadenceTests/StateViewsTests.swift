@@ -56,4 +56,12 @@ final class StateViewsTests: XCTestCase {
         center.undo()
         XCTAssertEqual(undone, 0)
     }
+
+    /// Desfazer lasts 5 s (design: «dura 5 s»), longer only with VoiceOver on
+    @MainActor
+    func testUndoLastsFiveSeconds() {
+        let center = UndoCenter()
+        XCTAssertEqual(center.seconds, 5)
+        XCTAssertGreaterThan(center.voiceOverSeconds, center.seconds)
+    }
 }

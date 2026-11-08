@@ -9,6 +9,7 @@ enum TodaySeeds {
         let today = Day.today
         let now = TestMode.minute ?? Day.minuteOfDay()
         let iso = ISO8601DateFormatter()
+        if scenario.hasPrefix("today.") { UndoCenter.shared.seconds = 20 } // UI tests only; the app's 5 s is pinned by StateViewsTests
         switch scenario {
         case "today.urgent":
             // An event with a place in 40 min and no regular trip to it: leave 30 min before, so in 10 min
