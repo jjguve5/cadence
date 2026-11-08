@@ -45,7 +45,7 @@ extension Store {
         }
         for p in due(on: day) {
             let st = status(p, on: day)
-            items.append(PlanItem(id: p.id, minute: time(of: p, on: day), title: p.title, detail: st == nil ? (time(of: p, on: day) > plan.perform && p.schedule.minute >= 240 ? "depois de apagar as luzes: muda-o em Hábitos" : p.kind == .mustDo ? "obrigatório" : p.schedule.summary) : st == .skipped ? "saltado" : "feito", icon: p.icon, color: p.kind == .mustDo ? .warn : .mint, promise: p))
+            items.append(PlanItem(id: p.id, minute: time(of: p, on: day), title: p.title, detail: st == nil ? (time(of: p, on: day) > plan.perform && p.schedule.minute >= 240 ? "depois de apagar as luzes: muda-o em Hábitos" : p.kind == .mustDo ? "essencial" : p.schedule.summary) : st == .skipped ? "saltado" : "feito", icon: p.icon, color: p.kind == .mustDo ? .warn : .mint, promise: p))
         }
         return items.sorted { ($0.minute < 240 ? $0.minute + 1440 : $0.minute) < ($1.minute < 240 ? $1.minute + 1440 : $1.minute) }
     }

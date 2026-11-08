@@ -92,7 +92,7 @@ final class MealBuilderTests: XCTestCase {
         d.protein = "pork-loin"
         d.method = .grilled
         XCTAssertFalse(MealBuilder.name(d).contains("Bitoque"))
-        XCTAssertTrue(MealBuilder.name(d).hasPrefix("Pork loin grilled"), MealBuilder.name(d))
+        XCTAssertTrue(MealBuilder.name(d).hasPrefix("Lombo de porco grelhado"), MealBuilder.name(d))
     }
 
     func testSaveLogsThePlateAndEachAddOn() {
@@ -188,16 +188,16 @@ final class FoodGoalsTests: XCTestCase {
     func testGoalsMetAndWhatIsLeft() {
         XCTAssertEqual(FoodGoals.goalsMet(FoodGoalCounts()), 0)
         XCTAssertEqual(FoodGoals.goalsMet(FoodGoalCounts(fruit: 2, soup: 0, veg: 3)), 2)
-        XCTAssertEqual(FoodGoals.missing(FoodGoalCounts()), ["2 pieces of fruit", "1 mug of soup", "2 portions of veg"])
-        XCTAssertEqual(FoodGoals.missing(FoodGoalCounts(fruit: 1, soup: 1, veg: 2)), ["1 piece of fruit"])
+        XCTAssertEqual(FoodGoals.missing(FoodGoalCounts()), ["2 peças de fruta", "1 sopa", "2 porções de legumes"])
+        XCTAssertEqual(FoodGoals.missing(FoodGoalCounts(fruit: 1, soup: 1, veg: 2)), ["1 peça de fruta"])
         XCTAssertTrue(FoodGoals.missing(FoodGoalCounts(fruit: 5, soup: 1, veg: 2)).isEmpty)
     }
 
     func testLineRecommendsThenCheersThenCelebrates() {
-        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(), minute: 9 * 60).contains("at least 2 pieces of fruit"))
-        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 1), minute: 18 * 60).contains("soup"))
-        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 2, soup: 1, veg: 1), minute: 12 * 60).contains("1 portion of veg"))
-        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 2, soup: 1, veg: 2), minute: 12 * 60).hasPrefix("All done"))
+        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(), minute: 9 * 60).contains("pelo menos 2 peças de fruta"))
+        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 1), minute: 18 * 60).contains("sopa"))
+        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 2, soup: 1, veg: 1), minute: 12 * 60).contains("1 porção de legumes"))
+        XCTAssertTrue(FoodGoals.line(FoodGoalCounts(fruit: 2, soup: 1, veg: 2), minute: 12 * 60).hasPrefix("Tudo feito"))
     }
 
     func testProteinSittingsMergeWithinAnHour() {
@@ -206,12 +206,12 @@ final class FoodGoalsTests: XCTestCase {
     }
 
     func testProteinHint() {
-        XCTAssertTrue(FoodGoals.proteinHint([], target: 160).contains("about 40 g"))
+        XCTAssertTrue(FoodGoals.proteinHint([], target: 160).contains("cerca de 40 g"))
         let one = [food("Eggs", minute: 480, protein: 30)]
         let hint = FoodGoals.proteinHint(one, target: 160)
-        XCTAssertTrue(hint.contains("1 of 3"), hint)
-        XCTAssertTrue(hint.contains("about 60 g"), hint)
-        XCTAssertTrue(FoodGoals.proteinHint([food("Lots", protein: 170)], target: 160).hasPrefix("Protein done"))
+        XCTAssertTrue(hint.contains("1 de 3"), hint)
+        XCTAssertTrue(hint.contains("cerca de 60 g"), hint)
+        XCTAssertTrue(FoodGoals.proteinHint([food("Lots", protein: 170)], target: 160).hasPrefix("Meta de proteína cumprida"))
     }
 
     func testOldSavedDataStillDecodes() throws {
@@ -227,10 +227,10 @@ final class FoodGoalsTests: XCTestCase {
 
     func testCatalogueLookupsKeepTheirFirstMatch() {
         XCTAssertEqual(FoodSearch.local("banana").first?.name, "Banana")
-        XCTAssertEqual(FoodSearch.local("greek yogurt").first?.name, "Greek yogurt")
-        XCTAssertEqual(FoodSearch.local("scrambled eggs").first?.name, "Scrambled eggs")
-        XCTAssertEqual(FoodSearch.local("egg").first?.name, "Egg, boiled or fried")
-        XCTAssertEqual(FoodSearch.local("soup").first?.name, "Soup")
+        XCTAssertEqual(FoodSearch.local("greek yogurt").first?.name, "Iogurte grego")
+        XCTAssertEqual(FoodSearch.local("scrambled eggs").first?.name, "Ovos mexidos")
+        XCTAssertEqual(FoodSearch.local("egg").first?.name, "Ovo")
+        XCTAssertEqual(FoodSearch.local("soup").first?.name, "Sopa")
         XCTAssertEqual(Set(commonFoods.map(\.name)).count, commonFoods.count)
     }
 }

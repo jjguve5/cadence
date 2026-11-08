@@ -87,12 +87,12 @@ final class CadenceUITests: XCTestCase {
     /// phase 2.3 (European Portuguese): these are the only lines to update then. Amounts, counts and times are checked
     /// separately in the tests and stay the same in both languages.
     private enum UIText {
-        static let staleSync = "3 days"       // stale data: days since the band last synced
-        static let groceries = "Groceries"    // the spending category quick capture picks for "groceries"
-        static let undone = "Undone"          // quick capture after Undo
-        static let logPrefix = "Log"          // quick capture summary for food
-        static let threeFoods = "3 foods"     // "2 eggs and a banana" saved
-        static let fourteenPairs = "14 pairs" // calibration sample size
+        static let staleSync = "3 dias"       // stale data: days since the band last synced
+        static let groceries = "Supermercado"    // the spending category quick capture picks for "groceries"
+        static let undone = "Desfeito"          // quick capture after Undo
+        static let logPrefix = "Registar"          // quick capture summary for food
+        static let threeFoods = "3 alimentos"     // "2 eggs and a banana" saved
+        static let fourteenPairs = "14 pares" // calibration sample size
     }
 
     private func shot(_ name: String, _ a: XCUIApplication) {

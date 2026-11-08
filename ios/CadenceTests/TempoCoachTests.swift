@@ -101,7 +101,7 @@ final class TempoCoachTests: XCTestCase {
     func testPhaseAndProgressInsideARep() {
         let early = simple.frame(elapsed: 1.5, target: 10)
         XCTAssertEqual(early.phaseIndex, 0)
-        XCTAssertEqual(early.phase.word, "Lower")
+        XCTAssertEqual(early.phase.word, "Desce")
         XCTAssertEqual(early.progress, 0.5, accuracy: 0.0001)
         XCTAssertEqual(early.position, 0.5, accuracy: 0.0001)
         let late = simple.frame(elapsed: 3.5, target: 10)
@@ -139,21 +139,21 @@ final class TempoCoachTests: XCTestCase {
 
     func testCues() {
         let first = simple.frame(elapsed: 0, target: 3)
-        XCTAssertEqual(simple.cue(from: nil, to: first, speakBreath: true), "1. in")
+        XCTAssertEqual(simple.cue(from: nil, to: first, speakBreath: true), "1. inspira")
         XCTAssertEqual(simple.cue(from: nil, to: first, speakBreath: false), "1")
         XCTAssertNil(simple.cue(from: first, to: simple.frame(elapsed: 1, target: 3), speakBreath: true), "same phase, nothing new to say")
         let lift = simple.frame(elapsed: 3, target: 3)
-        XCTAssertEqual(simple.cue(from: first, to: lift, speakBreath: true), "out")
+        XCTAssertEqual(simple.cue(from: first, to: lift, speakBreath: true), "expira")
         XCTAssertNil(simple.cue(from: first, to: lift, speakBreath: false))
         let done = simple.frame(elapsed: 12, target: 3)
-        XCTAssertEqual(simple.cue(from: lift, to: done, speakBreath: false), "Done")
+        XCTAssertEqual(simple.cue(from: lift, to: done, speakBreath: false), "Feito")
         XCTAssertNil(simple.cue(from: done, to: done, speakBreath: false))
     }
 
     func testCueCatchesUpWithoutABacklog() {
         let before = simple.frame(elapsed: 1, target: 10)
         let after = simple.frame(elapsed: 25, target: 10)
-        XCTAssertEqual(simple.cue(from: before, to: after, speakBreath: true), "7. in", "only the rep it is on now")
+        XCTAssertEqual(simple.cue(from: before, to: after, speakBreath: true), "7. inspira", "only the rep it is on now")
     }
 
     func testTimedCuesCountEveryFiveAndTheLastThree() {
@@ -162,7 +162,7 @@ final class TempoCoachTests: XCTestCase {
         XCTAssertNil(cue(1.5, 2.5))
         XCTAssertEqual(cue(4.5, 5.5), "5")
         XCTAssertEqual(cue(26.5, 27.5), "27")
-        XCTAssertEqual(cue(29.5, 30.5), "Done")
+        XCTAssertEqual(cue(29.5, 30.5), "Feito")
     }
 
     func testTypedWeights() {

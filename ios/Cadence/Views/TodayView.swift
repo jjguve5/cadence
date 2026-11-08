@@ -169,7 +169,7 @@ struct TodayView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Eyebrow(text: "A seguir", icon: "play")
                             Text(next.title).font(.geist(16, .bold))
-                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "obrigatório" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
+                            Text("\(store.timeLabel(next)) · \(next.kind == .mustDo ? "essencial" : next.schedule.summary)").font(.geist(12.5)).foregroundStyle(Color.soft)
                         }
                         Spacer()
                         let brush = next.title.lowercased().contains("brush"), read = next.title.lowercased().hasPrefix("read")
@@ -292,7 +292,7 @@ struct PromiseRow: View {
                 Button { if insideSheet { brushing = true } else { store.brushingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color(hex: 0x5FE3D0)) }.buttonStyle(.plain)
             } else if status == nil, promise.title.lowercased().hasPrefix("read") {
                 Button { if insideSheet { reading = true } else { store.readingOpen = true } } label: { Image(systemName: "play.circle.fill").font(.geist(24)).foregroundStyle(Color.read) }.buttonStyle(.plain)
-            } else if promise.kind == .mustDo { Chip(text: "obrigatório", color: status == nil ? .warn : .good) }
+            } else if promise.kind == .mustDo { Chip(text: "essencial", color: status == nil ? .warn : .good) }
             else if store.isMinimumDay(day) { Chip(text: "opcional hoje", color: .faint) }
             else { Chip(text: promise.schedule.summary, color: .soft) }
         }

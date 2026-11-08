@@ -63,7 +63,7 @@ final class FreshnessAndConflictTests: XCTestCase {
     }
 
     func testNoSyncForOneThreeAndSevenDaysSaysSoAtAnyHour() {
-        for (hours, words) in [(26.0, "1 day"), (74, "3 days"), (170, "7 days")] {
+        for (hours, words) in [(26.0, "1 dia"), (74, "3 dias"), (170, "7 dias")] {
             for minute in [8 * 60, 15 * 60, 21 * 60] {
                 let recs = Engine.recommendations(context { $0.lastSyncHours = hours; $0.minute = minute; $0.sleepMinutes = nil })
                 let sync = recs.first { $0.kind == "sync" }
@@ -126,7 +126,7 @@ final class FreshnessAndConflictTests: XCTestCase {
         let recs = Engine.recommendations(context { $0.sleepDebt = 240; $0.minute = 20 * 60 })
         let bed = recs.first { $0.kind == "bedtime" }
         XCTAssertNotNil(bed)
-        XCTAssertTrue(bed!.evidence.joined().contains("estimate"))
+        XCTAssertTrue(bed!.evidence.joined().contains("estimativa"))
     }
 }
 
@@ -236,26 +236,26 @@ final class CaptureHardeningTests: XCTestCase {
         let i = QuickCapture.parse("Remind me to buy stamps tomorrow", today: today)
         guard case .reminder(_, _, let m) = i else { return XCTFail() }
         XCTAssertNil(m)
-        XCTAssertTrue(i.summary.hasPrefix("Task"), i.summary)
+        XCTAssertTrue(i.summary.hasPrefix("Tarefa"), i.summary)
     }
 
     func testCountsRepeatTheSingleItem() {
         guard case .food(let f, let rest) = QuickCapture.parse("Ate 2 eggs and a banana", today: today) else { return XCTFail() }
         XCTAssertEqual(f.count, 3)
-        XCTAssertEqual(f.filter { $0.name.hasPrefix("Egg") }.count, 2, f.map(\.name).joined(separator: ","))
+        XCTAssertEqual(f.filter { $0.name.hasPrefix("Ovo") }.count, 2, f.map(\.name).joined(separator: ","))
         XCTAssertTrue(rest.isEmpty)
     }
 
     func testUnknownFoodSavesNothing() {
         let i = QuickCapture.parse("Ate xyzzyfood", today: today)
         XCTAssertFalse(i.savesSomething)
-        XCTAssertTrue(i.summary.contains("Nothing will be saved"), i.summary)
+        XCTAssertTrue(i.summary.contains("Nada vai ser guardado"), i.summary)
     }
 
     func testPartlyKnownFoodSaysWhatIsLeftOut() {
         let i = QuickCapture.parse("Ate a banana and xyzzyfood", today: today)
         XCTAssertTrue(i.savesSomething)
-        XCTAssertTrue(i.summary.contains("Not saved"), i.summary)
+        XCTAssertTrue(i.summary.contains("Não vai ser guardado"), i.summary)
     }
 
     func testAmbiguousTextBecomesATaskNotAGuess() {
@@ -327,11 +327,11 @@ final class EveningAfterTripTests: XCTestCase {
     func testBedtimeAdviceIsRealisticAfterATrip() {
         let c = FreshnessAndConflictTests().context { $0.sleepDebt = 600; $0.minute = 17 * 60; $0.eveningAfter = (title: "Porto", back: 21 * 60 + 30, lightsOut: 22 * 60 + 20) }
         let bed = Engine.recommendations(c).first { $0.kind == "bedtime" }
-        XCTAssertEqual(bed?.title, "Straight to wind-down after Porto")
+        XCTAssertEqual(bed?.title, "Desacelerar logo a seguir a Porto")
         XCTAssertEqual(bed?.action, RecAction.none)
         XCTAssertTrue(bed?.why.contains("22:20") == true, bed?.why ?? "")
         let normal = Engine.recommendations(FreshnessAndConflictTests().context { $0.sleepDebt = 600; $0.minute = 17 * 60 }).first { $0.kind == "bedtime" }
-        XCTAssertEqual(normal?.title, "Lights out 30 minutes earlier tonight")
+        XCTAssertEqual(normal?.title, "Apagar as luzes 30 minutos mais cedo esta noite")
     }
 }
 
@@ -374,7 +374,7 @@ final class ShowerTests: XCTestCase {
     func testTooLateOrTooHotMeansTomorrowMorning() {
         let late = ShowerRules.suggest(now: 22 * 60 + 30, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: true, wake: 420, leaveTomorrow: nil)
         XCTAssertEqual(late.0, .morning)
-        XCTAssertTrue(late.1.hasPrefix("Too late"), late.1)
+        XCTAssertTrue(late.1.hasPrefix("Já é tarde"), late.1)
         let hot = ShowerRules.suggest(now: 17 * 60, windDown: 22 * 60, lightsOut: 22 * 60 + 35, eveningAfter: nil, movedToday: true, wake: 420, leaveTomorrow: nil, nightFeels: 26.4)
         XCTAssertEqual(hot.0, .morning)
         XCTAssertTrue(hot.1.contains("26°"), hot.1)

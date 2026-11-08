@@ -413,7 +413,7 @@ extension Store {
         if let t = health[Day.today]?.temp, t >= 0.8, let rhr = health[Day.today]?.rhr, let b = baseline({ $0.rhr }), rhr > b.mean + 4 {
             out.append(MoodReason(text: "A temperatura e a FC em repouso estão ambas acima do normal: podes estar a ficar doente. Vai com calma.", good: false))
         }
-        for m in openMustDos() { out.append(MoodReason(text: "\(m.title): obrigatório hoje, às \(timeLabel(m)).", good: nil)) }
+        for m in openMustDos() { out.append(MoodReason(text: "\(m.title): essencial hoje, às \(timeLabel(m)).", good: nil)) }
         return out
     }
 }

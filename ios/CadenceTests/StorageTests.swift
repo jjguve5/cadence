@@ -447,7 +447,7 @@ final class StorageTests: XCTestCase {
     func testSessionsReadOlderAndEmptyListFieldsButNeverShowUnreadableSetsAsNone() throws {
         let decode = { (json: String) in try JSONDecoder().decode(WorkoutSession.self, from: Data(json.utf8)) }
         let older = try decode(#"{"id":"S1","order":[]}"#)
-        XCTAssertEqual(older.name, "Workout")
+        XCTAssertEqual(older.name, "Treino")
         XCTAssertTrue(older.sets.isEmpty)
         XCTAssertEqual(try decode(#"{"id":"S2","name":"Pernas","order":[],"sets":[],"notes":[]}"#).notes, [:]) // PHP's empty object
         XCTAssertThrowsError(try decode(#"{"id":"S3","order":[],"sets":"x"}"#))

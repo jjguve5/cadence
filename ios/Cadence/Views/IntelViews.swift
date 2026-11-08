@@ -196,7 +196,7 @@ struct LearnedView: View {
                 ForEach(n, id: \.kind) { k in
                     HStack { Text(kindName(k.kind)).font(.geist(13.5)); Spacer(); Text("\(Int((1 - k.rate) * 100))% respondidas · \(k.n)").font(.mono(12)).foregroundStyle(k.rate >= 0.7 ? Color.warn : Color.soft) }
                 }
-                Text("Os tipos que descartas 70% das vezes descem de prioridade; a 90% deixam de aparecer. Obrigatórios, medicamentos e avisos de saída nunca.").font(.geist(11)).foregroundStyle(Color.faint)
+                Text("Os tipos que descartas 70% das vezes descem de prioridade; a 90% deixam de aparecer. Essenciais, medicamentos e avisos de saída nunca.").font(.geist(11)).foregroundStyle(Color.faint)
             }
         }
         .navigationTitle("O que o Cadence aprendeu")

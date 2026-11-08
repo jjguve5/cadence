@@ -29,7 +29,7 @@ final class ReadinessTests: XCTestCase {
     func testMissingSleepLowersConfidenceAndSaysSo() {
         let r = Engine.readiness(hrv: 60, hrvBase: hb, rhr: 55, rhrBase: rb, sleepMinutes: nil, sleepNeed: 465)!
         XCTAssertEqual(r.confidence, .moderate)
-        XCTAssertTrue(r.notes.contains { $0.contains("sleep") })
+        XCTAssertTrue(r.notes.contains { $0.contains("sono") })
     }
 
     func testYesterdaySoftensASingleNight() {
@@ -70,14 +70,14 @@ final class RecommendationTests: XCTestCase {
         let recs = Engine.recommendations(context { $0.sleepMinutes = 330; $0.deepWorkPlanned = true; $0.trainingToday = "Friday" })
         let focus = recs.first { $0.kind == "focus" }
         XCTAssertNotNil(focus)
-        XCTAssertTrue(focus!.why.contains("Keep Friday"))
+        XCTAssertTrue(focus!.why.contains("Mantém Friday"))
     }
 
     func testLowReadinessNeverCutsTheSessionByItself() {
         let recs = Engine.recommendations(context { $0.trainingToday = "Monday"; $0.readiness = ReadinessResult(score: 40, confidence: .high, hrvZ: -1.5, rhrZ: 1.2, sleepRatio: 1, notes: []) })
         let r = recs.first { $0.kind == "trainfeel" }!
         XCTAssertEqual(r.action, .trainByFeel)
-        XCTAssertTrue(r.why.contains("stays on the plan"))
+        XCTAssertTrue(r.why.contains("continua no plano"))
     }
 
     func testLateMustDoComesFirst() {
@@ -116,20 +116,20 @@ final class CalibrationTests: XCTestCase {
     func testTooFewPairsSaysSo() {
         let c = Engine.calibrate([(1, 2), (2, 3)])
         XCTAssertNil(c.spearman)
-        XCTAssertTrue(c.verdict.contains("of 10"))
+        XCTAssertTrue(c.verdict.contains("de 10"))
     }
 
     func testAGoodPredictorIsRecognised() {
         let pairs = (1...20).map { (predicted: Double($0 % 5 + 1), observed: Double($0 % 5 + 1)) }
         let c = Engine.calibrate(pairs)
         XCTAssertGreaterThan(c.spearman ?? 0, 0.9)
-        XCTAssertTrue(c.verdict.hasPrefix("Useful"))
+        XCTAssertTrue(c.verdict.hasPrefix("Útil"))
     }
 
     func testNoiseIsNotUseful() {
         let observed: [Double] = [3, 1, 4, 1, 5, 2, 2, 3, 5, 4, 1, 3]
         let predicted: [Double] = [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3.1]
-        XCTAssertFalse(Engine.calibrate(Array(zip(predicted, observed)).map { (predicted: $0.0, observed: $0.1) }).verdict.hasPrefix("Useful"))
+        XCTAssertFalse(Engine.calibrate(Array(zip(predicted, observed)).map { (predicted: $0.0, observed: $0.1) }).verdict.hasPrefix("Útil"))
     }
 
     func testSpearmanHandlesTies() {
@@ -141,7 +141,7 @@ final class ExperimentTests: XCTestCase {
     func testClearChangeAndHonestWording() {
         let r = Engine.experiment(before: [400, 410, 395, 405, 400, 398, 402], during: [440, 450, 445, 438, 442, 447, 450])!
         XCTAssertGreaterThan(r.effectSize, 0.8)
-        XCTAssertTrue(r.summary.contains("not proof"))
+        XCTAssertTrue(r.summary.contains("não uma prova"))
     }
 
     func testNeedsEnoughDays() {
@@ -154,7 +154,7 @@ final class QuickCaptureTests: XCTestCase {
 
     func testFood() {
         guard case .food(let foods, _) = QuickCapture.parse("Ate Greek yogurt and a banana", today: today) else { return XCTFail() }
-        XCTAssertEqual(Set(foods.map(\.name)), ["Greek yogurt", "Banana"])
+        XCTAssertEqual(Set(foods.map(\.name)), ["Iogurte grego", "Banana"])
     }
 
     func testSpending() {

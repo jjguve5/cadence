@@ -10,7 +10,7 @@ struct PromisesView: View {
             ForEach([PromiseKind.mustDo, .routine], id: \.self) { kind in
                 let items = store.promises.values.filter { $0.kind == kind }.sorted { store.time(of: $0) < store.time(of: $1) }
                 if !items.isEmpty {
-                    Section(kind == .mustDo ? "Obrigatórios" : "Rotinas") {
+                    Section(kind == .mustDo ? "Essenciais" : "Rotinas") {
                         ForEach(items) { p in
                             Button { editing = p } label: {
                                 HStack(spacing: 12) {
@@ -58,7 +58,7 @@ struct PromiseEditor: View {
                     Picker("Tipo", selection: $promise.kind) { ForEach(PromiseKind.allCases, id: \.self) { Text($0.label).tag($0) } }
                     Toggle("Ativo", isOn: $promise.active)
                 } footer: {
-                    Text(promise.kind == .mustDo ? "Um obrigatório avisa à hora marcada, outra vez 90 e 150 minutos depois, e o desacelerar espera até responderes." : "Uma rotina avisa uma vez, dentro do teu limite de notificações.")
+                    Text(promise.kind == .mustDo ? "Um essencial avisa à hora marcada, outra vez 90 e 150 minutos depois, e o desacelerar espera até responderes." : "Uma rotina avisa uma vez, dentro do teu limite de notificações.")
                 }
                 Section("Quando") {
                     Picker("Repete", selection: $promise.schedule.rule) { ForEach(Schedule.Rule.allCases, id: \.self) { Text($0.label).tag($0) } }

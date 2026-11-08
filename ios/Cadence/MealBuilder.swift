@@ -31,6 +31,19 @@ enum CookMethod: String, CaseIterable, Codable {
         }
     }
 
+    /// The method after a food's name, agreeing with it in gender and number by the food's first word ("Pescada
+    /// cozida", "Febras grelhadas", "Ovos mexidos", "Lombo de porco grelhado"): -as feminine plural, -os masculine
+    /// plural, -a feminine; "carne" is feminine too; anything else masculine
+    func after(_ food: String) -> String {
+        let head = (food.split(separator: " ").first.map(String.init) ?? food).lowercased()
+        let word = label.lowercased()
+        let stem = String(word.dropLast(word.hasSuffix("os") ? 2 : 1))
+        if head.hasSuffix("as") { return stem + "as" }
+        if head.hasSuffix("os") { return stem + "os" }
+        if head.hasSuffix("a") || head == "carne" { return stem + "a" }
+        return stem + "o"
+    }
+
     var added: Macros {
         switch self {
         case .grilled: return Macros(kcal: 14, fat: 1.5)
@@ -339,7 +352,7 @@ enum MealBuilder {
         } else {
             var parts: [String] = []
             if let id = d.protein, let p = protein(id) {
-                let method = effectiveMethod(d).map { " " + $0.label.lowercased() } ?? ""
+                let method = effectiveMethod(d).map { " " + $0.after(p.name) } ?? ""
                 parts.append(p.name + method)
             }
             for b in bases where d.bases.contains(b.id) { parts.append(b.name) }

@@ -85,10 +85,10 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
                     // the follow-ups stop at wind-down, which names what's still open
                     for (k, (after, title)) in asks.enumerated() where k == 0 || at.addingTimeInterval(Double(after) * 60) < wind {
                         let w = store.week(promise, upTo: day)
-                        planned.append(Planned(id: "p|\(promise.id)|\(day)|\(k)", at: at.addingTimeInterval(Double(after) * 60), title: title, body: "Obrigatório · \(w.done)/\(w.total) esta semana", priority: 0, promise: true))
+                        planned.append(Planned(id: "p|\(promise.id)|\(day)|\(k)", at: at.addingTimeInterval(Double(after) * 60), title: title, body: "Essencial · \(w.done)/\(w.total) esta semana", priority: 0, promise: true))
                     }
                 } else if !quiet(at) {
-                    let body = promise.tiny.map { "Pouco tempo? \($0)." } ?? promise.schedule.summary.capitalized
+                    let body = promise.tiny.map { "Pouco tempo? \($0)." } ?? { () -> String in let s = promise.schedule.summary; return s.prefix(1).uppercased() + s.dropFirst() }() // only the first letter: .capitalized gave "Todos Os Dias"
                     let startable = promise.title.lowercased().contains("brush") || promise.title.lowercased().hasPrefix("read")
                     planned.append(Planned(id: "p|\(promise.id)|\(day)|0", at: at, title: promise.title, body: body, priority: 2, promise: true, category: startable ? "startable" : nil))
                 }

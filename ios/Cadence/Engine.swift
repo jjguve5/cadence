@@ -236,14 +236,14 @@ enum Engine {
 
         // Safety and commitments first: deterministic
         for m in c.openMustDos where m.late {
-            out.append(Recommendation(kind: "mustdo", title: "\(m.title) agora", why: "É obrigatório e a hora já passou.", evidence: ["Marcado para mais cedo hoje, ainda sem resposta"], confidence: .high, action: .doMustDo(m.title), actionLabel: "Concluído", priority: 100))
+            out.append(Recommendation(kind: "mustdo", title: "\(m.title) agora", why: "É essencial e a hora já passou.", evidence: ["Marcado para mais cedo hoje, ainda sem resposta"], confidence: .high, action: .doMustDo(m.title), actionLabel: "Concluído", priority: 100))
             break
         }
 
         // A lighter day, offered, never imposed
         let reasons = minimumDayReasons(c)
         if !c.minimumDay, !reasons.isEmpty, morning || c.minute < 16 * 60 {
-            out.append(Recommendation(kind: "minimumday", title: "Fazer de hoje um dia mínimo", why: "Fica o essencial, sai o opcional, e conta como um dia completo. Medicamentos e obrigatórios ficam como estão.", evidence: reasons, confidence: reasons.count >= 2 ? .high : .moderate, action: .offerMinimumDay, actionLabel: "Ativar", priority: 90))
+            out.append(Recommendation(kind: "minimumday", title: "Fazer de hoje um dia mínimo", why: "Fica o essencial, sai o opcional, e conta como um dia completo. Medicamentos e essenciais ficam como estão.", evidence: reasons, confidence: reasons.count >= 2 ? .high : .moderate, action: .offerMinimumDay, actionLabel: "Ativar", priority: 90))
         }
 
         // Short sleep with important work: protect the best focus window

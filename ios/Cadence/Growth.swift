@@ -241,7 +241,7 @@ extension Store {
         let focusHours = all(FocusSession.self).map(\.minutes).reduce(0, +) / 60
         return [
             ("100 kg levantados", "dumbbell.fill", lifts.contains { $0 >= 100 }), ("10 livros", "books.vertical.fill", books >= 10),
-            ("30 noites de 7 h", "moon.stars.fill", goodNights >= 30), ("100 obrigatórios", "checkmark.seal.fill", mustDos >= 100),
+            ("30 noites de 7 h", "moon.stars.fill", goodNights >= 30), ("100 essenciais", "checkmark.seal.fill", mustDos >= 100),
             ("50 horas de foco", "brain.head.profile", focusHours >= 50), ("Primeira sessão de cozinha", "frying.pan.fill", !all(Portion.self).isEmpty),
             ("Nível 10", "leaf.fill", level.level >= 10), ("Um mês de creatina", "pills.fill", mustDos >= 30),
         ]

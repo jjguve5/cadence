@@ -65,7 +65,7 @@ final class RegressionTrainingTests: RegressionCase {
         let s = store.suggestion(for: legExtension)
         XCTAssertEqual(s.weight, 0)
         XCTAssertEqual(s.sets, 3)
-        XCTAssertEqual(s.reason, "First time: pick a weight you could do for 14")
+        XCTAssertEqual(s.reason, "Primeira vez: escolhe um peso com que conseguirias fazer 14 repetições")
     }
 
     @MainActor
@@ -74,7 +74,7 @@ final class RegressionTrainingTests: RegressionCase {
         let s = store.suggestion(for: legExtension)
         XCTAssertEqual(s.weight, 20.5)
         XCTAssertEqual(s.sets, 3, "low or missing readiness never removes a set (docs/AUDIT.md, problem 2)")
-        XCTAssertEqual(s.reason, "+2.5 kg: you hit 3 × 12 at 18 last time")
+        XCTAssertEqual(s.reason, "+2.5 kg: da última vez fizeste 3 × 12 com 18")
     }
 
     @MainActor
@@ -82,7 +82,7 @@ final class RegressionTrainingTests: RegressionCase {
         let store = try makeStore { $0.add(self.finished("S1", start: 1_000, [(18, 12), (18, 11), (18, 10)])) }
         let s = store.suggestion(for: legExtension)
         XCTAssertEqual(s.weight, 18)
-        XCTAssertEqual(s.reason, "Same weight: aim for 12 on every set")
+        XCTAssertEqual(s.reason, "Mesmo peso: tenta 12 em todas as séries")
     }
 
     @MainActor
@@ -92,7 +92,7 @@ final class RegressionTrainingTests: RegressionCase {
         }
         let s = store.suggestion(for: legExtension)
         XCTAssertEqual(s.weight, 17.5, "20 kg × 0.9, rounded to 2.5 kg")
-        XCTAssertEqual(s.reason, "Stalled for 3 sessions: a 10% deload, then build back")
+        XCTAssertEqual(s.reason, "Sem progresso há 3 sessões: desce 10% e volta a subir")
     }
 
     @MainActor
@@ -290,7 +290,7 @@ final class RegressionCareAndShoppingTests: RegressionCase {
         }
         let list = store.shoppingList()
         XCTAssertEqual(list.map(\.id), ["s-S1", "med-M1", "rice", "whey"], "by aisle, then name; bought items and well-stocked ones are out")
-        XCTAssertEqual(list.map(\.reason), ["added by you", "6 doses left", "running low", "10 days left"])
+        XCTAssertEqual(list.map(\.reason), ["added by you", "restam 6 doses", "a acabar", "acaba em 10 dias"])
         XCTAssertEqual(list.first?.qty, 12)
     }
 

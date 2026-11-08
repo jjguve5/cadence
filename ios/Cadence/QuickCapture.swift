@@ -73,9 +73,10 @@ enum QuickCapture {
         // Moving something on the plan
         if let rest = after(["move ", "mover ", "muda ", "mudar "]) {
             let parts = rest.lowercased().components(separatedBy: " to ")
-            let target = parts.count > 1 ? parts.last! : rest.lowercased()
+            // the day is read without accents, like `lower`, so «amanhã» counts as «amanha»; the keyword keeps them
+            let target = (parts.count > 1 ? parts.last! : rest.lowercased()).folding(options: .diacriticInsensitive, locale: nil)
             let day = dayWord(in: target, today: today) ?? Day.add(1, to: today)
-            let keyword = (parts.count > 1 ? parts.dropLast().joined(separator: " to ") : rest).replacingOccurrences(of: "para amanha", with: "").trimmingCharacters(in: .whitespaces)
+            let keyword = (parts.count > 1 ? parts.dropLast().joined(separator: " to ") : rest).replacingOccurrences(of: "para amanha", with: "", options: [.caseInsensitive, .diacriticInsensitive]).trimmingCharacters(in: .whitespaces)
             return .move(keyword: keyword, toDay: day)
         }
 

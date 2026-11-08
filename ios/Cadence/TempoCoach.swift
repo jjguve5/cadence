@@ -21,8 +21,8 @@ enum TempoBreath: Equatable {
     /// What the voice says at the start of the phase. Short pauses stay silent.
     var spoken: String? {
         switch self {
-        case .inhale: return "in"
-        case .exhale: return "out"
+        case .inhale: return "inspira"
+        case .exhale: return "expira"
         case .hold, .steady: return nil
         }
     }
@@ -94,9 +94,9 @@ struct TempoPlan: Equatable {
     /// What to say on moving between two frames. Only the newest state is spoken, so coming back from a lock or a
     /// stall never reads out a backlog of reps.
     func cue(from old: TempoFrame?, to new: TempoFrame, speakBreath: Bool) -> String? {
-        if new.done { return old?.done == true ? nil : "Done" }
+        if new.done { return old?.done == true ? nil : "Feito" }
         if timed {
-            guard let old else { return "Go" }
+            guard let old else { return "Já" }
             guard new.completed != old.completed else { return nil }
             return new.completed % 5 == 0 || new.target - new.completed <= 3 ? String(new.completed) : nil
         }
@@ -233,7 +233,7 @@ final class TempoVoice {
         guard active else { return }
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) } // a late word must never lag the count
         let u = AVSpeechUtterance(string: text)
-        u.voice = AVSpeechSynthesisVoice(language: "en-US")
+        u.voice = AVSpeechSynthesisVoice(language: "pt-PT") // nil without that voice installed: then the system voice speaks
         u.rate = 0.52
         synth.speak(u)
     }
