@@ -328,7 +328,9 @@ final class RegressionCareAndShoppingTests: RegressionCase {
         XCTAssertEqual(beard.rhythm, 7, "the starting interval until there are three")
         beard.history.append("2026-10-16")
         XCTAssertEqual(beard.learned, 8, "gaps of 7 and 8 days")
-        XCTAssertEqual(beard.rhythm, 8)
+        // Phase 2.5 (design v17, decision 63): the learned interval is offered as a suggestion and the frequency only
+        // changes if you accept it, so the rhythm stays the interval set (it was 8, applied by itself)
+        XCTAssertEqual(beard.rhythm, 7)
     }
 
     /// brushHeadDue only looks at today, so the dates are built relative to today: the result is the same any day

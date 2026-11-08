@@ -88,7 +88,6 @@ final class RegressionPlannedChangeTests: RegressionCase {
 // Changes the design v17 asks for that live in views only, so this phase can't test them without changing the app.
 // The phase that changes each one adds its test (a unit test of a new function, or a UI test with a stable identifier):
 // - 2.4 Hoje: "Next up" looks at habits only, and a ring with no data draws an empty arc instead of a dashed one.
-// - 2.5 Higiene: the routine player saves nothing at the end; "Added to shopping" saves nothing.
 // - 2.6 Treino: the suggested weight is written into the set (TrainingView); warm-ups go on every exercise above
 //   bar + 10 kg instead of the first exercise of each muscle group.
 // - 2.7 Comida: several paths save on one tap with no confirmation (portion pick, recent foods, caffeine drinks).

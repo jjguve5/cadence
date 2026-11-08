@@ -17,16 +17,21 @@ struct CareView: View {
     }
 }
 
+/// Higiene (design v17, N_Higiene): the routine of the moment and what's pending first; frequencies, evolution, all the
+/// routines and your products one level below
 struct HygieneView: View {
     @EnvironmentObject var store: Store
     @State private var playing: CareRoutine?
-    @State private var editingRoutine: CareRoutine?
+    @State private var newProduct: CareProduct?
 
     var body: some View {
         NavigationStack {
         Screen(glow: Color(hex: 0x5FE3D0)) {
             // <name>.screen: how the UI tests know this tab's root is showing. Internal, never translated; if a redesign removes this title, the identifier moves to the new one
-            Title(eyebrow: "Dentes, duches, cuidados pessoais e rotinas", title: "Higiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
+            Title(eyebrow: store.tick.formatted(.dateTime.weekday(.wide).day().month(.wide)), title: "Higiene").accessibilityIdentifier("hygiene.screen").padding(.top, 8)
+            RoutineNowCard { playing = $0 }
+            NextUpCard()
+            ShowerCard()
             Card(tint: Color(hex: 0x5FE3D0)) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
@@ -40,46 +45,211 @@ struct HygieneView: View {
                 }
                 if store.brushHeadDue { SoftButton(title: "Já troquei", icon: "checkmark") { store.put("brushhead", Day.today, .bool(true)) } }
             }
-            ShowerCard()
-            Card {
-                Eyebrow(text: "Cuidados pessoais", icon: "scissors")
-                ForEach(store.all(GroomingItem.self).sorted { $0.freshness < $1.freshness }) { g in
-                    HStack(spacing: 10) {
-                        Image(systemName: g.icon).foregroundStyle(Color.soft).frame(width: 22)
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(g.title).font(.geist(14, .medium))
-                                Spacer()
-                                Text(g.daysSince.map { "há \($0) d · a cada ~\(g.rhythm) d" } ?? "nunca registado").font(.geist(11.5)).foregroundStyle((g.daysSince ?? 999) >= g.rhythm ? Color.warn : Color.faint)
-                            }
-                            Bar(progress: g.freshness, area: g.freshness < 0.15 ? .fuel : .mint)
-                        }
-                        Button { var x = g; x.history.append(Day.today); store.save(x) } label: { Image(systemName: "checkmark.circle").font(.geist(20)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
-                    }
-                }
-                if let trip = store.nextTrip, !store.groomingBefore(trip).isEmpty {
-                    Text("Viagem a \(trip.destination), \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) na véspera.").font(.geist(12.5)).foregroundStyle(Color.fuel)
-                }
-                Text("Começa com intervalos razoáveis, depois aprende os teus e avisa quando te afastas deles.").font(.geist(11.5)).foregroundStyle(Color.faint)
-            }
-            Card {
-                HStack { Eyebrow(text: "Rotinas", icon: "list.number"); Spacer(); Button { editingRoutine = CareRoutine(title: "", steps: []) } label: { Image(systemName: "plus") }.tint(.mint) }
-                ForEach(store.all(CareRoutine.self).sorted { $0.title < $1.title }) { r in
-                    HStack {
-                        Image(systemName: r.icon).foregroundStyle(Color.soft).frame(width: 22)
-                        VStack(alignment: .leading) { Text(r.title).font(.geist(14, .medium)); Text("\(r.steps.count) \(r.steps.count == 1 ? "passo" : "passos") · \(duration(r.steps.map(\.seconds).reduce(0, +) / 60))").font(.geist(11.5)).foregroundStyle(Color.faint) }
-                        Spacer()
-                        Button { editingRoutine = r } label: { Image(systemName: "pencil").foregroundStyle(Color.soft) }.buttonStyle(.plain)
-                        Button { playing = r } label: { Image(systemName: "play.circle.fill").font(.geist(26)).foregroundStyle(Color.mint) }.buttonStyle(.plain)
-                    }
-                }
-            }
+            HygieneMoreCard { newProduct = CareProduct(name: "") }
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { store.seedCare() }
-        .fullScreenCover(item: $playing) { RoutinePlayer(routine: $0) }
-        .sheet(item: $editingRoutine) { RoutineEditor(routine: $0) }
+        .fullScreenCover(item: $playing) { RoutinePlayer(routine: $0).environmentObject(store) }
+        .sheet(item: $newProduct) { ProductEditor(product: $0).environmentObject(store) }
         }
+    }
+}
+
+/// «Agora»: the routine of the moment and its steps. You confirm them, one at a time or all at once, always with
+/// Desfazer; tapping a confirmed step takes it back («Não fiz»). Nothing is marked because the hour passed: what you
+/// don't confirm stays pending.
+struct RoutineNowCard: View {
+    @EnvironmentObject var store: Store
+    var play: (CareRoutine) -> Void
+
+    var body: some View {
+        let routines = store.routinesOfTheMoment()
+        if let r = routines.first(where: { !store.pendingSteps($0).isEmpty }) ?? routines.first {
+            let done = store.doneSteps(r)
+            let pending = r.steps.filter { done[$0.id] == nil }
+            Card(tint: Color(hex: 0x5FE3D0)) {
+                HStack(spacing: 8) {
+                    Eyebrow(text: "Agora · \(CareRules.moment(at: Clock.minute()).label)", color: .mint)
+                    Spacer()
+                    if pending.isEmpty {
+                        StateTag(state: .done, text: "Feita").accessibilityIdentifier("hygiene.now.done")
+                    } else {
+                        StateTag(state: .pending, text: "\(pending.count) por confirmar").accessibilityIdentifier("hygiene.now.pending")
+                    }
+                }
+                Text(r.title).font(.geist(17, .semibold))
+                ForEach(r.steps) { s in
+                    stepRow(s, of: r, at: done[s.id])
+                }
+                if !pending.isEmpty {
+                    let name: String = r.title.prefix(1).lowercased() + String(r.title.dropFirst())
+                    PrimaryButton(title: "Começar " + name) {
+                        var left = r
+                        left.steps = pending // the player goes through what's still to do
+                        play(left)
+                    }
+                    .accessibilityIdentifier("hygiene.start")
+                    if pending.count >= 2 {
+                        Button { confirm(pending, of: r) } label: {
+                            Text(pending.count == 2 ? "Já fiz os dois" : "Já fiz os \(pending.count)").font(.geist(13.5, .semibold)).foregroundStyle(Color.ink)
+                                .padding(.horizontal, 18).frame(minHeight: 44)
+                                .background(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                        }
+                        .buttonStyle(Pressable())
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("hygiene.batch")
+                    }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("hygiene.now")
+        }
+    }
+
+    private func stepRow(_ s: RoutineStep, of r: CareRoutine, at time: Double?) -> some View {
+        let product = s.productId.flatMap { store.record(CareProduct.self, $0) }
+        let sub = time.map { "feito às \(clock(Day.minuteOfDay(Date(timeIntervalSince1970: $0 / 1000))))" } ?? product?.name ?? CareRules.stepLength(s.seconds)
+        return Button { toggle(s, of: r, done: time != nil) } label: {
+            HStack(spacing: 10) {
+                Image(systemName: time != nil ? "checkmark.circle.fill" : "circle").font(.system(size: 22)).foregroundStyle(time != nil ? Color.good : Color.soft)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(s.title).font(.geist(14)).foregroundStyle(Color.ink)
+                    Text(sub).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(s.title), \(time != nil ? sub : "por confirmar")")
+        .accessibilityHint(time != nil ? "Toca se não o fizeste" : "Toca para confirmar")
+        .accessibilityIdentifier("hygiene.step.\(s.id)")
+    }
+
+    private func confirm(_ steps: [RoutineStep], of r: CareRoutine) {
+        let s: Store = store, day = Day.today, now = nowMs()
+        var times: [String: Double] = [:]
+        for step in steps { times[step.id] = now }
+        let before = s.confirmSteps(times, of: r, on: day)
+        UndoCenter.shared.show(steps.count == 1 ? "1 passo concluído" : "\(steps.count) passos concluídos") { s.restoreRoutineLog(before, routine: r, on: day) }
+    }
+
+    private func toggle(_ step: RoutineStep, of r: CareRoutine, done: Bool) {
+        guard done else { return confirm([step], of: r) }
+        let s: Store = store, day = Day.today
+        let before = s.unconfirmStep(step.id, of: r, on: day)
+        UndoCenter.shared.show("Desmarcado: \(step.title)") { s.restoreRoutineLog(before, routine: r, on: day) }
+    }
+}
+
+/// «A seguir»: the care that's due today or tomorrow. Concluído starts its interval again from today, with Desfazer.
+struct NextUpCard: View {
+    @EnvironmentObject var store: Store
+
+    var body: some View {
+        let soon = store.groomingSoon
+        let trip: Trip? = store.nextTrip.flatMap { t -> Trip? in store.groomingBefore(t).isEmpty ? nil : t }
+        if !soon.isEmpty || trip != nil {
+            Card {
+                Eyebrow(text: "A seguir")
+                ForEach(soon) { g in
+                    HStack(spacing: 10) {
+                        Image(systemName: g.icon).foregroundStyle(Color.soft).frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(g.title).font(.geist(14, .medium))
+                            Text([CareRules.sinceText(g, today: Day.today), CareRules.frequencyText(g)].compactMap { $0 }.joined(separator: " · ")).font(.geist(12)).foregroundStyle(Color.soft)
+                        }
+                        Spacer(minLength: 6)
+                        CareSoftButton(title: "Concluído", icon: "checkmark") { done(g) }
+                            .accessibilityLabel("Concluído: \(g.title)")
+                            .accessibilityIdentifier("hygiene.groom.\(g.id).done")
+                    }
+                }
+                if let trip {
+                    Text("Viagem a \(trip.destination), \(Day.date(trip.start).formatted(.dateTime.weekday(.wide))): \(store.groomingBefore(trip).map { $0.title.lowercased() }.joined(separator: ", ")) na véspera.").font(.geist(12.5)).foregroundStyle(Color.fuel)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("hygiene.next")
+        }
+    }
+
+    private func done(_ g: GroomingItem) {
+        let s: Store = store
+        guard let before = s.markGroomingDone(g) else { return }
+        UndoCenter.shared.show("\(g.title): concluído hoje") { s.save(before) }
+    }
+}
+
+/// The level below: all the routines, frequencies and evolution, and your products
+struct HygieneMoreCard: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject private var hidden = CareSuggestionsHidden.shared
+    var addProduct: () -> Void
+
+    var body: some View {
+        let routines = store.all(CareRoutine.self).sorted { $0.title < $1.title }
+        let grooming = store.all(GroomingItem.self).sorted { ($0.rhythm, $0.title) < ($1.rhythm, $1.title) }
+        let suggestions = grooming.filter { g in g.suggestedInterval.map { !hidden.isHidden("interval.\(g.id)", for: "\($0)") } ?? false }.count
+        let products = store.all(CareProduct.self).sorted { $0.name < $1.name }
+        Card {
+            NavigationLink { RoutinesList() } label: {
+                CareLinkRow(title: "Todas as rotinas", sub: routines.isEmpty ? "ainda nenhuma" : routines.map { $0.title.lowercased() }.joined(separator: " · ")) { EmptyView() }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hygiene.routines")
+            Divider()
+            NavigationLink { CareDetailsView() } label: {
+                CareLinkRow(title: "Frequências e evolução", sub: (["duche"] + grooming.map { $0.title.lowercased() } + ["fio dentário"]).joined(separator: ", ")) {
+                    if suggestions > 0 { StateTag(state: .suggested, text: suggestions == 1 ? "1 sugestão" : "\(suggestions) sugestões") }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hygiene.details")
+            ForEach(products) { p in
+                Divider()
+                NavigationLink { CareProductView(productId: p.id) } label: {
+                    CareLinkRow(title: p.name, sub: "teu · " + (store.productMoments(p).isEmpty ? "ainda em nenhuma rotina" : store.productMoments(p).lowercased())) { EmptyView() }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("hygiene.product.\(p.id)")
+            }
+            Divider()
+            Button(action: addProduct) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus").font(.system(size: 13, weight: .semibold))
+                    Text("Adicionar produto").font(.geist(14, .medium))
+                    Spacer()
+                }
+                .foregroundStyle(Color.mint)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("hygiene.product.add")
+        }
+    }
+}
+
+/// A row that opens a detail, as in the design's lists: the title, a short line under it, a state, then ›
+struct CareLinkRow<Trailing: View>: View {
+    var title: String
+    var sub: String
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.geist(14, .medium)).foregroundStyle(Color.ink)
+                if !sub.isEmpty { Text(sub).font(.geist(12)).foregroundStyle(Color.soft).lineLimit(2) }
+            }
+            Spacer(minLength: 8)
+            trailing
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.faint)
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 }
 
@@ -108,10 +278,37 @@ struct MedicinesCard: View {
             }
             ForEach(store.all(Medicine.self)) { m in
                 if let left = store.dosesLeft(m), Double(left.doses) <= m.refillAt {
-                    Text("\(m.name): restam \(left.doses) doses, acaba a \(Day.date(left.runsOut).formatted(.dateTime.day().month())). Adicionado à lista de compras.").font(.geist(12)).foregroundStyle(Color.warn)
+                    MedicineRefillLine(med: m, doses: left.doses, runsOut: left.runsOut)
                 }
             }
             NavigationLink { MedicinesList(editing: $editing) } label: { Text("Todos os produtos e histórico").font(.geist(13, .semibold)).foregroundStyle(Color.mind) }
+        }
+    }
+}
+
+/// A medicine running low. It says it's on the shopping list only when it is (phase 2.5: before, it said "added" and
+/// saved nothing); otherwise «Adicionar às compras» saves a real item, with Desfazer.
+struct MedicineRefillLine: View {
+    @EnvironmentObject var store: Store
+    var med: Medicine
+    var doses: Int
+    var runsOut: String
+
+    var body: some View {
+        let onList = store.isOnShoppingList(med.name)
+        let left = doses == 1 ? "resta 1 dose" : "restam \(doses) doses"
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(med.name): \(left), acaba a \(Day.date(runsOut).formatted(.dateTime.day().month())).").font(.geist(12)).foregroundStyle(Color.warn)
+            if onList {
+                StateTag(state: .pending, text: "Na lista de compras")
+            } else {
+                CareSoftButton(title: "Adicionar às compras", icon: "cart.badge.plus") {
+                    let s: Store = store
+                    if let item = s.addToShopping(name: med.name, reason: left, source: "Medicamentos") {
+                        UndoCenter.shared.show("Adicionado às compras: \(item.name)") { s.remove(item) }
+                    }
+                }
+            }
         }
     }
 }
@@ -205,24 +402,56 @@ struct RoutineEditor: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     @State var routine: CareRoutine
+    @State private var newProduct: CareProduct?
+
     var body: some View {
+        let products = store.all(CareProduct.self).sorted { $0.name < $1.name }
         NavigationStack {
             Form {
-                TextField("Nome", text: $routine.title)
-                ForEach($routine.steps) { $s in
-                    HStack { TextField("Passo", text: $s.title); Stepper("\(s.seconds) s", value: $s.seconds, in: 5...900, step: 5).fixedSize() }
+                Section {
+                    TextField("Nome", text: $routine.title)
+                    // Phase 2.5: the routine's own time decides whether it counts for the morning or the night
+                    Toggle("Hora própria", isOn: Binding(get: { routine.minute != nil }, set: { routine.minute = $0 ? (routine.minute ?? 8 * 60) : nil }))
+                    if let m = routine.minute {
+                        DatePicker("Hora", selection: Binding(get: { Day.at(m, on: Day.today) }, set: { routine.minute = Day.minuteOfDay($0) }), displayedComponents: .hourAndMinute)
+                    }
+                    Text(momentNote).font(.geist(12)).foregroundStyle(Color.soft)
                 }
-                .onDelete { routine.steps.remove(atOffsets: $0) }
-                .onMove { routine.steps.move(fromOffsets: $0, toOffset: $1) }
-                Button("Adicionar passo") { routine.steps.append(RoutineStep(title: "", seconds: 30)) }
+                Section("Passos") {
+                    ForEach($routine.steps) { $s in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack { TextField("Passo", text: $s.title); Stepper("\(s.seconds) s", value: $s.seconds, in: 5...900, step: 5).fixedSize() }
+                            if !products.isEmpty {
+                                Picker("Produto", selection: $s.productId) {
+                                    Text("Nenhum").tag(String?.none)
+                                    ForEach(products) { p in Text(p.name).tag(String?.some(p.id)) }
+                                }
+                            }
+                        }
+                    }
+                    .onDelete { routine.steps.remove(atOffsets: $0) }
+                    .onMove { routine.steps.move(fromOffsets: $0, toOffset: $1) }
+                    Button("Adicionar passo") { routine.steps.append(RoutineStep(title: "", seconds: 30)) }
+                    Button("Novo produto") { newProduct = CareProduct(name: "") }
+                }
                 if store.record(CareRoutine.self, routine.id) != nil { Button("Apagar rotina", role: .destructive) { store.remove(routine); dismiss() } }
             }
+            .sheet(item: $newProduct) { ProductEditor(product: $0).environmentObject(store) }
             .cadenceList()
             .navigationTitle(routine.title.isEmpty ? "Nova rotina" : routine.title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Guardar") { store.save(routine); dismiss() }.disabled(routine.title.isEmpty) }
             }
+        }
+    }
+
+    /// Which half of the day the routine counts for, as it stands
+    private var momentNote: String {
+        switch CareRules.moment(of: routine) {
+        case .morning?: return "Conta para a manhã (até às 14:00)."
+        case .night?: return "Conta para a noite (a partir das 14:00)."
+        case nil: return "Ainda sem momento. Para aparecer em «Agora», dá-lhe uma hora própria ou põe «manhã» ou «noite» no nome."
         }
     }
 }
@@ -482,28 +711,39 @@ struct ToothChart: View {
     }
 }
 
-/// Step-by-step routine player: a timer per step, the next step spoken aloud, a projected done-by time
+/// Step-by-step routine player: a timer per step, the next step spoken aloud, a projected done-by time. A step you go
+/// through to the end (its timer, or «Feito») counts as done; «Saltar» leaves it pending. At the end what you did is
+/// saved once, in the same record Higiene and Hoje show (phase 2.5: before, nothing was saved), with Desfazer.
 struct RoutinePlayer: View {
+    @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     var routine: CareRoutine
-    @State private var index = 0
+    @State private var playback: RoutinePlayback
+    @State private var saved = false
+    @State private var undone = false
+    @ObservedObject private var undoCenter = UndoCenter.shared
     @State private var stepStart = Date()
     @State private var now = Date()
     @State private var paused: Date?
     @State private var speech = AVSpeechSynthesizer()
     private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
+    init(routine: CareRoutine) {
+        self.routine = routine
+        _playback = State(initialValue: RoutinePlayback(steps: routine.steps))
+    }
+
     var body: some View {
-        let step = routine.steps.indices.contains(index) ? routine.steps[index] : nil
+        let step = playback.current
         let left = step.map { Double($0.seconds) - (paused ?? now).timeIntervalSince(stepStart) } ?? 0
-        let remaining = routine.steps.dropFirst(index + 1).map(\.seconds).reduce(0, +) + Int(max(0, left))
+        let remaining = routine.steps.dropFirst(playback.index + 1).map(\.seconds).reduce(0, +) + Int(max(0, left))
         ZStack {
             Color.bg.ignoresSafeArea()
             VStack(spacing: 22) {
-                HStack { Text(routine.title).font(.geist(15, .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Fechar") { dismiss() }.foregroundStyle(Color.soft) }
+                HStack { Text(routine.title).font(.geist(15, .semibold)).foregroundStyle(Color.soft); Spacer(); Button("Fechar") { dismiss() }.foregroundStyle(Color.soft).frame(minHeight: 44) }
                 Spacer()
                 if let step {
-                    Text("Passo \(index + 1) de \(routine.steps.count)").font(.geist(13)).foregroundStyle(Color.soft)
+                    Text("Passo \(playback.index + 1) de \(routine.steps.count)").font(.geist(13)).foregroundStyle(Color.soft)
                     Text(step.title).font(.geist(30, .bold)).multilineTextAlignment(.center)
                     ZStack {
                         Ring(progress: 1 - max(0, left) / Double(max(1, step.seconds)), area: .mint, width: 9)
@@ -512,14 +752,38 @@ struct RoutinePlayer: View {
                     .frame(width: 200, height: 200)
                     Text("Termina às \(Date().addingTimeInterval(Double(remaining)).formatted(date: .omitted, time: .shortened))").font(.geist(13)).foregroundStyle(Color.soft)
                 } else {
-                    PipAnimation(mood: .celebrate).frame(width: 160, height: 160)
-                    Text("Rotina concluída").font(.geist(26, .bold))
+                    PipAnimation(mood: .celebrate).frame(width: 140, height: 140)
+                    Text(playback.done.isEmpty ? "Rotina terminada" : "Rotina concluída").font(.geist(26, .bold)).accessibilityIdentifier("care.player.finished")
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(routine.steps) { s in
+                            HStack(spacing: 8) {
+                                if let t = playback.done[s.id], !undone {
+                                    StateTag(state: .done, text: "Feito · \(clock(Day.minuteOfDay(Date(timeIntervalSince1970: t / 1000))))")
+                                } else {
+                                    StateTag(state: .pending, text: "Por confirmar")
+                                }
+                                Text(s.title).font(.geist(14)).foregroundStyle(Color.ink)
+                            }
+                        }
+                    }
+                    Text(undone ? "Desfeito: nada ficou registado." : playback.done.isEmpty ? "Nada ficou registado: os passos saltados ficam por confirmar em Higiene." : "Ficou registado em Higiene. Os passos saltados ficam por confirmar.")
+                        .font(.geist(12.5)).foregroundStyle(Color.soft).multilineTextAlignment(.center)
+                    // Desfazer, here too: the bar at the bottom of the app is behind this screen
+                    if saved && !undone && !playback.done.isEmpty && undoCenter.current != nil {
+                        CareSoftButton(title: "Desfazer", icon: "arrow.uturn.backward") { undoCenter.undo(); undone = true }
+                            .accessibilityIdentifier("care.player.undo")
+                    }
                 }
                 Spacer()
-                HStack {
-                    SoftButton(title: paused == nil ? "Pausa" : "Retomar") { if let p = paused { stepStart = stepStart.addingTimeInterval(Date().timeIntervalSince(p)); paused = nil } else { paused = Date() } }
-                    SoftButton(title: "+30 s") { stepStart = stepStart.addingTimeInterval(30) }
-                    SoftButton(title: "Saltar") { advance() }
+                if step != nil {
+                    PrimaryButton(title: "Feito") { next(done: true) }.accessibilityIdentifier("care.player.done")
+                    HStack {
+                        SoftButton(title: paused == nil ? "Pausa" : "Retomar") { if let p = paused { stepStart = stepStart.addingTimeInterval(Date().timeIntervalSince(p)); paused = nil } else { paused = Date() } }
+                        SoftButton(title: "+30 s") { stepStart = stepStart.addingTimeInterval(30) }
+                        SoftButton(title: "Saltar") { next(done: false) }.accessibilityIdentifier("care.player.skip")
+                    }
+                } else {
+                    PrimaryButton(title: "Concluído") { dismiss() }.accessibilityIdentifier("care.player.close")
                 }
             }
             .padding(24)
@@ -527,15 +791,27 @@ struct RoutinePlayer: View {
         .onAppear { say(routine.steps.first?.title) }
         .onReceive(timer) { t in
             now = t
-            if paused == nil, let step, t.timeIntervalSince(stepStart) >= Double(step.seconds) { advance() }
+            if paused == nil, let current = playback.current, t.timeIntervalSince(stepStart) >= Double(current.seconds) { next(done: true) }
         }
     }
 
-    private func advance() {
-        index += 1
+    /// The step is done (its timer ran out, or «Feito») or skipped; after the last one, what was done is saved
+    private func next(done: Bool) {
+        if done { playback.complete() } else { playback.skip() }
         stepStart = Date()
+        paused = nil
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        say(routine.steps.indices.contains(index) ? "A seguir: " + routine.steps[index].title : "Tudo feito")
+        say(playback.current.map { "A seguir: " + $0.title } ?? "Tudo feito")
+        if playback.finished { saveAtTheEnd() }
+    }
+
+    private func saveAtTheEnd() {
+        guard !saved else { return }
+        saved = true
+        guard !playback.done.isEmpty else { return }
+        let s: Store = store, r = routine, day = Day.today, n = playback.done.count
+        let before = s.confirmSteps(playback.done, of: r, on: day)
+        UndoCenter.shared.show("\(r.title): " + (n == 1 ? "1 passo concluído" : "\(n) passos concluídos")) { s.restoreRoutineLog(before, routine: r, on: day) }
     }
 
     private func say(_ text: String?) {
@@ -586,5 +862,490 @@ struct ShowerCard: View {
             }
         }
         .accessibilityElement(children: .contain).accessibilityIdentifier("shower.card")
+    }
+}
+
+// MARK: - Higiene, one level below (phase 2.5)
+
+/// Suggestions you answered «Ignorar» or «Lembrar mais tarde» to, kept in memory only, so they leave no mark in your
+/// data: each stays away while the value it was answered for is the same (the estimate, the interval, the day)
+@MainActor
+final class CareSuggestionsHidden: ObservableObject {
+    static let shared = CareSuggestionsHidden()
+    @Published private(set) var hidden: [String: String] = [:]
+    func hide(_ key: String, for value: String) { hidden[key] = value }
+    func isHidden(_ key: String, for value: String) -> Bool { hidden[key] == value }
+}
+
+/// A secondary action, at least 44 pt tall
+struct CareSoftButton: View {
+    var title: String
+    var icon: String? = nil
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon) }
+                Text(title)
+            }
+            .font(.geist(13, .semibold)).foregroundStyle(Color.ink)
+            .padding(.horizontal, 13).frame(minHeight: 44)
+            .background(Capsule().fill(Color.white.opacity(0.09)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(Pressable())
+    }
+}
+
+/// All the routines: start one, change it, or add one
+struct RoutinesList: View {
+    @EnvironmentObject var store: Store
+    @State private var playing: CareRoutine?
+    @State private var editing: CareRoutine?
+
+    var body: some View {
+        let routines = store.all(CareRoutine.self).sorted { (rank($0), $0.title) < (rank($1), $1.title) }
+        Screen(glow: Color(hex: 0x5FE3D0)) {
+            Card {
+                HStack {
+                    Eyebrow(text: "Rotinas", icon: "list.number")
+                    Spacer()
+                    Button { editing = CareRoutine(title: "", steps: []) } label: { Image(systemName: "plus").frame(width: 44, height: 44) }
+                        .tint(.mint)
+                        .accessibilityLabel("Nova rotina")
+                }
+                if routines.isEmpty { Text("Ainda sem rotinas.").font(.geist(13)).foregroundStyle(Color.soft) }
+                ForEach(routines) { r in
+                    HStack(spacing: 8) {
+                        Image(systemName: r.icon).foregroundStyle(Color.soft).frame(width: 22)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.title).font(.geist(14, .medium))
+                            Text(summary(r)).font(.geist(11.5)).foregroundStyle(Color.faint)
+                        }
+                        Spacer(minLength: 4)
+                        todayTag(r)
+                        Button { editing = r } label: { Image(systemName: "pencil").foregroundStyle(Color.soft).frame(width: 44, height: 44) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Editar \(r.title)")
+                        Button { playing = r } label: { Image(systemName: "play.circle.fill").font(.system(size: 26)).foregroundStyle(Color.mint).frame(width: 44, height: 44) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Começar \(r.title)")
+                    }
+                }
+            }
+            Text("Manhã até às 14:00, noite a partir daí, salvo se a rotina tiver uma hora própria.").font(.geist(11.5)).foregroundStyle(Color.faint).padding(.horizontal, 4)
+        }
+        .navigationTitle("Todas as rotinas")
+        .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $playing) { RoutinePlayer(routine: $0).environmentObject(store) }
+        .sheet(item: $editing) { RoutineEditor(routine: $0).environmentObject(store) }
+    }
+
+    /// Morning first, then night, then the rest
+    private func rank(_ r: CareRoutine) -> Int {
+        switch CareRules.moment(of: r) {
+        case .morning?: return 0
+        case .night?: return 1
+        case nil: return 2
+        }
+    }
+
+    private func summary(_ r: CareRoutine) -> String {
+        var parts = ["\(r.steps.count) \(r.steps.count == 1 ? "passo" : "passos")", duration(r.steps.map(\.seconds).reduce(0, +) / 60)]
+        if let m = r.minute { parts.append(clock(m)) } else if let moment = CareRules.moment(of: r) { parts.append(moment.label) }
+        return parts.joined(separator: " · ")
+    }
+
+    @ViewBuilder private func todayTag(_ r: CareRoutine) -> some View {
+        let done = store.doneSteps(r).count
+        if !r.steps.isEmpty && done == r.steps.count {
+            StateTag(state: .done, text: "Feita hoje")
+        } else if done > 0 {
+            StateTag(state: .partial, text: "\(done) de \(r.steps.count)")
+        }
+    }
+}
+
+/// What the frequency editor opens with: the item, and the interval to start from when it comes from a suggestion
+struct GroomingEdit: Identifiable {
+    var item: GroomingItem
+    var interval: Int?
+    var id: String { item.id }
+}
+
+/// Frequências e evolução (N_HigieneDetalhes): how often each care is due, by fixed days or an interval (its editor
+/// changes it); the interval you've learned, as a suggestion that changes nothing unless you accept it; and how
+/// consistent the routines were, with prudence
+struct CareDetailsView: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject private var hidden = CareSuggestionsHidden.shared
+    @State private var editing: GroomingEdit?
+
+    var body: some View {
+        let today = Day.today
+        let grooming = store.all(GroomingItem.self).sorted { ($0.rhythm, $0.title) < ($1.rhythm, $1.title) }
+        let suggestion = grooming.first { g in g.suggestedInterval.map { !hidden.isHidden("interval.\(g.id)", for: "\($0)") } ?? false }
+        let lastShower = store.showerTimes.max()
+        let lastFloss = store.all(BrushLog.self).filter { $0.floss }.map(\.date).max()
+        let routines = store.all(CareRoutine.self).filter { !$0.steps.isEmpty }.sorted { $0.title < $1.title }
+        let anyLog = routines.contains { r in store.routineConsistency(r).full + store.routineConsistency(r).partial > 0 }
+        Screen(glow: Color(hex: 0x5FE3D0)) {
+            Card {
+                HStack { Eyebrow(text: "Frequências"); Spacer(); Text("toca para mudar").font(.geist(11)).foregroundStyle(Color.faint) }
+                fixedRow(title: "Duche", sub: "um por dia, à noite ou na manhã seguinte" + (lastShower.map { " · último \($0.formatted(.dateTime.weekday(.wide).hour().minute()))" } ?? ""), never: lastShower == nil)
+                ForEach(grooming) { g in groomingRow(g, today: today) }
+                fixedRow(title: "Fio dentário", sub: "no fim da escovagem" + (lastFloss.map { " · último a \(Day.date($0).formatted(.dateTime.day().month()))" } ?? ""), never: lastFloss == nil)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("care.frequencies")
+            if let g = suggestion, let l = g.suggestedInterval {
+                Card(state: .suggested) {
+                    HStack { Eyebrow(text: "Sugestão"); Spacer(); StateTag(state: .suggested) }
+                    Text("\(g.title) a cada \(l) dias").font(.geist(15, .semibold))
+                    WhyLine(text: "nas últimas \(g.history.count) vezes fizeste-o, em média, a cada \(l) dias; está definido a cada \(g.interval).")
+                    DecisionButtons(onAccept: { accept(l, for: g) },
+                                    onAdjust: { editing = GroomingEdit(item: g, interval: l) },
+                                    onIgnore: { hidden.hide("interval.\(g.id)", for: "\(l)") })
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("care.suggestion")
+            }
+            Card(state: anyLog ? .plain : .noData) {
+                HStack {
+                    Eyebrow(text: "Evolução · 14 dias")
+                    Spacer()
+                    if !anyLog { StateTag(state: .noData) }
+                }
+                if anyLog {
+                    ForEach(routines) { r in
+                        HStack {
+                            Text(r.title).font(.geist(14))
+                            Spacer()
+                            Text(consistencyText(store.routineConsistency(r))).font(.geist(12)).foregroundStyle(Color.soft)
+                        }
+                    }
+                } else {
+                    Text("Ainda sem registos das rotinas nestes 14 dias. Preenche-se quando confirmas os passos.").font(.geist(13))
+                }
+                Text("Os dias sem registo ficam sem dados: não contam como falha. Sem diagnóstico nem conclusões de causa.").font(.geist(12)).foregroundStyle(Color.soft)
+            }
+        }
+        .navigationTitle("Frequências e evolução")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editing) { e in GroomingEditor(item: e.item, interval: e.interval).environmentObject(store) }
+    }
+
+    /// A frequency the app follows by its own rule (one shower a day; floss at brushing)
+    private func fixedRow(title: String, sub: String, never: Bool) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.geist(14, .medium))
+                Text(sub).font(.geist(12)).foregroundStyle(Color.soft)
+            }
+            Spacer(minLength: 6)
+            if never { StateTag(state: .noData, text: "Nunca registado") }
+        }
+        .frame(minHeight: 44)
+    }
+
+    private func groomingRow(_ g: GroomingItem, today: String) -> some View {
+        let last: String? = g.last.map { "último a \(Day.date($0).formatted(.dateTime.day().month()))" }
+        let doneToday = g.history.contains(today)
+        return HStack(spacing: 6) {
+            Button { editing = GroomingEdit(item: g, interval: nil) } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: g.icon).foregroundStyle(Color.soft).frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(g.title).font(.geist(14, .medium)).foregroundStyle(Color.ink)
+                        Text([CareRules.frequencyText(g), last].compactMap { $0 }.joined(separator: " · ")).font(.geist(12)).foregroundStyle(Color.soft)
+                    }
+                    Spacer(minLength: 6)
+                    if g.last == nil { StateTag(state: .noData, text: "Nunca registado") }
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Mudar a frequência: dias fixos ou intervalo")
+            .accessibilityIdentifier("care.freq.\(g.id)")
+            Button { done(g) } label: {
+                Image(systemName: doneToday ? "checkmark.circle.fill" : "checkmark.circle").font(.system(size: 22)).foregroundStyle(Color.mint).frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(doneToday)
+            .accessibilityLabel(doneToday ? "\(g.title): feito hoje" : "Concluído: \(g.title)")
+            .accessibilityIdentifier("care.freq.\(g.id).done")
+        }
+    }
+
+    private func done(_ g: GroomingItem) {
+        let s: Store = store
+        guard let before = s.markGroomingDone(g) else { return }
+        UndoCenter.shared.show("\(g.title): concluído hoje") { s.save(before) }
+    }
+
+    /// Aceitar: the interval changes now, with Desfazer
+    private func accept(_ days: Int, for g: GroomingItem) {
+        let s: Store = store
+        guard let before = s.acceptInterval(days, for: g) else { return }
+        UndoCenter.shared.show("\(g.title): a cada \(days) dias") { s.save(before) }
+    }
+
+    private func consistencyText(_ c: (full: Int, partial: Int)) -> String {
+        let full = c.full == 1 ? "1 dia completo" : "\(c.full) dias completos"
+        return c.partial == 0 ? full : full + " · \(c.partial) em parte"
+    }
+}
+
+/// The frequency of one care: fixed days or an interval
+struct GroomingEditor: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State private var item: GroomingItem
+    @State private var fixed: Bool
+    @State private var days: [Int]
+
+    /// `interval`: start from this interval (Ajustar on a suggestion)
+    init(item: GroomingItem, interval: Int? = nil) {
+        var x = item
+        if let interval { x.interval = interval }
+        let current: [Int] = interval == nil ? x.fixedDays : []
+        _item = State(initialValue: x)
+        _fixed = State(initialValue: !current.isEmpty)
+        _days = State(initialValue: current.isEmpty ? [2, 4, 6] : current)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section { TextField("Nome", text: $item.title) }
+                Section("Frequência") {
+                    Segments(options: [(false, "Intervalo"), (true, "Dias fixos")], selection: $fixed)
+                    if fixed {
+                        HStack(spacing: 0) {
+                            ForEach([2, 3, 4, 5, 6, 7, 1], id: \.self) { wd in dayButton(wd) }
+                        }
+                        Text(days.isEmpty ? "Escolhe pelo menos um dia." : CareRules.weekdayNames(days)).font(.geist(12)).foregroundStyle(Color.soft)
+                    } else {
+                        Stepper(item.interval == 1 ? "Todos os dias" : "A cada \(item.interval) dias", value: $item.interval, in: 1...180)
+                    }
+                }
+                if let l = item.learned {
+                    Section { Text("O teu intervalo real, nas últimas \(item.history.count) vezes: cerca de \(l) dias.").font(.geist(13)).foregroundStyle(Color.soft) }
+                }
+            }
+            .cadenceList()
+            .navigationTitle(item.title.isEmpty ? "Frequência" : item.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar") {
+                        item.weekdays = fixed ? days.sorted() : nil
+                        store.save(item)
+                        dismiss()
+                    }
+                    .disabled(item.title.trimmingCharacters(in: .whitespaces).isEmpty || (fixed && days.isEmpty))
+                }
+            }
+        }
+    }
+
+    private func dayButton(_ wd: Int) -> some View {
+        let on = days.contains(wd)
+        return Button { if on { days.removeAll { $0 == wd } } else { days.append(wd) } } label: {
+            Text(["D", "S", "T", "Q", "Q", "S", "S"][wd - 1]).font(.geist(13, .semibold)).foregroundStyle(on ? Color(hex: 0x05140F) : Color.ink)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(on ? Color.mint : Color.white.opacity(0.08)))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(CareRules.weekdayName(wd))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// One product of yours (N_HigieneProduto): its confirmed uses, when it runs out (always «Estimado»), what's left
+/// («Muito», «Metade» and «Pouco» recalculate it) and, when it runs out soon and isn't on the list, the suggestion to add
+/// it to the shopping list. Adicionar saves a real item; if the product is already on the list, the suggestion doesn't
+/// show. «Lembrar mais tarde» and «Ignorar» leave no mark in your data (CareSuggestionsHidden).
+struct CareProductView: View {
+    @EnvironmentObject var store: Store
+    @ObservedObject private var hidden = CareSuggestionsHidden.shared
+    var productId: String
+    @State private var editing: CareProduct?
+
+    var body: some View {
+        let product = store.record(CareProduct.self, productId)
+        Screen(glow: Color(hex: 0x5FE3D0)) {
+            if let p = product {
+                content(p)
+            } else {
+                Text("Este produto já não está nos teus produtos.").font(.geist(14)).foregroundStyle(Color.soft).padding(.top, 12)
+            }
+        }
+        .navigationTitle(product?.name ?? "Produto")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if let p = product { Button("Editar") { editing = p } }
+            }
+        }
+        .sheet(item: $editing) { ProductEditor(product: $0).environmentObject(store) }
+    }
+
+    @ViewBuilder private func content(_ p: CareProduct) -> some View {
+        let uses = store.productUses(p)
+        let moments = store.productMoments(p)
+        let refill = store.refillEstimate(p)
+        let onList = store.isOnShoppingList(p.name)
+        Text("Higiene · produto teu").font(.geist(13)).foregroundStyle(Color.soft).padding(.top, 8)
+        Card {
+            Eyebrow(text: "Uso")
+            Text(moments.isEmpty ? "Ainda em nenhuma rotina: junta-o a um passo em Todas as rotinas." : moments).font(.geist(14))
+            if let first = uses.first {
+                Text(uses.count == 1 ? "1 uso confirmado, a \(dayText(first))" : "\(uses.count) usos confirmados desde \(dayText(first))").font(.geist(13)).foregroundStyle(Color.soft)
+            } else {
+                StateTag(state: .noData, text: "Ainda sem usos confirmados")
+            }
+        }
+        refillCard(p, refill: refill)
+        if onList {
+            Card {
+                HStack { Eyebrow(text: "Compras"); Spacer(); StateTag(state: .pending, text: "Na lista") }
+                Text("Já está na lista de compras.").font(.geist(13)).foregroundStyle(Color.soft)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("care.product.onlist")
+        } else if let refill, refill.days <= CareRules.refillWithin, !isHidden(p, refill) {
+            Card(state: .suggested) {
+                HStack { Eyebrow(text: "Compras"); Spacer(); StateTag(state: .suggested) }
+                Text("Adicionar à lista de compras").font(.geist(15, .semibold))
+                WhyLine(text: "acaba em cerca de \(CareRules.spanText(refill.days)); ainda não está na lista.")
+                DecisionButtons(accept: "Adicionar", adjust: "Lembrar mais tarde", ignore: "Ignorar",
+                                onAccept: { add(p, refill) },
+                                onAdjust: { hidden.hide("later.\(p.id)", for: Day.today) },
+                                onIgnore: { hidden.hide("refill.\(p.id)", for: CareRules.spanText(refill.days)) })
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("care.product.refill")
+        }
+    }
+
+    @ViewBuilder private func refillCard(_ p: CareProduct, refill: CareRules.Refill?) -> some View {
+        if let refill, let size = p.size, let per = p.perUse {
+            Card {
+                HStack { Eyebrow(text: "Reposição"); Spacer(); StateTag(state: .estimated) }
+                HStack(spacing: 6) {
+                    Text("Acaba em")
+                    EstimatedText(value: CareRules.spanText(refill.days))
+                }
+                .font(.geist(17, .semibold))
+                Text([CareRules.rangeText(refill), "embalagem de \(kg(size)) \(p.unit) e cerca de \(kg(per)) \(p.unit) por uso"].compactMap { $0 }.joined(separator: " · "))
+                    .font(.geist(12)).foregroundStyle(Color.soft)
+                Text("Não sei quanto usas de facto. Quanto ainda tens?").font(.geist(13))
+                levelChips(p)
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("care.product.estimate")
+        } else {
+            Card(state: .noData) {
+                HStack { Eyebrow(text: "Reposição"); Spacer(); StateTag(state: .noData) }
+                if p.size == nil || p.perUse == nil {
+                    Text("Para estimar quando acaba, indica o tamanho da embalagem e quanto usas de cada vez.").font(.geist(13))
+                    CareSoftButton(title: "Indicar", icon: "pencil") { editing = p }
+                } else {
+                    Text("Ainda há poucos usos confirmados para estimar quando acaba: são precisos 3, nos últimos 28 dias.").font(.geist(13))
+                    Text("Quanto ainda tens?").font(.geist(13))
+                    levelChips(p)
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("care.product.estimate")
+        }
+    }
+
+    private func levelChips(_ p: CareProduct) -> some View {
+        HStack(spacing: 8) {
+            ForEach(CareRules.levels) { level in
+                let on = p.left.map { abs($0 - level.share) < 0.001 } ?? false
+                Button { setLevel(level, of: p) } label: {
+                    HStack(spacing: 4) {
+                        if on { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)) }
+                        Text(level.label)
+                    }
+                    .font(.geist(13, .semibold)).foregroundStyle(on ? Color.ink : Color.soft)
+                    .padding(.horizontal, 14).frame(minHeight: 44)
+                    .background(Capsule().fill(on ? Color.white.opacity(0.16) : Color.white.opacity(0.06)))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(Pressable())
+                .accessibilityAddTraits(on ? .isSelected : [])
+                .accessibilityIdentifier("care.product.level.\(level.id)")
+            }
+        }
+    }
+
+    private func setLevel(_ level: CareRules.Level, of p: CareProduct) {
+        let s: Store = store
+        guard let before = s.setLevel(level.share, of: p) else { return }
+        UndoCenter.shared.show("Ainda tens: \(level.label.lowercased()). A estimativa foi recalculada.") { s.save(before) }
+    }
+
+    /// Adicionar: one real item on the shopping list, with Desfazer (nothing when it's already there)
+    private func add(_ p: CareProduct, _ refill: CareRules.Refill) {
+        let s: Store = store
+        guard let item = s.addToShopping(name: p.name, reason: "acaba em cerca de \(CareRules.spanText(refill.days))", source: "Higiene") else { return }
+        UndoCenter.shared.show("Adicionado às compras: \(item.name)") { s.remove(item) }
+    }
+
+    private func isHidden(_ p: CareProduct, _ refill: CareRules.Refill) -> Bool {
+        hidden.isHidden("refill.\(p.id)", for: CareRules.spanText(refill.days)) || hidden.isHidden("later.\(p.id)", for: Day.today)
+    }
+
+    private func dayText(_ t: Double) -> String { Date(timeIntervalSince1970: t / 1000).formatted(.dateTime.day().month()) }
+}
+
+/// Your product: its name, the pack and about how much one use takes (both optional; without them there's no estimate)
+struct ProductEditor: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State var product: CareProduct
+    @State private var newPack = false
+
+    var body: some View {
+        let exists = store.record(CareProduct.self, product.id) != nil
+        NavigationStack {
+            Form {
+                Section { TextField("Nome (ex.: Bioderma Sébium Gel Moussant)", text: $product.name) }
+                Section("Embalagem") {
+                    TextField("Tamanho (opcional)", value: $product.size, format: .number).keyboardType(.decimalPad)
+                    Picker("Unidade", selection: $product.unit) { ForEach(["ml", "g"], id: \.self) { Text($0).tag($0) } }
+                    TextField("Quanto usas de cada vez (opcional)", value: $product.perUse, format: .number).keyboardType(.decimalPad)
+                }
+                if exists {
+                    Section { Toggle("Abri uma embalagem nova hoje", isOn: $newPack) }
+                    Section { Button("Apagar", role: .destructive) { store.remove(product); dismiss() } }
+                }
+                Section { Text("Só entram os produtos que tens: a app não sugere marcas.").font(.geist(12)).foregroundStyle(Color.soft) }
+            }
+            .cadenceList()
+            .navigationTitle(product.name.isEmpty ? "Novo produto" : product.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar") {
+                        product.name = product.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if newPack { product.startedAt = nowMs(); product.left = nil; product.leftAt = nil }
+                        store.save(product)
+                        dismiss()
+                    }
+                    .disabled(product.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
     }
 }
