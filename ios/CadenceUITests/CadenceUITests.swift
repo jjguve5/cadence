@@ -32,38 +32,55 @@ final class CadenceUITests: XCTestCase {
         return a
     }
 
-    /// The five tabs. Each tab button has the identifier tab.<name> and the title of its screen <name>.screen, both
-    /// internal and never translated: a test finds a tab by its identifier, not by its name or its place in the bar
-    /// (Hygiene can be switched off, which moves Life), and then requires that tab's own screen.
+    /// The five tabs, known by the identifier on the title of each tab's screen (<name>.screen), internal and never
+    /// translated. The tab buttons themselves have no identifier: one set inside .tabItem reaches the button in some
+    /// launches and not in others (CI run 42470880896, attempt 3: the buttons came up with their labels only), so no
+    /// test may rely on it. A tab is found by trying the buttons until its screen shows: neither its name nor its place
+    /// in the bar matters (Hygiene can be switched off, which moves Life).
     private enum Tab: String, CaseIterable {
         case today, plan, body, hygiene, life
-        var button: String { "tab.\(rawValue)" }
         var screen: String { "\(rawValue).screen" }
     }
 
+    /// The tab screens showing right now (exactly one when a tab's root is on screen)
+    private func screensShowing() -> [Tab] { Tab.allCases.filter { el($0.screen).exists } }
+
     private func open(_ tab: Tab, file: StaticString = #filePath, line: UInt = #line) {
-        let button = app.tabBars.buttons[tab.button]
-        XCTAssertTrue(button.waitForExistence(timeout: 5), "no \(tab.button) in the tab bar", file: file, line: line)
-        button.tap()
-        XCTAssertTrue(el(tab.screen).waitForExistence(timeout: 5), "\(tab.button) didn't open \(tab.screen)", file: file, line: line)
+        if el(tab.screen).exists { return }
+        let buttons = app.tabBars.buttons
+        XCTAssertTrue(buttons.firstMatch.waitForExistence(timeout: 5), "no tab bar", file: file, line: line)
+        for i in 0..<buttons.count {
+            buttons.element(boundBy: i).tap()
+            if el(tab.screen).waitForExistence(timeout: 3) { return }
+        }
+        XCTFail("no tab in the bar opens \(tab.screen)", file: file, line: line)
     }
 
-    /// Every tab in `tabs` is in the bar (and no other), opens its own screen and only that one, and still has a name
-    /// for VoiceOver that isn't the identifier. Ends back on Today.
-    private func checkEveryTab(_ tabs: [Tab], file: StaticString = #filePath, line: UInt = #line) {
+    /// Taps every button in the bar, in order: each opens exactly one tab screen, every tab in `tabs` is reached once
+    /// and no other, and each button has a name for VoiceOver. Returns the tab reached at each place; ends on Today.
+    @discardableResult
+    private func checkEveryTab(_ tabs: [Tab], file: StaticString = #filePath, line: UInt = #line) -> [Tab] {
         let buttons = app.tabBars.buttons
+        XCTAssertTrue(buttons.firstMatch.waitForExistence(timeout: 5), "no tab bar", file: file, line: line)
         XCTAssertEqual(buttons.count, tabs.count, "tabs in the bar", file: file, line: line)
-        let found = Set((0..<buttons.count).map { buttons.element(boundBy: $0).identifier })
-        XCTAssertEqual(found, Set(tabs.map(\.button)), "tab identifiers", file: file, line: line)
-        for tab in tabs + [.today] {
-            open(tab, file: file, line: line)
-            for other in Tab.allCases where other != tab {
-                XCTAssertFalse(el(other.screen).exists, "\(other.screen) is showing while \(tab.button) is selected", file: file, line: line)
-            }
-            let label = app.tabBars.buttons[tab.button].label
-            XCTAssertFalse(label.isEmpty, "\(tab.button) has no name for VoiceOver", file: file, line: line)
-            XCTAssertNotEqual(label, tab.button, "\(tab.button) reads its identifier aloud", file: file, line: line)
+        var reached: [Tab] = []
+        var labels: [String] = []
+        for i in 0..<buttons.count {
+            let button = buttons.element(boundBy: i)
+            button.tap()
+            let any = app.descendants(matching: .any).matching(NSPredicate(format: "identifier IN %@", Tab.allCases.map(\.screen))).firstMatch
+            XCTAssertTrue(any.waitForExistence(timeout: 5), "place \(i) opened no tab screen", file: file, line: line)
+            let showing = screensShowing()
+            XCTAssertEqual(showing.count, 1, "place \(i) shows \(showing.map(\.screen))", file: file, line: line)
+            if let tab = showing.first { reached.append(tab) }
+            XCTAssertFalse(button.label.isEmpty, "place \(i) has no name for VoiceOver", file: file, line: line)
+            labels.append(button.label)
         }
+        XCTAssertEqual(Set(reached), Set(tabs), "tabs reached", file: file, line: line)
+        XCTAssertEqual(reached.count, Set(reached).count, "two places open the same tab: \(reached)", file: file, line: line)
+        XCTAssertEqual(labels.count, Set(labels).count, "two tabs share a name: \(labels)", file: file, line: line)
+        open(.today, file: file, line: line)
+        return reached
     }
 
     /// Text the tests read back from the screen. It is English today and changes on purpose with the app's strings in
@@ -121,19 +138,21 @@ final class CadenceUITests: XCTestCase {
 
     // MARK: Navigation
 
+    /// Every tab opens its own screen, and the bar keeps the design's order
     func testEveryTabOpensItsOwnScreen() {
         launch("normal")
-        checkEveryTab(Tab.allCases)
+        XCTAssertEqual(checkEveryTab(Tab.allCases), [.today, .plan, .body, .hygiene, .life], "the tab bar's order")
         shot("tabs", app)
     }
 
-    /// With Hygiene switched off there are four tabs and Life moves to the fourth place: found by its identifier, it
-    /// still opens (finding tabs by place, as the 2.0 tests did, would have tapped the wrong one or none)
+    /// With Hygiene switched off there are four tabs and Life moves to the fourth place: found through its screen, it
+    /// still opens (the 2.0 tests looked for Life at the fifth place, which no longer exists)
     func testLifeOpensWithHygieneOff() {
         launch("normal", areasOff: ["care"])
-        XCTAssertFalse(app.tabBars.buttons[Tab.hygiene.button].exists, "Hygiene is off")
-        checkEveryTab([.today, .plan, .body, .life])
-        XCTAssertEqual(app.tabBars.buttons.element(boundBy: 3).identifier, Tab.life.button, "Life is now in the fourth place")
+        let reached = checkEveryTab([.today, .plan, .body, .life])
+        XCTAssertEqual(reached.last, .life, "Life is now in the fourth place")
+        open(.life)
+        XCTAssertTrue(el(Tab.life.screen).exists)
         shot("tabs-hygiene-off", app)
     }
 
