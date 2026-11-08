@@ -356,6 +356,21 @@ final class RegressionCareAndShoppingTests: RegressionCase {
         XCTAssertEqual(list.first?.qty, 12)
     }
 
+    /// Phases 2.5 and 2.10 (moved from RegressionPlannedChangeTests, where it pinned two "Whey" lines): one line per
+    /// product, wherever the need comes from, and its reason names both sources
+    @MainActor
+    func testTheSameProductFromThePantryAndByHandIsOneLine() throws {
+        let store = try makeStore { s in
+            s.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30))
+            s.add(ShoppingItem(id: "S1", name: "Whey"))
+        }
+        let list = store.shoppingList()
+        XCTAssertEqual(list.map(\.name), ["Whey"], "one line per product")
+        let reason = try XCTUnwrap(list.first?.reason)
+        XCTAssertTrue(reason.contains("acaba em 10 dias"), "the pantry's reason: \(reason)")
+        XCTAssertTrue(reason.contains("adicionado por ti"), "and yours: \(reason)")
+    }
+
     @MainActor
     func testDosesLeftAndWhenTheyRunOut() throws {
         let store = try makeStore()
@@ -453,6 +468,41 @@ final class RegressionWardrobeTests: RegressionCase {
         XCTAssertTrue(saturday.needed)
         XCTAssertEqual(saturday.clean.map(\.id), ["K1"])
         XCTAssertFalse(store.gymBag(on: Fixed.friday).needed)
+    }
+
+    /// Phase 2.10 (moved from RegressionPlannedChangeTests, where it pinned the reset at washing): the wear count goes
+    /// back to zero only when you confirm «Arrumada» (put away); the history of uses stays
+    @MainActor
+    func testWashingKeepsTheWearCountUntilPutAway() throws {
+        let store = try makeStore { $0.add(Garment(id: "J1", name: "Jeans", type: "bottom", washGroup: "darks 30°", wears: 3, state: "wash", totalWears: 9)) }
+        store.washed("darks 30°")
+        let drying = try XCTUnwrap(store.record(Garment.self, "J1"))
+        XCTAssertEqual(drying.state, "drying")
+        XCTAssertEqual(drying.wears, 3, "washing alone doesn't reset the count")
+        store.putAway()
+        let away = try XCTUnwrap(store.record(Garment.self, "J1"))
+        XCTAssertEqual(away.state, "clean")
+        XCTAssertEqual(away.wears, 0, "«Arrumada» puts the count back to zero")
+        XCTAssertEqual(away.totalWears, 9, "the history of uses stays")
+    }
+
+    /// Phase 2.10 (moved from RegressionPlannedChangeTests, where only clean pieces were offered): a piece worn below
+    /// its wash limit can be suggested again; at its limit, for washing, in the machine or drying, never
+    @MainActor
+    func testAPieceWornBelowItsLimitCanBeSuggestedAgain() throws {
+        let worn = try makeStore { s in
+            s.add(Garment(id: "T1", name: "Grey T-shirt", type: "top", wearsBeforeWash: 3, wears: 1, state: "worn"))
+            s.add(Garment(id: "B1", name: "Jeans", type: "bottom"))
+        }
+        XCTAssertTrue(worn.outfit(for: Fixed.saturday).map(\.id).contains("T1"), "worn once of three: offered")
+        let never: [(wears: Int, state: String, washing: Bool?)] = [(3, "worn", nil), (3, "wash", nil), (3, "wash", true), (0, "drying", nil)]
+        for c in never {
+            let store = try makeStore { s in
+                s.add(Garment(id: "T1", name: "Grey T-shirt", type: "top", wearsBeforeWash: 3, wears: c.wears, state: c.state, washing: c.washing))
+                s.add(Garment(id: "B1", name: "Jeans", type: "bottom"))
+            }
+            XCTAssertFalse(store.outfit(for: Fixed.saturday).map(\.id).contains("T1"), "\(c) is never offered")
+        }
     }
 }
 

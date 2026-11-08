@@ -1,12 +1,197 @@
 // Meal prep and shopping: the week's plan and what it covers, the guided prep session, the fridge, the pantry, the list.
+// Phase 2.10 (design v17, N_Compras): the list is its own screen, one line per product, suggestions you add, adjust
+// or ignore, by category, shop or occasion, and the circle marks a line bought by you, with Desfazer.
 import SwiftUI
+
+/// Compras: what you put on the list, grouped as you choose, and the app's suggestions apart. The app never buys
+/// anything nor marks anything bought
+struct ShoppingListView: View {
+    @EnvironmentObject var store: Store
+    @AppStorage("life.shopping.groupBy") private var groupBy = "aisle" // a per-iPhone view choice, not data
+    @State private var ignored: Set<String> = [] // «Ignorar» leaves no mark: only hidden while you're here
+    @State private var editing: ShoppingItem?
+
+    struct ShoppingGroup: Identifiable {
+        var id: String
+        var lines: [ListLine]
+    }
+
+    var body: some View {
+        let lines = store.shoppingList()
+        let suggestions = lines.filter { !$0.mine && !ignored.contains($0.id) }
+        let list = lines.filter(\.mine)
+        let bought = store.boughtToday
+        let total = list.compactMap(\.price).reduce(0, +)
+        Screen(glow: .mint) {
+            Text("Vida · lista da casa").font(.geist(13)).foregroundStyle(Color.soft)
+                .accessibilityIdentifier("life.shopping.screen")
+            if !suggestions.isEmpty {
+                Card(state: .suggested) {
+                    HStack { Eyebrow(text: "Sugestões"); Spacer(); StateTag(state: .suggested, text: "\(suggestions.count)") }
+                    ForEach(suggestions) { l in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(title(l)).font(.geist(15)).accessibilityIdentifier("life.shopping.suggestion.\(l.id)")
+                            WhyLine(text: "\(l.originLabel) \(shoppingReasonLabel(l.reason)).")
+                            DecisionButtons(accept: "Adicionar", onAccept: { accept(l) }, onAdjust: { editing = ShoppingItem(name: l.name, qty: l.qty, unit: l.unit, aisle: l.aisle) }, onIgnore: { _ = ignored.insert(l.id) })
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            Segments(options: [("aisle", "Categoria"), ("shop", "Loja"), ("occasion", "Ocasião")], selection: $groupBy)
+                .accessibilityIdentifier("life.shopping.groupby")
+            if list.isEmpty {
+                Card(state: .noData) {
+                    Text("A lista está vazia.").font(.geist(14))
+                    Text("O que adicionares, ou aceitares das sugestões, aparece aqui.").font(.geist(12.5)).foregroundStyle(Color.soft)
+                }
+            }
+            ForEach(groups(list)) { group in
+                Card {
+                    HStack { Eyebrow(text: group.id); Spacer(); Text("\(group.lines.count)").font(.geist(11)).foregroundStyle(Color.faint) }
+                    ForEach(group.lines) { l in row(l) }
+                }
+            }
+            if !bought.isEmpty {
+                Card {
+                    HStack { Eyebrow(text: "Comprado hoje"); Spacer(); StateTag(state: .confirmed, text: "Comprado") }
+                    ForEach(bought) { item in
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark.circle.fill").font(.system(size: 20)).foregroundStyle(Color.good).frame(width: 44, height: 44)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.name).strikethrough().font(.geist(14)).foregroundStyle(Color.soft)
+                                Text("comprado por ti hoje").font(.geist(11.5)).foregroundStyle(Color.faint)
+                            }
+                            Spacer()
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            if total > 0 {
+                HStack { Text("Custo estimado").font(.geist(13)).foregroundStyle(Color.soft); Spacer(); EstimatedText(value: euro(total)).font(.geist(13, .semibold)) }
+                    .padding(.horizontal, 4)
+            }
+            PrimaryButton(title: "+ Adicionar") { editing = ShoppingItem(name: "") }
+                .accessibilityIdentifier("life.shopping.add")
+            Text("A app nunca compra nem marca como comprado.").font(.geist(12)).foregroundStyle(Color.faint).frame(maxWidth: .infinity)
+        }
+        .navigationTitle("Compras")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $editing) { ShoppingItemEditor(item: $0) }
+    }
+
+    private func title(_ l: ListLine) -> String {
+        l.qty > 1 || !l.unit.isEmpty ? "\(l.name) \(kg(l.qty.rounded())) \(l.unit)" : l.name
+    }
+
+    private func groups(_ list: [ListLine]) -> [ShoppingGroup] {
+        switch groupBy {
+        case "shop":
+            return Dictionary(grouping: list, by: \.shopLabel).map { ShoppingGroup(id: $0.key, lines: $0.value) }.sorted { $0.id < $1.id }
+        case "occasion":
+            return Dictionary(grouping: list, by: \.occasionLabel).map { ShoppingGroup(id: $0.key, lines: $0.value) }.sorted { $0.id < $1.id }
+        default:
+            var out = aisles.compactMap { a -> ShoppingGroup? in
+                let ls = list.filter { $0.aisle == a }
+                return ls.isEmpty ? nil : ShoppingGroup(id: shoppingAisleLabel(a), lines: ls)
+            }
+            let other = list.filter { !aisles.contains($0.aisle) }
+            if !other.isEmpty { out.append(ShoppingGroup(id: "Sem categoria", lines: other)) }
+            return out
+        }
+    }
+
+    private func row(_ l: ListLine) -> some View {
+        HStack(spacing: 6) {
+            Button { buy(l) } label: {
+                Image(systemName: "circle").font(.system(size: 20)).foregroundStyle(Color.soft)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Marcar \(l.name) como comprado")
+            .accessibilityIdentifier("life.shopping.buy.\(l.id)")
+            Button { editing = l.yourItem } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title(l)).font(.geist(14)).foregroundStyle(Color.ink)
+                    Text(shoppingReasonLabel(l.reason)).font(.geist(11.5)).foregroundStyle(Color.faint).lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Ajustar")
+            .accessibilityIdentifier("life.shopping.line.\(l.id)")
+        }
+    }
+
+    /// The circle: bought by you, with Desfazer
+    private func buy(_ l: ListLine) {
+        let undo = store.buy(l)
+        UndoCenter.shared.show("\(l.name): comprado por ti", undo: undo)
+    }
+
+    /// «Adicionar» a suggestion: it goes on your list, with Desfazer
+    private func accept(_ l: ListLine) {
+        let s = store
+        let item = ShoppingItem(name: l.name, qty: l.qty, unit: l.unit, aisle: l.aisle)
+        s.save(item)
+        UndoCenter.shared.show("\(l.name) na lista") { s.remove(item) }
+    }
+}
+
+/// Adding to the list, or adjusting a line of yours or a suggestion before it goes on the list («Ajustar»)
+struct ShoppingItemEditor: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    @State var item: ShoppingItem
+
+    var body: some View {
+        let isNew = store.record(ShoppingItem.self, item.id) == nil
+        NavigationStack {
+            Form {
+                TextField("Nome", text: $item.name).accessibilityIdentifier("life.shopping.editor.name")
+                HStack {
+                    TextField("Quantidade", value: $item.qty, format: .number).keyboardType(.decimalPad)
+                    TextField("un.", text: $item.unit).frame(width: 60)
+                }
+                Picker("Categoria", selection: $item.aisle) { ForEach(aisles, id: \.self) { Text(shoppingAisleLabel($0)).tag($0) } }
+                TextField("Loja (opcional)", text: Binding(get: { item.shop ?? "" }, set: { item.shop = $0.isEmpty ? nil : $0 }))
+                TextField("Ocasião (opcional)", text: Binding(get: { item.occasion ?? "" }, set: { item.occasion = $0.isEmpty ? nil : $0 }))
+            }
+            .cadenceList()
+            .navigationTitle(isNew ? "Adicionar à lista" : item.name)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Guardar") { save() }
+                        .disabled(item.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("life.shopping.editor.save")
+                }
+            }
+        }
+    }
+
+    private func save() {
+        let s = store
+        var saved = item
+        saved.name = saved.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let before = s.record(ShoppingItem.self, saved.id)
+        s.save(saved)
+        let done = saved
+        UndoCenter.shared.show(before == nil ? "\(done.name) na lista" : "\(done.name) alterado") {
+            if let before { s.save(before) } else { s.remove(done) }
+        }
+        dismiss()
+    }
+}
 
 struct KitchenView: View {
     @EnvironmentObject var store: Store
     @State private var editingRecipe: Recipe?
     @State private var editingPantry: PantryItem?
     @State private var prepping = false
-    @State private var newItem = ""
 
     var body: some View {
         let week = store.week
@@ -52,30 +237,19 @@ struct KitchenView: View {
                     }
                 }
             }
-            Card(tint: .mint) {
-                let list = store.shoppingList()
-                HStack {
-                    Eyebrow(text: "Compras", icon: "cart.fill", color: .mint)
-                    Spacer()
-                    let total = list.compactMap(\.price).reduce(0, +)
-                    if total > 0 { Text("~\(euro(total))").font(.geist(13, .semibold)) }
-                }
-                HStack { TextField("Adicionar à lista", text: $newItem); Button("Adicionar") { store.save(ShoppingItem(name: newItem)); newItem = "" }.disabled(newItem.isEmpty) }
-                ForEach(aisles, id: \.self) { aisle in
-                    let lines = list.filter { $0.aisle == aisle }
-                    if !lines.isEmpty {
-                        Text(shoppingAisleLabel(aisle)).font(.geist(11.5, .semibold)).foregroundStyle(Color.soft)
-                        ForEach(lines) { l in
-                            HStack {
-                                Button { store.tick(l) } label: { Image(systemName: "circle").foregroundStyle(Color.soft) }.buttonStyle(.plain)
-                                Text(l.qty > 1 || !l.unit.isEmpty ? "\(l.name) \(kg(l.qty.rounded())) \(l.unit)" : l.name).font(.geist(14))
-                                Spacer()
-                                Text(shoppingReasonLabel(l.reason)).font(.geist(11)).foregroundStyle(Color.faint).lineLimit(1)
-                            }
-                        }
-                    }
+            // The list has its own screen (Compras, phase 2.10); here, what's on it and what's suggested
+            NavigationLink { ShoppingListView() } label: {
+                Card(tint: .mint) {
+                    let list = store.shoppingList()
+                    let mine = list.filter(\.mine).count
+                    let suggested = list.count - mine
+                    HStack { Eyebrow(text: "Compras", icon: "cart.fill", color: .mint); Spacer(); Image(systemName: "chevron.right").font(.caption).foregroundStyle(Color.faint) }
+                    Text(mine == 0 ? "A lista está vazia" : mine == 1 ? "1 artigo na lista" : "\(mine) artigos na lista").font(.geist(14)).foregroundStyle(Color.ink)
+                    if suggested > 0 { StateTag(state: .suggested, text: suggested == 1 ? "1 sugestão" : "\(suggested) sugestões") }
                 }
             }
+            .buttonStyle(Pressable())
+            .accessibilityIdentifier("life.kitchen.shopping")
             Card {
                 HStack { Eyebrow(text: "Despensa", icon: "cabinet.fill"); Spacer(); Button { editingPantry = PantryItem(name: "", qty: 0) } label: { Image(systemName: "plus") }.tint(.fuel) }
                 ForEach(store.all(PantryItem.self).sorted { $0.name < $1.name }) { p in
