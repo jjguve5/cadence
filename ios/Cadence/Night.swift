@@ -257,9 +257,52 @@ enum NightRules {
     static let lead = 60
     /// The short version shows 30 min past the planned lights out (decision of phase 2.9)
     static let lateAfter = 30
-    /// The gym bag's basics (design N_PrepAmanha), next to the training clothes that are available
-    static let bagBasics = [BagItem(id: "towel", title: "Toalha"), BagItem(id: "bottle", title: "Garrafa"),
-                            BagItem(id: "lock", title: "Cadeado"), BagItem(id: "headphones", title: "Auscultadores")]
+    /// The gym bag's fixed items, as the user listed them (decision D42), after the clothes from the wardrobe
+    static let bagBasics = [BagItem(id: "towel", title: "Toalha de banho"), BagItem(id: "gymTowel", title: "Toalha de treino"),
+                            BagItem(id: "bottle", title: "Garrafa"), BagItem(id: "lock", title: "Cadeado"),
+                            BagItem(id: "underwear", title: "Cuecas"), BagItem(id: "socks", title: "Meias"),
+                            BagItem(id: "soap", title: "Sabão"), BagItem(id: "shampoo", title: "Champô"),
+                            BagItem(id: "trainers", title: "Sapatilhas"), BagItem(id: "flipflops", title: "Chinelos")]
+
+    enum BagSlot { case shirt, trousers, shorts, jacket, other }
+
+    /// Which part of the kit a piece is. Training clothes are all of type "gym", so it goes by the name (case and accents
+    /// don't matter); anything else (a towel, socks) isn't one of the three the wardrobe supplies
+    static func bagSlot(_ g: Garment) -> BagSlot {
+        let name = g.name.folding(options: .diacriticInsensitive, locale: nil).lowercased()
+        func has(_ words: [String]) -> Bool { words.contains { name.contains($0) } }
+        if g.type == "outer" || has(["casaco", "hoodie", "sweat", "corta-vento", "corta vento", "impermeavel", "jacket", "kispo"]) { return .jacket }
+        if has(["calcoes", "short"]) { return .shorts }
+        if g.type == "bottom" || has(["calcas", "legging", "jogger", "pants"]) { return .trousers }
+        if g.type == "top" || has(["t-shirt", "tshirt", "camisola", "camiseta", "camisa", "top"]) { return .shirt }
+        return .other
+    }
+
+    /// What the bag takes from the wardrobe (decision D42): a t-shirt; trousers when it's cold (3 layers or more, under
+    /// 16 °C), shorts otherwise, and the other kind if the one for the weather isn't available; a jacket only when it's cold
+    /// or wet. A piece that isn't available is never offered: it shows apart. With no piece of a kind in the wardrobe, the
+    /// item is still on the list, by name. Without a forecast nothing is assumed: no jacket, and «Calças ou calções».
+    static func bagClothes(kit: [Garment], layers: Int?, rain: Bool) -> [BagItem] {
+        func free(_ list: [Garment]) -> Garment? { list.filter { $0.stage == .available }.min { $0.wears < $1.wears } }
+        func piece(_ g: Garment) -> BagItem { BagItem(id: "g." + g.id, title: g.name) }
+        func of(_ slot: BagSlot) -> [Garment] { kit.filter { bagSlot($0) == slot } }
+        var out: [BagItem] = []
+
+        if let shirt = free(of(.shirt)) { out.append(piece(shirt)) }
+        else if of(.shirt).isEmpty { out.append(BagItem(id: "slot.shirt", title: "T-shirt")) }
+
+        let cold = layers.map { $0 >= 3 }
+        let trousers = of(.trousers), shorts = of(.shorts)
+        let (first, second) = cold == true ? (trousers, shorts) : (shorts, trousers)
+        if let bottom = free(first) ?? free(second) { out.append(piece(bottom)) }
+        else if first.isEmpty && second.isEmpty { out.append(BagItem(id: "slot.bottom", title: cold.map { $0 ? "Calças" : "Calções" } ?? "Calças ou calções")) }
+
+        if cold == true || rain {
+            if let jacket = free(of(.jacket)) { out.append(piece(jacket)) }
+            else if of(.jacket).isEmpty { out.append(BagItem(id: "slot.jacket", title: "Casaco")) }
+        }
+        return out
+    }
 
     /// A minute on the evening's clock: after midnight and before noon it counts on from 24:00 (0:30 is 24:30)
     static func evening(_ minute: Int) -> Int { minute < 12 * 60 ? minute + 1440 : minute }
@@ -567,9 +610,9 @@ extension Store {
     /// What goes in the bag for a training day: the training clothes that are available (clean, not in the wash), then
     /// the basics; and the training clothes that aren't available, to show where they are
     func bagItems(for day: String) -> (items: [BagItem], unavailable: [Garment]) {
-        let kit = garments.filter { $0.type == "gym" }.sorted { $0.name < $1.name }
-        let available = kit.filter { $0.stage == .available }
-        return (available.map { BagItem(id: "g." + $0.id, title: $0.name) } + NightRules.bagBasics, kit.filter { $0.stage != .available })
+        let kit = garments.filter { $0.type == "gym" || ($0.style == "sport" && ["top", "bottom", "outer"].contains($0.type)) }.sorted { $0.name < $1.name }
+        let weather = tomorrowWeather(day)
+        return (NightRules.bagClothes(kit: kit, layers: weather?.layers, rain: weather?.rain ?? false) + NightRules.bagBasics, kit.filter { $0.stage != .available })
     }
 
     /// Puts one item in the bag, or takes it out; with every item in, the bag is ready. Desfazer as always.

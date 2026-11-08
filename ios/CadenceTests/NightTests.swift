@@ -164,7 +164,8 @@ final class NightTests: RegressionCase {
             s.add(Garment(id: "K2", name: "T-shirt de treino", type: "gym", wearsBeforeWash: 1, wears: 1, state: "drying"))
         }
         let bag = store.bagItems(for: tomorrow)
-        XCTAssertEqual(bag.items.map { $0.id }, ["g.K1", "towel", "bottle", "lock", "headphones"], "available training clothes, then the basics")
+        XCTAssertEqual(bag.items.map { $0.id }, ["g.K1", "towel", "gymTowel", "bottle", "lock", "underwear", "socks", "soap", "shampoo", "trainers", "flipflops"],
+                       "the clothes from the wardrobe, then the fixed items (D42); the t-shirt is drying, so it isn't offered")
         XCTAssertEqual(bag.unavailable.map { $0.id }, ["K2"])
         store.toggleBagItem(bag.items[0], of: bag.items, for: tomorrow)
         XCTAssertEqual(store.gymBagPack(for: tomorrow)?.done, false, "one item in: not ready yet")
