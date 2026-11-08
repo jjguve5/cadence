@@ -298,20 +298,33 @@ extension Store {
     /// «Pôr a lavar agora»: the pieces go into the machine («em lavagem», on top of «para lavar»). The load's start is
     /// kept per wash group as before («laundry» records, same id and value as the old «Já lavei»), so the «Lavagem
     /// concluída» reminder two hours later still comes, and older builds read it as they did
-    func startWashing(_ items: [Garment]) {
+    /// Returns the laundry records as they were before, for Desfazer.
+    @discardableResult
+    func startWashing(_ items: [Garment]) -> [String: JSONValue] {
         for var g in items {
             g.state = "wash"
             g.washing = true
             save(g)
         }
-        for group in Set(items.map(\.washGroup)) { put("laundry", "\(Day.today)-\(group)", .number(nowMs())) }
+        var before: [String: JSONValue] = [:]
+        for group in Set(items.map(\.washGroup)) {
+            let id = "\(Day.today)-\(group)"
+            if let old = records("laundry")[id] { before[id] = old }
+            put("laundry", id, .number(nowMs()))
+        }
         Reminders.shared.reschedule()
+        return before
     }
 
-    /// Desfazer for «Pôr a lavar agora»: the pieces as they were, and no reminder for a load that didn't start
-    func undoStartWashing(_ items: [Garment]) {
+    /// Desfazer for «Pôr a lavar agora»: the pieces as they were, and each laundry record as it was. A load started
+    /// earlier the same day keeps its start; a record written just now gets a value the reminder ignores, rather than a
+    /// deletion, so nothing new waits in the queue (this id has never reached the server)
+    func undoStartWashing(_ items: [Garment], laundryBefore: [String: JSONValue]) {
         restoreGarments(items)
-        for group in Set(items.map(\.washGroup)) { put("laundry", "\(Day.today)-\(group)", nil) }
+        for group in Set(items.map(\.washGroup)) {
+            let id = "\(Day.today)-\(group)"
+            put("laundry", id, laundryBefore[id] ?? .bool(false))
+        }
         Reminders.shared.reschedule()
     }
 

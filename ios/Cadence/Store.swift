@@ -298,6 +298,25 @@ final class Store: ObservableObject {
     var personalRecordCount: Int { promises.count + logs.count + days.count + feedback.count + extra.values.reduce(0) { $0 + $1.count } }
     var pendingSyncCount: Int { dirty.count }
 
+    /// Whether the server can ever take this queued change: its type and id in the server's characters, and an object
+    /// value (or a deletion). Habit answers ("|" ids, decision D8) and plain values are kept on this iPhone only.
+    func serverCanTake(_ key: String) -> Bool {
+        let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              parts[0].range(of: #"^[a-z][a-zA-Z0-9]{0,31}$"#, options: .regularExpression) != nil,
+              parts[1].range(of: #"^[A-Za-z0-9_.:-]{1,80}$"#, options: .regularExpression) != nil,
+              let change = encodeRecord(key) else { return false }
+        if change.deleted == true || change.data == nil { return true }
+        if case .object = change.data { return true }
+        return false
+    }
+
+    /// Queued changes the server can take: what «Precisa de ação» counts
+    var pendingSendableCount: Int { dirty.keys.filter(serverCanTake).count }
+
+    /// Changes the server refused although it could take them: worth your attention
+    var syncRefusedSendable: [String] { syncRefused.filter(serverCanTake) }
+
     private func savedState() -> Saved {
         var s = Saved()
         s.promises = promises; s.logs = logs; s.days = days; s.profile = profile; s.feedback = feedback; s.extra = extra

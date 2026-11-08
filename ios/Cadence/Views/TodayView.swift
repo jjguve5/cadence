@@ -249,8 +249,8 @@ struct TodayView: View {
 
     /// Records the server hasn't taken yet, when sending is failing: «Ver o que falta» opens them in Perfil
     @ViewBuilder private var unsentCard: some View {
-        let pending = store.pendingSyncCount
-        if TodayRules.showsUnsent(pending: pending, failing: store.syncError != nil || store.syncHold != nil || !store.syncRefused.isEmpty) {
+        let pending = store.pendingSendableCount // only what the server can take: the rest stays on this iPhone by design
+        if TodayRules.showsUnsent(pending: pending, failing: store.syncError != nil || store.syncHold != nil || !store.syncRefusedSendable.isEmpty) {
             Card(tint: DataState.error.color) {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {

@@ -751,8 +751,8 @@ struct LaundryLoadView: View {
     private func startNow(_ items: [Garment]) {
         guard !items.isEmpty else { return }
         let s = store
-        s.startWashing(items)
-        UndoCenter.shared.show(items.count == 1 ? "1 peça em lavagem" : "\(items.count) peças em lavagem") { s.undoStartWashing(items) }
+        let laundryBefore = s.startWashing(items)
+        UndoCenter.shared.show(items.count == 1 ? "1 peça em lavagem" : "\(items.count) peças em lavagem") { s.undoStartWashing(items, laundryBefore: laundryBefore) }
         dismiss()
     }
 }

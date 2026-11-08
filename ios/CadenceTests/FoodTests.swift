@@ -353,7 +353,7 @@ final class WaterGoalTests: RegressionCase {
         let store = try makeStore { $0.add(WaterGoalChoice(date: Fixed.sunday, ml: 0)) }
         XCTAssertNil(store.waterGoalChoice(on: Fixed.sunday), "0 ml is not a goal")
         XCTAssertEqual(store.waterGoal(on: Fixed.sunday), 3000)
-        store.chooseWaterGoal(2800, on: Fixed.saturday)
+        _ = store.chooseWaterGoal(2800, on: Fixed.saturday) // the Desfazer closure isn't needed here
         let undo = store.chooseWaterGoal(3210, on: Fixed.saturday)
         XCTAssertEqual(store.waterGoal(on: Fixed.saturday), 3200, "to the nearest 50 ml")
         undo()
@@ -364,7 +364,7 @@ final class WaterGoalTests: RegressionCase {
     @MainActor
     func testTheChoiceIsARecordTheServerTakes() throws {
         let store = try makeStore()
-        store.chooseWaterGoal(2800, on: Fixed.saturday)
+        _ = store.chooseWaterGoal(2800, on: Fixed.saturday) // the Desfazer closure isn't needed here
         let records = store.records(WaterGoalChoice.kind)
         XCTAssertEqual(Array(records.keys), [Fixed.saturday])
         let server = try NSRegularExpression(pattern: "^[A-Za-z0-9_.:-]{1,80}$")

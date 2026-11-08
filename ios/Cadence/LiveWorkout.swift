@@ -73,7 +73,6 @@ final class LiveWorkout: ObservableObject {
         guard let id = sessionId ?? store.activeSession?.id, var s = store.record(WorkoutSession.self, id) else { return }
         // A session that ended, or was left open past 23:59 (partial now), takes nothing more from the lock screen
         if s.end != nil || TrainingRules.isExpired(s, today: Day.today) {
-            store.closeExpiredSessions()
             setRest(nil)
             await end()
             return

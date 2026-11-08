@@ -687,6 +687,8 @@ extension Store {
     /// A session left open past 23:59 of its day passes to partial: it is marked as ended, at the last thing done in it,
     /// and as partial. Nothing else in it changes (its sets stay as they are). Idempotent: an ended session is never
     /// touched again. Returns how many it closed.
+    /// Not called by the app (decision D23): nothing writes to a workout by itself; an expired one is partial when it
+    /// is read. Kept, with its tests, for an explicit «Terminar» on such a session if a later phase adds one.
     @discardableResult
     func closeExpiredSessions(today: String = Day.today) -> Int {
         guard canChange else { return 0 }

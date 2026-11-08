@@ -42,7 +42,6 @@ struct CadenceApp: App {
                     store.migrateAnchors()
                     store.migrateEvenings()
                     store.seedPlan()
-                    _ = store.closeExpiredSessions() // a workout left open past 23:59 becomes partial (phase 2.6)
                 }
                 Task { await store.refreshAll() }
                 Reminders.shared.reschedule()

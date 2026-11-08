@@ -93,7 +93,6 @@ struct TrainingView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             store.seedTemplates()
-            store.closeExpiredSessions() // a session left open past 23:59 is partial now (phase 2.6)
             await catalog.load()
         }
         .sheet(item: $editing) { TemplateEditor(template: $0) }
@@ -113,7 +112,6 @@ struct TrainingView: View {
     /// (none without history) and warm-ups only on the first exercise of each muscle group new in the session; the
     /// suggested weight is never written in as if you had done it.
     private func start(_ t: WorkoutTemplate) -> String {
-        store.closeExpiredSessions()
         if let s = store.activeSession { return s.id }
         let session = store.newSession(t, plan: store.plan(t))
         store.save(session)
@@ -350,7 +348,6 @@ struct WorkoutView: View {
                 }
             }
             .onAppear {
-                store.closeExpiredSessions() // left open past 23:59: partial now, so it opens as a summary
                 if feel == nil { feel = session.feel }
                 store.recordTrainingPrediction(session: session)
                 Task { await LiveWorkout.shared.update(session: session) }
