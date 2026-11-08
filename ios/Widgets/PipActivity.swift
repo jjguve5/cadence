@@ -16,10 +16,10 @@ struct PipLiveActivity: Widget {
                     if let id = context.state.promiseId {
                         HStack(spacing: 6) {
                             if let s = context.state.startURL, let url = URL(string: s) {
-                                Link(destination: url) { Text("Start ▶").font(.caption.bold()).padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(mint)).foregroundStyle(.black) }
+                                Link(destination: url) { Text("Começar ▶").font(.caption.bold()).padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(mint)).foregroundStyle(.black) }
                             }
-                            Button(intent: PipIntent(.done, promiseId: id)) { Text("Done ✓").font(.caption.bold()) }.tint(mint)
-                            Button(intent: PipIntent(.later, promiseId: id)) { Text("In 30 min").font(.caption.bold()) }.tint(.white.opacity(0.25))
+                            Button(intent: PipIntent(.done, promiseId: id)) { Text("Concluído ✓").font(.caption.bold()) }.tint(mint)
+                            Button(intent: PipIntent(.later, promiseId: id)) { Text("Em 30 min").font(.caption.bold()) }.tint(.white.opacity(0.25))
                         }
                     }
                 }
@@ -41,10 +41,10 @@ struct PipLiveActivity: Widget {
                     if let id = context.state.promiseId {
                         HStack {
                             if let s = context.state.startURL, let url = URL(string: s) {
-                                Link(destination: url) { Label("Start", systemImage: "play.fill").padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(mint)).foregroundStyle(.black) }
+                                Link(destination: url) { Label("Começar", systemImage: "play.fill").padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(mint)).foregroundStyle(.black) }
                             }
-                            Button(intent: PipIntent(.done, promiseId: id)) { Label("Done", systemImage: "checkmark") }.tint(mint)
-                            Button(intent: PipIntent(.later, promiseId: id)) { Text("In 30 min") }
+                            Button(intent: PipIntent(.done, promiseId: id)) { Label("Concluído", systemImage: "checkmark") }.tint(mint)
+                            Button(intent: PipIntent(.later, promiseId: id)) { Text("Em 30 min") }
                         }
                     }
                 }

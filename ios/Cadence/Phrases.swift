@@ -190,8 +190,8 @@ enum Pip {
     private static func fillWhat(_ part: String, _ what: String?) -> String {
         guard part.contains("{") else { return part }
         return part
-            .replacingOccurrences(of: "{what}", with: what?.lowercased() ?? "that")
-            .replacingOccurrences(of: "{What}", with: what ?? "That")
+            .replacingOccurrences(of: "{what}", with: what?.lowercased() ?? "isso")
+            .replacingOccurrences(of: "{What}", with: what ?? "Isso")
     }
 
     private static func periodLabel(_ period: Period, now: Date) -> String {
@@ -229,622 +229,622 @@ enum Pip {
 enum PipLines {
     /// Replaces the opener now and then. One per possible opener index, so using the name can't make two lines equal.
     static let named: [String] = [
-        "Hey, {name}.", "Right, {name}.", "Psst, {name}.", "Listen, {name}.", "Okay, {name}.", "So, {name}.",
-        "Quick one, {name}.", "Hello, {name}.", "Look, {name}.", "Ah, {name}.", "Hi, {name}.", "Now then, {name}."
+        "Olá, {name}.", "Ora bem, {name}.", "Psst, {name}.", "Ouve, {name}.", "Pronto, {name}.", "Então, {name}.",
+        "Só uma coisa, {name}.", "Viva, {name}.", "Olha, {name}.", "Ah, {name}.", "Ei, {name}.", "Ora então, {name}."
     ]
 
     static let morning = PhrasePool(
-        openers: ["Morning.", "Good morning.", "Up and about, I see.", "Ah, you're here.", "Another day has been delivered.", "Hello, you."],
+        openers: ["Bom dia.", "Muito bom dia.", "Já de pé, estou a ver.", "Ah, já cá estás.", "Acabou de chegar mais um dia.", "Ora viva."],
         bodies: [
-            "Let's make today count.",
-            "I've looked at today and it seems doable.",
-            "Today is still completely unspoiled.",
-            "Nothing has gone wrong yet, which is a strong start.",
-            "The day is open. You get first pick.",
-            "I've been up for ages. Well, for a minute.",
-            "Let's pick one thing and do it properly.",
-            "The list is there when you want it, no rush.",
-            "You don't have to win the morning. Just turn up to it.",
-            "Coffee first if that's how it works around here.",
-            "Today has room in it. Let's use some.",
-            "Let's start small and see what happens.",
-            "I have a good feeling about today, and I'm usually only half wrong.",
-            "A blank page, and you're holding the pen.",
-            "Whatever yesterday was, it's filed away now.",
-            "We're doing the day again. I hear it went fine last time.",
-            "First things first: being awake. Done.",
-            "You showed up, so the hard part is out of the way."
+            "Vamos fazer o dia valer a pena.",
+            "Já espreitei o dia de hoje e parece-me que se faz.",
+            "O dia de hoje ainda está intacto.",
+            "Ainda nada correu mal, o que já é um ótimo começo.",
+            "O dia está em aberto. Escolhes tu primeiro.",
+            "Eu já acordei há horas. Bem, há um minuto.",
+            "Vamos escolher uma coisa e fazê-la como deve ser.",
+            "A lista está ali para quando quiseres, sem pressa.",
+            "Não tens de ganhar a manhã. Basta apareceres.",
+            "Primeiro o café, se é assim que funciona por aqui.",
+            "Hoje há espaço de sobra. Vamos usar um bocadinho.",
+            "Vamos começar por pouco e ver no que dá.",
+            "Tenho um bom pressentimento sobre hoje, e normalmente só me engano em metade.",
+            "Uma página em branco, e a caneta está contigo.",
+            "Corresse como corresse, ontem já está arquivado.",
+            "Vamos repetir o dia. Dizem que da última vez correu bem.",
+            "Primeiro o mais importante: acordar. Feito.",
+            "Apareceste, por isso o mais difícil já está feito."
         ],
-        closers: ["I'm right here.", "No hurry.", "Off we go.", "Lead the way.", "I'll follow you.", "Let's see what we can do."]
+        closers: ["Estou aqui mesmo.", "Com calma.", "Vamos lá.", "Vai à frente.", "Eu vou atrás de ti.", "Vamos ver o que se consegue."]
     )
 
     static let sleepShort = PhrasePool(
-        openers: ["Short night.", "Not much sleep, I see.", "Well, that was a brief night.", "The night was on the small side.", "Morning, sleepy.", "So the night ran short."],
+        openers: ["Noite curta.", "Pouco sono, estou a ver.", "Bem, foi uma noite breve.", "A noite foi um bocadinho pequena.", "Bom dia, cara de sono.", "Então a noite soube a pouco."],
         bodies: [
-            "Let's keep today gentle.",
-            "We'll do the important bits and skip the heroics.",
-            "Today can be a smaller day. Nobody's checking.",
-            "Let's aim for good enough and call it a win.",
-            "Pick the one thing that matters and leave the rest alone.",
-            "No big plans needed. Just the next small thing.",
-            "We'll go at walking pace today.",
-            "An early night tonight would be a nice thing to look forward to.",
-            "I'm a bit slow today too, so we match.",
-            "Let's not ask too much of you before lunch.",
-            "You can still have a perfectly decent day on this.",
-            "Slow and steady is a whole plan today.",
-            "Nothing here needs to be impressive.",
-            "Let's lower the bar until it's easy to step over.",
-            "These things happen. We'll work with what we've got.",
-            "A soft day it is, then.",
-            "Be nice to yourself today. I'll be nice to you too.",
-            "We can take the scenic route through today."
+            "Vamos fazer um dia suave.",
+            "Fazemos o importante e deixamos os heroísmos para outro dia.",
+            "Hoje pode ser um dia mais pequeno. Ninguém está a ver.",
+            "Vamos apontar ao suficiente e contar isso como vitória.",
+            "Escolhe a coisa que importa e deixa o resto em paz.",
+            "Não são precisos grandes planos. Só a próxima coisa pequena.",
+            "Hoje vamos a passo.",
+            "Deitar cedo hoje à noite é uma ideia que sabe bem.",
+            "Hoje também ando devagar, por isso combinamos.",
+            "Não te vamos pedir muito antes do almoço.",
+            "Mesmo assim, dá para ter um dia perfeitamente decente.",
+            "Devagar e sempre já é um plano inteiro para hoje.",
+            "Nada disto precisa de ser impressionante.",
+            "Vamos baixar a fasquia até se passar por cima dela sem esforço.",
+            "São coisas que acontecem. Trabalhamos com o que há.",
+            "Então é um dia tranquilo.",
+            "Trata-te bem hoje. Eu também te vou tratar bem.",
+            "Hoje podemos ir pelo caminho mais bonito."
         ],
-        closers: ["I'll keep it simple.", "Easy does it.", "One thing at a time.", "We've got this, slowly.", "Tonight's another go.", "No pressure from me."]
+        closers: ["Eu mantenho as coisas simples.", "Devagarinho.", "Uma coisa de cada vez.", "Nós damos conta disto, devagar.", "Esta noite há outra oportunidade.", "Da minha parte, zero pressão."]
     )
 
     static let sleepGood = PhrasePool(
-        openers: ["A full night.", "Well slept.", "Look at you, rested.", "Now that was a night.", "Good sleep, that one.", "You slept. Properly."],
+        openers: ["Uma noite completa.", "Sono em dia.", "Olha-me só esse descanso.", "Isso é que foi uma noite.", "Belo sono, esse.", "Dormiste. Como deve ser."],
         bodies: [
-            "Today's yours.",
-            "You've got plenty in the tank today.",
-            "I'd spend that on something you actually care about.",
-            "Whatever you've been putting off, today is a fine day for it.",
-            "Your bed did good work. Your turn now.",
-            "That's the sort of start I like.",
-            "You look ready, and I'm not just saying that.",
-            "Let's not waste a morning like this one.",
-            "Today can take a bit more than usual.",
-            "Pick something a little ambitious. You can afford it.",
-            "I'm impressed, and I've got a sprout on my head, so I've seen things.",
-            "That's one thing done before you even got up.",
-            "We should use this while it's fresh.",
-            "All systems seem to be in a good mood.",
-            "This is what lights out on time buys you.",
-            "I'd be smug about that if I were you."
+            "O dia é teu.",
+            "Hoje tens o depósito cheio.",
+            "Eu gastava isso em algo que te importe mesmo.",
+            "Aquilo que tens adiado, hoje é um bom dia para isso.",
+            "A tua cama fez um bom trabalho. Agora é a tua vez.",
+            "É deste tipo de começo que eu gosto.",
+            "Pareces a postos, e não digo isto por dizer.",
+            "Não vamos desperdiçar uma manhã destas.",
+            "Hoje dá para um pouco mais do que o costume.",
+            "Escolhe algo um pouco ambicioso. Podes dar-te a esse luxo.",
+            "Isto impressiona-me, e eu tenho um rebento na cabeça, por isso já vi muita coisa.",
+            "É uma coisa feita antes mesmo de te levantares.",
+            "Devíamos aproveitar isto enquanto está fresco.",
+            "Todos os sistemas parecem estar de bom humor.",
+            "É isto que ganhas em apagar as luzes a horas.",
+            "Se fosse a ti, gabava-me disto."
         ],
-        closers: ["Enjoy it.", "Go on, then.", "Nicely done.", "Keep that up.", "Let's go.", "I'm taking notes."]
+        closers: ["Aproveita.", "Vá, então.", "Muito bem.", "Continua assim.", "Vamos a isso.", "Estou a tomar notas."]
     )
 
     static let recoveryLow = PhrasePool(
-        openers: ["Low battery day.", "Your numbers are a bit quiet today.", "Readiness is on the low side.", "A lower gear today, I think.", "Not your most charged day.", "The band says go easy."],
+        openers: ["Dia de bateria fraca.", "Os teus números andam tímidos hoje.", "A prontidão está em baixo.", "Hoje vai-se numa mudança mais baixa, acho eu.", "Não é o teu dia mais carregado.", "A pulseira diz para ir com calma."],
         bodies: [
-            "Let's take it easy where we can.",
-            "A walk would count as plenty today.",
-            "This is a good day to do less and do it well.",
-            "If you train, keep it light and call it smart.",
-            "Nothing wrong with a slower day, they're part of the deal.",
-            "We can leave the big stuff for tomorrow.",
-            "Today's job is mostly not overdoing it.",
-            "Maybe this isn't the day to set any records.",
-            "You can still get things done, just with less drama.",
-            "Pick the easy version of whatever's on the list.",
-            "Let's save some for later in the week.",
-            "A bit of rest would be time well spent.",
-            "It's only one day's reading, not a verdict.",
-            "Take today one stair at a time.",
-            "Doing the small stuff still counts today.",
-            "We'll coast a little. Coasting is allowed."
+            "Vamos com calma onde der.",
+            "Hoje, uma caminhada já é mais do que suficiente.",
+            "É um bom dia para fazer menos e fazer bem.",
+            "Se treinares, faz uma coisa leve e chama-lhe bom senso.",
+            "Não há mal nenhum num dia mais lento, faz parte.",
+            "As coisas grandes podem ficar para amanhã.",
+            "O trabalho de hoje é sobretudo não exagerar.",
+            "Se calhar hoje não é dia para bater recordes.",
+            "Ainda dá para fazer coisas, só que com menos drama.",
+            "Escolhe a versão fácil do que estiver na lista.",
+            "Vamos guardar alguma energia para o resto da semana.",
+            "Um pouco de descanso seria tempo bem gasto.",
+            "É só a leitura de um dia, não é um veredicto.",
+            "Hoje sobe-se um degrau de cada vez.",
+            "Fazer as coisas pequenas também conta hoje.",
+            "Vamos em ponto morto um bocadinho. É permitido."
         ],
-        closers: ["It's fine.", "Tomorrow's a new number.", "I'll go slow too.", "No heroics needed.", "You know best.", "Gently does it."]
+        closers: ["Está tudo bem.", "Amanhã há um número novo.", "Eu também vou devagar.", "Não são precisos heroísmos.", "Ninguém sabe melhor do que tu.", "Com jeitinho."]
     )
 
     static let recoveryHigh = PhrasePool(
-        openers: ["Readiness is up.", "Green across the board.", "You're charged today.", "Good numbers this morning.", "The band is pleased.", "Today you've got some spare."],
+        openers: ["A prontidão está em alta.", "Tudo verde.", "Bateria cheia hoje.", "Bons números esta manhã.", "A pulseira está contente.", "Hoje tens margem."],
         bodies: [
-            "If you were waiting for a day to push, this is it.",
-            "A harder session would fit nicely today.",
-            "You've got room for something ambitious.",
-            "Today can take more than usual, if you want it to.",
-            "This is a good day to pick the heavy thing.",
-            "Whatever you've been avoiding has run out of excuses.",
-            "I'd use this before it wears off.",
-            "Let's do something with all that.",
-            "You could go for a long one today.",
-            "The tough item on the list won't get a better day.",
-            "Consider this a green light, not an order.",
-            "You've earned a day like this.",
-            "There's capacity today. Spend some of it.",
-            "This is the day future you will be glad you used.",
-            "I'd start with the hardest thing and work down.",
-            "Nothing's stopping you today, as far as I can see."
+            "Se estavas à espera de um dia para puxar, é hoje.",
+            "Um treino mais puxado encaixava bem hoje.",
+            "Tens espaço para algo ambicioso.",
+            "Hoje dá para mais do que o habitual, se te apetecer.",
+            "É um bom dia para escolher a coisa pesada.",
+            "Aquilo que tens evitado ficou sem desculpas.",
+            "Eu aproveitava antes que passe.",
+            "Vamos fazer alguma coisa com isso tudo.",
+            "Hoje até dava para uma sessão longa.",
+            "A tarefa difícil da lista não vai ter melhor dia.",
+            "Considera isto um sinal verde, não uma ordem.",
+            "Mereceste um dia assim.",
+            "Hoje há capacidade. Gasta um pouco.",
+            "O teu eu do futuro vai gostar que aproveites este dia.",
+            "Eu começava pela coisa mais difícil e depois passava às mais fáceis.",
+            "Hoje nada te trava, tanto quanto vejo."
         ],
-        closers: ["Have fun with it.", "Go get it.", "I'll cheer.", "Up to you, of course.", "Enjoy that.", "Let's see it."]
+        closers: ["Diverte-te.", "Vai a isso.", "Eu faço a claque.", "A decisão é tua, claro.", "Aproveita bem.", "Quero ver isso."]
     )
 
     static let trainingDone = PhrasePool(
-        openers: ["Training done.", "Session in the bank.", "You trained.", "That's the workout done.", "Nice session.", "Look who moved today."],
+        openers: ["Treino feito.", "Sessão garantida.", "Treinaste.", "Treino despachado.", "Bela sessão.", "Olha quem se mexeu hoje."],
         bodies: [
-            "Nobody can take that one back.",
-            "You can be pleased with yourself for a while.",
-            "That was the hard part of the day, and it's behind you.",
-            "Now for some food and a bit of sitting down.",
-            "Everything else today is a bonus.",
-            "I watched the whole thing and I'm very tired.",
-            "Your next self owes you a thank you.",
-            "That's how this works. One session at a time.",
-            "A good thing to have done, however it felt.",
-            "The couch has been informed that you've earned it.",
-            "Good work. I'd clap, but my paws are very small.",
-            "Not everybody did that today. You did.",
-            "That's one more on the pile, and the pile is growing.",
-            "You said you would, and then you did. Rare and excellent.",
-            "Time to eat something and feel smug.",
-            "That counts today, and it'll count next month too."
+            "Isso já ninguém te tira.",
+            "Podes ficar contente contigo durante um bocado.",
+            "Era a parte difícil do dia, e já ficou para trás.",
+            "Agora é altura de comida e de um bocadinho de descanso.",
+            "Tudo o resto hoje é bónus.",
+            "Vi tudo do princípio ao fim e preciso de uma sesta.",
+            "O teu eu de amanhã fica a dever-te um obrigado.",
+            "É assim que isto funciona. Uma sessão de cada vez.",
+            "Ainda bem que o fizeste, custasse o que custasse.",
+            "O sofá já foi avisado de que o mereceste.",
+            "Bom trabalho. Batia palmas, mas as minhas patas são muito pequenas.",
+            "Nem toda a gente fez isso hoje. Tu fizeste.",
+            "É mais um para a pilha, e a pilha está a crescer.",
+            "Disseste que ias fazer e fizeste. Raro e excelente.",
+            "Hora de comer qualquer coisa e de te gabares um bocadinho.",
+            "Isto conta hoje, e vai continuar a contar no mês que vem."
         ],
-        closers: ["Well done.", "Proud of you.", "Rest up.", "Enjoy the feeling.", "See you next time.", "That's the stuff."]
+        closers: ["Muito bem.", "Tenho orgulho em ti.", "Descansa bem.", "Aproveita a sensação.", "Até à próxima.", "É assim mesmo."]
     )
 
     static let trainedLowDay = PhrasePool(
-        openers: ["You trained on a low day.", "A low day, and you still trained.", "Low numbers, and you still went.", "Not your best day on paper, and you trained anyway.", "You went even on a quiet day.", "Low readiness, session done."],
+        openers: ["Treinaste num dia em baixo.", "Um dia fraco, e mesmo assim treinaste.", "Números baixos, e foste na mesma.", "No papel não era o teu melhor dia, e treinaste à mesma.", "Foste mesmo num dia mais parado.", "Prontidão baixa, sessão feita."],
         bodies: [
-            "Showing up counts.",
-            "That takes something, and I noticed.",
-            "Those are the sessions that build the habit.",
-            "It doesn't have to be your best to be worth doing.",
-            "Now you've done plenty, so feel free to do nothing.",
-            "That's the kind of thing I'd put on a small trophy.",
-            "Easy for the rest of today, I'd say.",
-            "A gentle one on a gentle day is exactly right.",
-            "The rest of today can be soft.",
-            "Good days are easy. That one was the other sort.",
-            "Consistency looks a lot like that.",
-            "That one counts double in my book, and it's my book."
+            "Aparecer conta.",
+            "Isso tem mérito, e eu reparei.",
+            "São essas as sessões que constroem o hábito.",
+            "Não tem de ser o teu melhor para valer a pena.",
+            "Já fizeste bastante, agora podes não fazer nada, à vontade.",
+            "É o tipo de coisa que eu punha num troféu pequenino.",
+            "Calma para o resto do dia, diria eu.",
+            "Treino suave num dia suave, é mesmo isso.",
+            "O resto do dia pode ser levezinho.",
+            "Os dias bons são fáceis. Este foi do outro tipo.",
+            "A consistência é muito parecida com isto.",
+            "No meu livro, este conta a dobrar, e o livro é meu."
         ],
-        closers: ["Good on you.", "I saw that.", "Rest now.", "Respect.", "Well played.", "Now put your feet up."]
+        closers: ["Boa.", "Eu vi.", "Agora descansa.", "Respeito.", "Bem jogado.", "Agora põe os pés para cima."]
     )
 
     static let trainingSkipped = PhrasePool(
-        openers: ["No training today.", "So we're skipping the session.", "Rest day, then.", "The workout's off.", "Session skipped, noted.", "Today's training has been cancelled."],
+        openers: ["Hoje não há treino.", "Então saltamos a sessão.", "Dia de descanso, então.", "O treino ficou de fora.", "Sessão saltada, anotado.", "O treino de hoje foi cancelado."],
         bodies: [
-            "That's allowed. It'll still be there next time.",
-            "One session doesn't change much at all.",
-            "You know your day better than I do.",
-            "Let's enjoy the extra time and go again next time.",
-            "A walk would be lovely, if you feel like it. If not, also fine.",
-            "We carry on. No drama.",
-            "The weights won't take it personally.",
-            "There's plenty of the week left.",
-            "Sometimes that's the right call.",
-            "I'm not keeping score on this one. Well, the app is, but kindly.",
-            "Let's find the next slot and leave it at that.",
-            "That's more time for the rest of your life.",
-            "It's one day, and you've got a lot of those.",
-            "Tomorrow's still got your name on it.",
-            "Nothing lost that can't be picked up later.",
-            "We'll call it a planned rest and move along."
+            "É permitido. Vai continuar lá para a próxima.",
+            "Uma sessão não muda quase nada.",
+            "Conheces o teu dia melhor do que eu.",
+            "Vamos aproveitar o tempo extra e voltar à carga na próxima.",
+            "Uma caminhada sabia bem, se te apetecer. Se não, também está bem.",
+            "Seguimos em frente. Sem drama.",
+            "Os pesos não vão levar a mal.",
+            "Ainda falta muita semana.",
+            "Às vezes é a decisão certa.",
+            "Não estou a contar pontos nesta. Bem, a app está, mas com carinho.",
+            "Encontramos o próximo horário livre e ficamos por aí.",
+            "É mais tempo para o resto da tua vida.",
+            "É um dia, e tens muitos desses.",
+            "Amanhã continua a ter o teu nome.",
+            "Nada se perdeu que não se possa recuperar depois.",
+            "Chamamos-lhe descanso planeado e seguimos."
         ],
-        closers: ["All good.", "No big deal.", "Moving on.", "Next time, then.", "I'm easy.", "Carry on."]
+        closers: ["Tudo bem.", "Não é grave.", "Próximo assunto.", "Fica para a próxima.", "Por mim, está ótimo.", "Continua."]
     )
 
     static let waterBehind = PhrasePool(
-        openers: ["Water check.", "A word about water.", "Your water is a bit behind.", "We're running a little dry.", "Psst, water.", "Glass status: mostly empty."],
+        openers: ["Ponto da situação: água.", "Uma palavra sobre a água.", "A água está um pouco atrasada.", "Isto está a ficar um bocadinho seco por aqui.", "Psst, água.", "Estado do copo: quase vazio."],
         bodies: [
-            "A big glass now gets you back on pace.",
-            "Could you have a glass, as a favour to me?",
-            "The tap is right there and it's very reasonably priced.",
-            "One big glass and I'll stop mentioning it.",
-            "Go on, have a good long drink.",
-            "Your bottle is looking lonely.",
-            "Let's catch up with a glass or two.",
-            "I've got a sprout on my head, so I think about water a lot.",
-            "This is my gentle tap on the shoulder about water.",
-            "Take a few big sips and we'll call it progress.",
-            "Fill a glass next time you pass the kitchen.",
-            "It's the easiest thing on the list, and it's on the list.",
-            "The water won't drink itself. I've watched it try.",
-            "A refill would catch you up nicely.",
-            "Maybe put a glass on the desk where you can see it.",
-            "Just one glass. I'm not asking for a swimming pool.",
-            "Have a drink, you've been busy.",
-            "Next glass is on the house."
+            "Um copo grande agora põe-te de novo no ritmo.",
+            "Podes beber um copo, só para me fazeres a vontade?",
+            "A torneira está mesmo ali e tem um preço muito simpático.",
+            "Um copo grande e deixo de falar nisto.",
+            "Vá, bebe um copo bem cheio.",
+            "A tua garrafa parece tão sozinha.",
+            "Vamos recuperar com um copo ou dois.",
+            "Tenho um rebento na cabeça, por isso penso muito em água.",
+            "Considera isto um toquezinho no ombro por causa da água.",
+            "Uns goles grandes e já contamos como progresso.",
+            "Enche um copo da próxima vez que passares pela cozinha.",
+            "É a coisa mais fácil da lista, e está na lista.",
+            "A água não se bebe sozinha. Já a vi tentar.",
+            "Mais um copo e ficas em dia.",
+            "Se calhar põe um copo na secretária, onde o vejas.",
+            "Só um copo. Não estou a pedir uma piscina.",
+            "Bebe um pouco de água, tens tido muito que fazer.",
+            "O próximo copo é por conta da casa."
         ],
-        closers: ["Cheers.", "Thank you.", "That's all from me.", "I'll be watching, kindly.", "Bottoms up.", "No rush, but soon."]
+        closers: ["Saúde.", "Obrigado.", "É tudo da minha parte.", "Eu fico de olho, com carinho.", "À tua.", "Sem pressa, mas em breve."]
     )
 
     static let proteinBehind = PhrasePool(
-        openers: ["Protein check.", "A note from the kitchen.", "About protein.", "Dinner thought.", "Food question.", "On the protein front."],
+        openers: ["Ponto da situação: proteína.", "Um recado da cozinha.", "Sobre a proteína.", "Ideia para o jantar.", "Assunto: comida.", "Quanto à proteína."],
         bodies: [
-            "A shake or a fridge portion covers most of it.",
-            "Something with eggs or chicken would sort this out.",
-            "Dinner could do most of the work here.",
-            "A yogurt or a tin of tuna would make a nice dent.",
-            "There's still time, and there's still food.",
-            "Let's make the next thing you eat count for a bit more.",
-            "It's closer than it looks. One proper portion does a lot.",
-            "A big spoonful of something high in protein, maybe?",
-            "Have a look in the fridge. It might surprise you.",
-            "An easy one: a shake, and you're nearly there.",
-            "A snack with some substance would help.",
-            "Dessert could be a yogurt, if you want to be clever about it.",
-            "No need to be perfect, just a bit closer.",
-            "You don't have to finish it, just nudge it along.",
-            "Cottage cheese exists, and I'm only mentioning it.",
-            "This one is solved by eating, which is the good kind of problem."
+            "Um batido ou uma dose do frigorífico resolve a maior parte.",
+            "Algo com ovos ou frango resolvia isto.",
+            "O jantar pode fazer a maior parte do trabalho.",
+            "Um iogurte ou uma lata de atum já fazia boa diferença.",
+            "Ainda há tempo, e ainda há comida.",
+            "Que a próxima coisa que comeres conte um bocadinho mais.",
+            "Está mais perto do que parece. Uma dose a sério faz muito.",
+            "Uma boa colherada de algo rico em proteína, talvez?",
+            "Espreita o frigorífico. Pode surpreender-te.",
+            "Uma fácil: um batido, e estás quase lá.",
+            "Um lanche com alguma substância ajudava.",
+            "A sobremesa podia ser um iogurte, numa jogada esperta.",
+            "Não precisa de ser perfeito, só um pouco mais perto.",
+            "Não tens de chegar ao fim, basta dar-lhe um empurrãozinho.",
+            "O queijo cottage existe, e é só isso que digo.",
+            "Isto resolve-se a comer, que é o melhor tipo de problema."
         ],
-        closers: ["Enjoy.", "Just a thought.", "Your call.", "Bon appetit.", "I'll stop there.", "Nearly there."]
+        closers: ["Aproveita.", "É só uma ideia.", "Tu decides.", "Bom apetite.", "Fico por aqui.", "Falta pouco."]
     )
 
     static let fruitGoal = PhrasePool(
-        openers: ["Fruit check.", "No fruit so far, by my count.", "A word from the fruit bowl.", "About fruit.", "Thought for today: fruit.", "The fruit bowl sent me."],
+        openers: ["Ponto da situação: fruta.", "Pelas minhas contas, ainda não houve fruta.", "Um recado da fruteira.", "Sobre a fruta.", "Pensamento do dia: fruta.", "Foi a fruteira que me mandou."],
         bodies: [
-            "An apple would do nicely.",
-            "A banana takes ten seconds and no skill at all.",
-            "Have an orange. It's practically already peeled. It isn't, but go on.",
-            "One piece and today's fruit is sorted.",
-            "Something sweet and from a tree, perhaps?",
-            "A pear after lunch would be a civilised touch.",
-            "Grab one on your way past, you won't even have to stop.",
-            "Fruit counts as a snack and as a small victory.",
-            "Whatever's in season and looks friendly.",
-            "Grapes count too, and they come with no peeling.",
-            "It's the easiest goal on the board, and the tastiest.",
-            "Put one on the desk and let it tempt you.",
-            "Dessert sorted, if you think about it.",
-            "Let's get one in before the day runs off.",
-            "That bowl isn't just decoration.",
-            "A bit of fruit sounds nice about now, doesn't it?"
+            "Uma maçã ficava mesmo bem.",
+            "Uma banana leva dez segundos e nenhum talento.",
+            "Come uma laranja. Está praticamente descascada. Não está, mas vá lá.",
+            "Uma peça e a fruta de hoje está resolvida.",
+            "Algo doce e vindo de uma árvore, talvez?",
+            "Uma pera depois do almoço seria um toque civilizado.",
+            "Apanha uma de passagem, nem precisas de parar.",
+            "A fruta conta como lanche e como pequena vitória.",
+            "O que estiver da época e tiver ar simpático.",
+            "As uvas também contam, e não é preciso descascar.",
+            "É o objetivo mais fácil do quadro, e o mais saboroso.",
+            "Põe uma na secretária e deixa-te tentar.",
+            "Sobremesa resolvida, se pensares bem.",
+            "Vamos comer uma antes que o dia fuja.",
+            "Aquela fruteira não é só decoração.",
+            "Um pouco de fruta sabia bem agora, não sabia?"
         ],
-        closers: ["Easy one.", "Enjoy it.", "That's all I've got.", "Yum.", "No peeling required. Sometimes.", "Off you go."]
+        closers: ["Esta é fácil.", "Aproveita.", "É tudo o que tenho.", "Nham.", "Sem descascar. Às vezes.", "Força."]
     )
 
     static let soupGoal = PhrasePool(
-        openers: ["Soup check.", "A word about soup.", "Have we had soup today?", "Soup thought.", "Very serious soup matter.", "The soup question."],
+        openers: ["Ponto da situação: sopa.", "Uma palavra sobre sopa.", "Já houve sopa hoje?", "Pensamento sobre sopa.", "Assunto muito sério de sopa.", "A questão da sopa."],
         bodies: [
-            "A bowl with lunch or dinner would do it.",
-            "A proper bowl of sopa and that's the goal done.",
-            "Vegetables in their friendliest form.",
-            "Warm, easy and already practically a tradition.",
-            "It only takes a bowl and a spoon, and you own both.",
-            "Start dinner with a bowl and you're sorted.",
-            "If there's some in the fridge, this is its moment.",
-            "A pot of it would cover you for days.",
-            "Caldo verde would count, and I'd be jealous.",
-            "Soup is just a meal being kind to you.",
-            "Anything with vegetables and a spoon will do.",
-            "Your grandmother would approve of this reminder.",
-            "A small bowl still counts. I checked.",
-            "You could heat one up in the time it took to read this.",
-            "Let's get one in before bedtime sneaks up.",
-            "It's hard to be in a bad mood holding a bowl of soup."
+            "Um prato ao almoço ou ao jantar resolvia.",
+            "Um bom prato de sopa e o objetivo está cumprido.",
+            "Legumes na sua versão mais simpática.",
+            "Quente, fácil e praticamente uma tradição.",
+            "Só precisa de um prato e de uma colher, e tu tens os dois.",
+            "Começa o jantar com um prato de sopa e está resolvido.",
+            "Se houver alguma no frigorífico, chegou a hora dela.",
+            "Uma panela dá para vários dias.",
+            "Um caldo verde contava, e eu ficava com inveja.",
+            "A sopa é só uma refeição a ser simpática contigo.",
+            "Serve qualquer coisa com legumes e uma colher.",
+            "A tua avó aprovava este lembrete.",
+            "Um prato pequeno também conta. Fui ver.",
+            "Dava para aquecer uma no tempo que levaste a ler isto.",
+            "Vamos a uma antes que a hora de deitar chegue de mansinho.",
+            "É difícil estar de mau humor com uma tigela de sopa nas mãos."
         ],
-        closers: ["Lovely.", "Spoon ready.", "Enjoy it.", "Save me a spoonful.", "That's my whole message.", "Warm regards."]
+        closers: ["Que bom.", "Colher a postos.", "Bom proveito.", "Guarda-me uma colherada.", "É só isto que tenho a dizer.", "Calorosos cumprimentos."]
     )
 
     static let shower = PhrasePool(
-        openers: ["Shower thought.", "About that shower.", "The shower is free, by the way.", "Bathroom's open.", "A small suggestion.", "Shower o'clock, more or less."],
+        openers: ["Pensamento de duche.", "Sobre aquele duche.", "O duche está livre, já agora.", "A casa de banho está à tua espera.", "Uma pequena sugestão.", "Hora do duche, mais ou menos."],
         bodies: [
-            "A few warm minutes and the day feels finished.",
-            "It's a nice way to draw a line under today.",
-            "You'll feel like a new person, or at least a cleaner one.",
-            "Good place to have ideas, too.",
-            "Five minutes and it's done for today.",
-            "Hot water, no phone, excellent deal.",
-            "Sing something. I won't tell.",
-            "Now might be a nice time, before the evening gets away.",
-            "You could fit one in before you get comfortable.",
-            "It beats doing it half asleep.",
-            "Whenever you're ready, the water is.",
-            "Consider it a very short holiday.",
-            "It's one of the easier wins on offer.",
-            "Towel, water, done. Three steps.",
-            "If it's too late tonight, tomorrow morning is fine.",
-            "It takes less time than deciding whether to."
+            "Uns minutos de água quente e o dia fica arrumado.",
+            "É uma boa forma de pôr um ponto final no dia.",
+            "Vais sentir-te outra pessoa, ou pelo menos uma mais limpa.",
+            "Também é um bom sítio para ter ideias.",
+            "Cinco minutos e está feito por hoje.",
+            "Água quente, sem telemóvel, um negócio excelente.",
+            "Canta qualquer coisa. Eu não conto a ninguém.",
+            "Agora podia ser uma boa altura, antes que a noite fuja.",
+            "Dava para encaixar um antes de te instalares no sofá.",
+            "É melhor do que fazê-lo meio a dormir.",
+            "A água está pronta quando tu quiseres.",
+            "Considera-o umas férias muito curtas.",
+            "É das vitórias mais fáceis que há.",
+            "Toalha, água, feito. Três passos.",
+            "Se hoje já for tarde, amanhã de manhã também serve.",
+            "Leva menos tempo do que decidir se vale a pena."
         ],
-        closers: ["Enjoy.", "No rush.", "Just saying.", "You'll thank me.", "I'll wait here.", "Off you pop."]
+        closers: ["Aproveita.", "Sem pressa.", "É só uma ideia.", "Depois agradeces-me.", "Eu espero aqui.", "Vai lá."]
     )
 
     static let brushing = PhrasePool(
-        openers: ["Teeth.", "Brush time.", "A note on your teeth.", "Toothbrush calling.", "One small thing.", "Quick dental bulletin."],
+        openers: ["Dentes.", "Hora de lavar os dentes.", "Uma nota sobre os teus dentes.", "A escova de dentes está a chamar.", "Uma coisa pequena.", "Boletim dentário rápido."],
         bodies: [
-            "Two minutes and you never have to think about it again today.",
-            "Your toothbrush has been standing there all day, waiting.",
-            "You know how this one goes.",
-            "Two minutes, plus some light dancing if you want.",
-            "It's the shortest job on the list.",
-            "Your teeth have asked me to mention it.",
-            "Put on a song and you're done before it ends.",
-            "Quick one, then back to whatever you were doing.",
-            "Nobody's ever regretted this one.",
-            "You could do it with your eyes closed, so maybe do.",
-            "That's a tiny job with a minty finish.",
-            "Grab the brush on your way past.",
-            "Pip's dental advice: yes.",
-            "You can scroll later. Well, you can't brush and scroll. Maybe you can.",
-            "Bathroom, brush, done, freedom.",
-            "It's small enough to do right now."
+            "Dois minutos e não precisas de voltar a pensar nisso hoje.",
+            "A tua escova está ali de pé o dia todo, à espera.",
+            "Já sabes como isto funciona.",
+            "Dois minutos, mais uma dancinha se quiseres.",
+            "É a tarefa mais curta da lista.",
+            "Os teus dentes pediram-me para falar nisto.",
+            "Põe uma música e acabas antes de ela terminar.",
+            "É rápido, e depois voltas ao que estavas a fazer.",
+            "Nunca ninguém se arrependeu desta.",
+            "Consegues fazer isto de olhos fechados. Experimenta.",
+            "É uma tarefa pequenina com final a menta.",
+            "Pega na escova quando passares por lá.",
+            "Conselho dentário do Pip: sim.",
+            "O telemóvel fica para depois. Escovar e fazer scroll não dá. Ou dá?",
+            "Casa de banho, escova, feito, liberdade.",
+            "É coisa tão pequena que dá para fazer já."
         ],
-        closers: ["Minty.", "That's all.", "Done soon.", "Off you go.", "Your smile says thanks.", "Easy win."]
+        closers: ["Sabor a menta.", "É só isto.", "Já está quase.", "Vai lá.", "O teu sorriso agradece.", "Vitória fácil."]
     )
 
     static let reading = PhrasePool(
-        openers: ["Book time.", "Your book called.", "A thought about your book.", "Reading corner is open.", "It's been asking about you.", "On the bedside table."],
+        openers: ["Hora do livro.", "O teu livro ligou.", "Uma ideia sobre o teu livro.", "O cantinho da leitura está aberto.", "O livro tem perguntado por ti.", "Na mesa de cabeceira."],
         bodies: [
-            "Ten pages would do.",
-            "A few pages count. They always count.",
-            "It's probably better than whatever's on your phone.",
-            "Find out what happens next. I'd like to know too.",
-            "Just one chapter, and I do mean it, maybe.",
-            "Screen down, book up.",
-            "You left someone in the middle of a sentence.",
-            "Twenty minutes, then you can say you read today.",
-            "The story hasn't moved since you left it.",
-            "A page is enough to get started.",
-            "It's a very cheap way to go somewhere else.",
-            "You'll fall asleep smarter, that's my whole pitch.",
-            "It's sitting right where you left it, not judging at all.",
-            "A cosy chair and a few pages sound good to me.",
-            "Read until your eyes say stop.",
-            "No need to finish it, just visit."
+            "Dez páginas chegavam.",
+            "Umas páginas contam. Contam sempre.",
+            "Deve ser melhor do que o que está no telemóvel.",
+            "Descobre o que acontece a seguir. Eu também quero saber.",
+            "Só um capítulo, e estou a falar a sério, acho eu.",
+            "Telemóvel em baixo, livro na mão.",
+            "Deixaste alguém a meio de uma frase.",
+            "Vinte minutos, e podes dizer que leste hoje.",
+            "A história não saiu do sítio desde que a deixaste.",
+            "Uma página chega para começar.",
+            "É uma maneira muito barata de ir a outro sítio.",
+            "Adormeces a saber mais, é esse o meu argumento todo.",
+            "Está mesmo onde o deixaste, sem julgar nada.",
+            "Uma cadeira confortável e umas páginas parecem-me bem.",
+            "Lê até os olhos pedirem para parar.",
+            "Não precisas de o acabar, só de o visitar."
         ],
-        closers: ["Enjoy.", "I'll be quiet.", "Happy reading.", "Tell me how it ends.", "Off you go.", "Good company, books."]
+        closers: ["Aproveita.", "Eu não faço barulho.", "Boas leituras.", "Depois conta-me como acaba.", "Vai lá.", "Os livros são boa companhia."]
     )
 
     static let promisesDone = PhrasePool(
-        openers: ["Everything done.", "That's the lot.", "The list is empty.", "All done for today.", "You did all of it.", "Nothing left on the board."],
+        openers: ["Tudo feito.", "É tudo.", "A lista está vazia.", "Tudo despachado por hoje.", "Fizeste tudo.", "Já não sobra nada no quadro."],
         bodies: [
-            "Proud of you.",
-            "I'm doing a tiny dance about it.",
-            "You can stop now. That's an actual option.",
-            "The rest of today is purely decorative.",
-            "That's what it looks like when you keep your word.",
-            "I've run out of things to bother you about.",
-            "You said you'd do these, and you did them. Excellent behaviour.",
-            "Time to do something completely useless. You've earned it.",
-            "Honestly, not bad at all.",
-            "You've made my job very easy today.",
-            "All of it, and on a regular day too.",
-            "This is the good kind of nothing left to do.",
-            "Today's version of you is on a roll.",
-            "I'd give you a medal, but I need it for my wardrobe.",
-            "Now go and enjoy being someone with nothing to do.",
-            "You've left me speechless, nearly."
+            "Tenho orgulho em ti.",
+            "Estou a fazer uma dancinha por causa disso.",
+            "Agora podes parar. É mesmo uma opção.",
+            "O resto do dia é pura decoração.",
+            "É assim que fica quando cumpres a tua palavra.",
+            "Fiquei sem coisas para te chatear.",
+            "Disseste que fazias, e fizeste. Comportamento exemplar.",
+            "Hora de fazer uma coisa completamente inútil. Mereceste.",
+            "Sinceramente, nada mal.",
+            "Hoje facilitaste-me muito o trabalho.",
+            "Tudo, e num dia normal.",
+            "Este é o lado bom de não haver nada para fazer.",
+            "A tua versão de hoje está imparável.",
+            "Dava-te uma medalha, mas preciso dela para o meu roupeiro.",
+            "Agora vai e aproveita ser alguém sem nada para fazer.",
+            "Quase me deixaste sem palavras."
         ],
-        closers: ["Well done.", "Go and relax.", "Lovely work.", "That's a good day.", "Enjoy your evening.", "Thank you for that."]
+        closers: ["Muito bem.", "Vai descansar.", "Belo trabalho.", "Isto é que é um bom dia.", "Aproveita o fim do dia.", "Obrigado por isso."]
     )
 
     static let streak = PhrasePool(
-        openers: ["Look at that.", "Well, well.", "Quite the run.", "Keep this up and I'll get emotional.", "I've been counting.", "Noticed."],
+        openers: ["Olha-me isto.", "Ora, ora.", "Que belo embalo.", "Continua assim e eu ainda me emociono.", "Tenho andado a contar.", "Reparei."],
         bodies: [
-            "That's how habits stick.",
-            "That isn't luck any more. That's just you.",
-            "You're making this look easy, and I know it isn't.",
-            "A little more of this and you won't even have to think about it.",
-            "Small things, done again and again. It adds up.",
-            "This is the boring part that makes everything work.",
-            "I'd like the record to show I never doubted you.",
-            "You're turning into someone who does this.",
-            "It's quietly becoming a thing you do.",
-            "Most people talk about this. You keep doing it.",
-            "Don't look down, just keep going.",
-            "That number got there one ordinary day at a time.",
-            "Very steady work. I like steady.",
-            "It doesn't need to be perfect to keep going, and it's going.",
-            "You've built something here, and it's only getting sturdier.",
-            "If you miss one, we just carry on. But look at it."
+            "É assim que os hábitos pegam.",
+            "Isto já não é sorte. És mesmo tu.",
+            "Fazes isto parecer fácil, e eu sei que não é.",
+            "Mais um bocadinho disto e já nem vais ter de pensar nisso.",
+            "Coisas pequenas, repetidas vezes sem conta. Tudo soma.",
+            "Esta é a parte aborrecida que faz tudo funcionar.",
+            "Que fique registado que nunca duvidei de ti.",
+            "Estás a tornar-te alguém que faz isto.",
+            "Aos poucos, isto está a tornar-se uma coisa tua.",
+            "A maioria das pessoas fala disto. Tu continuas a fazê-lo.",
+            "Não olhes para baixo, é sempre a andar.",
+            "Esse número chegou lá um dia normal de cada vez.",
+            "Trabalho muito constante. Gosto de constância.",
+            "Não tem de ser perfeito para seguir em frente, e está a seguir.",
+            "Construíste aqui uma coisa, e está cada vez mais sólida.",
+            "Se um dia falhar, seguimos na mesma. Mas olha-me só para isto."
         ],
-        closers: ["Nice.", "Keep rolling.", "I'm impressed.", "Carry on.", "That's the way.", "Good stuff."]
+        closers: ["Boa.", "Segue assim.", "Impressionante.", "Em frente.", "É assim mesmo.", "Que bom."]
     )
 
     static let eveningClose = PhrasePool(
-        openers: ["Evening.", "Nearly there.", "The day's winding up.", "Almost time to call it.", "That was today.", "Evening, you."],
+        openers: ["Fim do dia.", "Reta final.", "O dia está a acabar.", "Está quase na hora de dar o dia por terminado.", "Foi isto o dia de hoje.", "Ora boa noite."],
         bodies: [
-            "Close the day when you're ready. It takes a minute.",
-            "Tell me how it went. I've been wondering.",
-            "One minute to put today away properly?",
-            "Rate the day and pick tomorrow's three. Then you're free.",
-            "Let's write down what happened and leave it there.",
-            "Whatever today was, it's enough to close.",
-            "Time to put a lid on today.",
-            "It's nice to end a day on purpose.",
-            "Let's tidy today up and leave tomorrow a note.",
-            "A quick look back, and then no more thinking about it.",
-            "Tomorrow's three are easier to pick tonight.",
-            "Good days and odd days both get closed the same way.",
-            "You've done the day. All that's left is saying so.",
-            "No essay needed. A few taps will do it.",
-            "I keep the score. You just tell me how it felt.",
-            "Tell me one good thing, if there was one."
+            "Fecha o dia quando quiseres. Demora um minuto.",
+            "Conta-me como correu. Fiquei a pensar nisso.",
+            "Um minuto para arrumar o dia como deve ser?",
+            "Dá uma nota ao dia e escolhe as três prioridades de amanhã. Depois ficas livre.",
+            "Vamos apontar o que aconteceu e ficamos por aí.",
+            "Fosse como fosse, o dia de hoje já dá para fechar.",
+            "Hora de pôr a tampa no dia.",
+            "Sabe bem acabar um dia de propósito.",
+            "Vamos arrumar o dia e deixar um bilhete ao de amanhã.",
+            "Uma olhadela para trás, e depois não se pensa mais nisso.",
+            "As três prioridades de amanhã escolhem-se melhor hoje à noite.",
+            "Os dias bons e os dias estranhos fecham-se da mesma maneira.",
+            "O dia está feito. Só falta dizê-lo.",
+            "Não é preciso escrever um texto. Bastam uns toques.",
+            "Eu trato da pontuação. Tu só me dizes como te soube.",
+            "Diz-me uma coisa boa, se tiver havido alguma."
         ],
-        closers: ["Then rest.", "I'm listening.", "No rush.", "Then it's couch time.", "Almost done.", "Good night soon."]
+        closers: ["Depois descansa.", "Estou a ouvir.", "Sem pressa.", "Depois é hora de sofá.", "Está quase.", "A cama já não tarda."]
     )
 
     static let windDown = PhrasePool(
-        openers: ["Wind-down time.", "Getting late.", "Time to start slowing down.", "Evening's nearly over.", "The day is shutting up shop.", "Sleepy hour."],
+        openers: ["Hora de desacelerar.", "Está a ficar tarde.", "Hora de começar a abrandar.", "O serão está quase no fim.", "O dia está a fechar a loja.", "Chegou a hora do sono."],
         bodies: [
-            "Screens away, book out.",
-            "Screens away, lights low.",
-            "Tomorrow can wait until tomorrow.",
-            "Lights down, feet up.",
-            "Whatever's left can go on tomorrow's list.",
-            "I'm yawning already, and my sprout is drooping.",
-            "A book and a dim lamp sound right about now.",
-            "Your phone will survive without you for a bit.",
-            "This is the part where nothing else needs to happen.",
-            "Let's start landing the plane.",
-            "Teeth, pillow, the usual route.",
-            "Time to stop being useful for the day.",
-            "The internet will still be there in the morning. It's a shame, really.",
-            "Getting comfy is the only task left.",
-            "Let's turn things down a notch.",
-            "You're off duty now."
+            "Ecrãs de lado, livro na mão.",
+            "Ecrãs de lado, luzes baixas.",
+            "O amanhã pode esperar até amanhã.",
+            "Luz fraca, pés para cima.",
+            "O que sobrar pode ir para a lista de amanhã.",
+            "Já estou a bocejar, e o meu rebento está a murchar.",
+            "Um livro e um candeeiro fraquinho sabem mesmo bem agora.",
+            "O teu telemóvel sobrevive sem ti durante um bocado.",
+            "Esta é a parte em que já não tem de acontecer mais nada.",
+            "Vamos começar a aterragem.",
+            "Dentes, almofada, o caminho do costume.",
+            "Hora de deixar de ser útil por hoje.",
+            "A internet ainda vai lá estar de manhã. É pena, a sério.",
+            "Pôr-te confortável é a única tarefa que falta.",
+            "Vamos baixar o ritmo mais um pouco.",
+            "Agora estás de folga."
         ],
-        closers: ["Good night soon.", "Sleep's on its way.", "See you tomorrow.", "I'm heading off too.", "Sweet dreams, nearly.", "Off to bed with us."]
+        closers: ["Boa noite daqui a pouco.", "O sono vem a caminho.", "Até amanhã.", "Eu também já me vou deitar.", "Bons sonhos, quase.", "Toca a ir para a cama."]
     )
 
     static let minimumDayDone = PhrasePool(
-        openers: ["Light day.", "Essentials done.", "Minimum day, done.", "That's today's short list.", "Easy day, finished.", "The small list is empty."],
+        openers: ["Dia leve.", "O essencial está feito.", "Dia mínimo, feito.", "Foi esta a lista curta de hoje.", "Dia fácil, terminado.", "A lista pequena está vazia."],
         bodies: [
-            "That's a full day.",
-            "That's all today needed to be.",
-            "Nothing else is required. I checked.",
-            "Today's rules say you've won.",
-            "You did what today asked. Stop there if you like.",
-            "A small day done properly is a good day.",
-            "You can rest now, and it counts as following the plan.",
-            "The rest is optional, and I mean that.",
-            "Everything else can wait for a bigger day.",
-            "That was the deal, and you kept it.",
-            "Small days keep the big ones possible.",
-            "Now do as little as you can get away with.",
-            "No extra credit needed today.",
-            "You kept the thread going, and that's the point of today.",
-            "Off the clock, officially.",
-            "I'd call that a success. In fact, I'm the one who does."
+            "Já é um dia completo.",
+            "O dia de hoje não precisava de ser mais do que isto.",
+            "Não é preciso mais nada. Fui confirmar.",
+            "As regras de hoje dizem que ganhaste.",
+            "Fizeste o que o dia pedia. Podes parar aí, se quiseres.",
+            "Um dia pequeno bem feito é um bom dia.",
+            "Agora podes descansar, e isso conta como cumprir o plano.",
+            "O resto é opcional, e digo isto a sério.",
+            "Tudo o resto pode esperar por um dia maior.",
+            "Era esse o acordo, e cumpriste-o.",
+            "Os dias pequenos é que tornam os grandes possíveis.",
+            "Agora faz o menos que puderes.",
+            "Hoje não são precisos pontos extra.",
+            "Não deixaste o fio partir-se, e é esse o objetivo de hoje.",
+            "Acabou o expediente, oficialmente.",
+            "Eu chamava-lhe um sucesso. Aliás, sou eu que decido."
         ],
-        closers: ["Rest up.", "Well done.", "That's it.", "Enjoy the quiet.", "Feet up.", "See? Easy."]
+        closers: ["Descansa bem.", "Muito bem.", "É isso.", "Aproveita o sossego.", "Pés para cima.", "Vês? Fácil."]
     )
 
     static let minimumDayOpen = PhrasePool(
-        openers: ["Light day.", "Short list today.", "Minimum day.", "Today's a small one.", "Easy day.", "We're keeping today tiny."],
+        openers: ["Dia leve.", "Lista curta hoje.", "Dia mínimo.", "Hoje é um dia pequeno.", "Dia fácil.", "Hoje fica tudo pequenino."],
         bodies: [
-            "Just {what} and rest.",
-            "Only {what}, and that's the whole plan.",
-            "{What}, then you're done. Really.",
-            "All today asks for is {what}.",
-            "One thing on the list: {what}.",
-            "{What} and nothing else. I checked twice.",
-            "Do {what} whenever suits you, then rest.",
-            "{What} is the entire to-do list.",
-            "Just {what}. The rest can wait for a bigger day.",
-            "Today's big project: {what}.",
-            "{What}, and the day is officially a success.",
-            "We only need {what} from today.",
-            "Everything else is off. Just {what}.",
-            "If {what} happens, today counts in full.",
-            "{What} first, then as little as possible.",
-            "Tiny plan: {what}, then the couch."
+            "Só {what}, e depois descansas.",
+            "Apenas {what}, e é esse o plano todo.",
+            "{What}, e acabou. A sério.",
+            "O dia de hoje só pede {what}.",
+            "Uma coisa na lista: {what}.",
+            "{What} e mais nada. Confirmei duas vezes.",
+            "{What} quando te der jeito, e depois descanso.",
+            "{What} é a lista de tarefas inteira.",
+            "Só {what}. O resto pode esperar por um dia maior.",
+            "O grande projeto de hoje: {what}.",
+            "{What}, e o dia é oficialmente um sucesso.",
+            "Hoje só precisamos de {what}.",
+            "Tudo o resto fica de fora. Só {what}.",
+            "Basta {what} para o dia contar por inteiro.",
+            "Primeiro {what}, depois o menos possível.",
+            "Plano minúsculo: {what}, e depois sofá."
         ],
-        closers: ["That's it.", "No rush.", "Then rest.", "Easy.", "I'll wait.", "Nothing more."]
+        closers: ["É isso.", "Sem pressa.", "Depois descansa.", "Fácil.", "Eu espero.", "Não é preciso mais."]
     )
 
     static let comeback = PhrasePool(
-        openers: ["Hey, welcome back.", "Yesterday slipped.", "There you are.", "We took a small detour.", "A gap in the list, that's all.", "New day."],
+        openers: ["Olá, olha quem voltou.", "Ontem fugiu-nos.", "Aí estás tu.", "Fizemos um pequeno desvio.", "Um buraco na lista, mais nada.", "Dia novo."],
         bodies: [
-            "One small thing today and we're back.",
-            "It happens to everybody, including me.",
-            "No need to catch up. Just start from here.",
-            "Let's pick the smallest thing and call it a return.",
-            "I kept your place.",
-            "It's one small step to get going again.",
-            "I'm just glad you're here.",
-            "Nothing's broken, you can just pick it up.",
-            "Today doesn't need to make up for anything.",
-            "Let's not count what's missing. Let's do the next one.",
-            "One tick is all it takes to get rolling again.",
-            "The list didn't go anywhere, and it isn't cross.",
-            "Starting again is the whole skill, and you're doing it.",
-            "Easy version today, and we'll build from there.",
-            "No speech needed. Let's just do something tiny.",
-            "Everything's still here, and so are you."
+            "Uma coisa pequena hoje e estamos de volta.",
+            "Acontece a toda a gente, incluindo a mim.",
+            "Não é preciso recuperar nada. Começa só a partir daqui.",
+            "Vamos escolher a coisa mais pequena e chamar-lhe regresso.",
+            "Guardei-te o lugar.",
+            "Basta um passo pequeno para voltar a arrancar.",
+            "Fico mesmo contente por estares aqui.",
+            "Não se partiu nada, é só pegar outra vez.",
+            "Hoje não tem de compensar nada.",
+            "Não vamos contar o que falta. Vamos fazer o próximo.",
+            "Basta marcar uma coisa para voltar ao ritmo.",
+            "A lista não foi a lado nenhum, e não está zangada.",
+            "Recomeçar é a arte toda, e estás a fazê-lo.",
+            "Versão fácil hoje, e construímos a partir daí.",
+            "Não é preciso discurso. Vamos só fazer uma coisinha.",
+            "Está tudo aqui, e tu também."
         ],
-        closers: ["No fuss.", "Good to see you.", "Easy does it.", "We go again.", "One thing, that's all.", "I'm glad you came back."]
+        closers: ["Sem drama.", "Bom ver-te.", "Com calma.", "Vamos outra vez.", "Uma coisa, só isso.", "Ainda bem que voltaste."]
     )
 
     static let mustDoOpen = PhrasePool(
-        openers: ["One thing.", "Small reminder.", "Before anything else.", "Tiny nudge.", "Excuse me.", "While I have you."],
+        openers: ["Uma coisa.", "Pequeno lembrete.", "Antes de mais nada.", "Um toquezinho.", "Com licença.", "Já que estás aqui."],
         bodies: [
-            "{What} first, then we rest.",
-            "{What} is still waiting. It only takes a minute.",
-            "{What}: still open.",
-            "Still time for {what}.",
-            "{What} has been very patient.",
-            "Next on the list: {what}.",
-            "Shall we get {what} out of the way?",
-            "{What}, and then you're free.",
-            "Got a minute for {what}?",
-            "I'd like to see {what} ticked off.",
-            "{What} is the one left standing.",
-            "Quick one: {what}.",
-            "{What}, whenever you get a second.",
-            "Let's do {what} while we're thinking about it.",
-            "{What} is asking for you by name.",
-            "You and {what} still have an appointment."
+            "Primeiro {what}, depois descansamos.",
+            "{What} ainda está à espera. Só leva um minuto.",
+            "{What}: ainda por fazer.",
+            "Ainda há tempo para {what}.",
+            "{What} tem sido muito paciente.",
+            "A seguir na lista: {what}.",
+            "E se tratássemos já de {what}?",
+            "{What}, e depois ficas livre.",
+            "Tens um minuto para {what}?",
+            "Gostava muito de ver isto feito: {what}.",
+            "{What} é o que ainda resta.",
+            "Rapidinho: {what}.",
+            "{What}, quando tiveres um segundo.",
+            "Enquanto nos lembramos: {what}.",
+            "{What} está a chamar por ti.",
+            "Ainda tens um encontro marcado com {what}."
         ],
-        closers: ["Then we're good.", "Thank you.", "It's a small one.", "I'll tick it for you, if you do it.", "That's all.", "No fuss."]
+        closers: ["E fica tudo bem.", "Obrigado.", "É coisa pequena.", "Eu marco por ti, se tratares disso.", "É só isto.", "Sem complicações."]
     )
 
     static let routineLate = PhrasePool(
-        openers: ["Small check.", "Just asking.", "A little late, no problem.", "Time check.", "Gentle nudge.", "No pressure."],
+        openers: ["Pergunta rápida.", "Só por curiosidade.", "Um pouco tarde, não faz mal.", "Só a ver as horas.", "Um toque suave.", "Sem pressão."],
         bodies: [
-            "Still on?",
-            "Want to do it now, or let it go today?",
-            "Still got time, if you want it.",
-            "Late still counts.",
-            "It doesn't mind being a bit late.",
-            "We can do it now and nobody will know.",
-            "A later start is still a start.",
-            "Is it still the plan?",
-            "Still doable, I think.",
-            "Up for it now?",
-            "It's still sitting there, if you've got a moment.",
-            "If today's not the day, just tell me.",
-            "Fancy doing it now?",
-            "Plans move. Is this one still happening?",
-            "Say the word and we'll get it done.",
-            "Still interested, or shall we leave it?"
+            "Ainda está de pé?",
+            "Queres fazer agora, ou deixar passar hoje?",
+            "Ainda há tempo, se quiseres.",
+            "Tarde também conta.",
+            "Não se importa de ser um bocadinho mais tarde.",
+            "Podemos fazer agora e ninguém vai saber.",
+            "Começar mais tarde continua a ser começar.",
+            "Ainda é esse o plano?",
+            "Ainda dá para fazer, acho eu.",
+            "Apetece-te agora?",
+            "Continua ali à espera, se tiveres um momento.",
+            "Se hoje não for o dia, é só dizeres.",
+            "E se fosse agora?",
+            "Os planos mudam. Este ainda vai acontecer?",
+            "Dá o sinal e tratamos disso.",
+            "Ainda te interessa, ou deixamos para lá?"
         ],
-        closers: ["Either's fine.", "Up to you.", "No drama.", "I'm easy.", "Just checking.", "Your call."]
+        closers: ["Qualquer das opções serve.", "Decides tu.", "Sem drama.", "Por mim, tudo bem.", "Só a confirmar.", "A escolha é tua."]
     )
 
     static let goodDay = PhrasePool(
-        openers: ["Good day so far.", "Going well.", "Today's behaving.", "Not bad at all.", "I like today.", "Nice one, today."],
+        openers: ["Até agora, um bom dia.", "Está a correr bem.", "O dia está a portar-se bem.", "Nada mal.", "Gosto do dia de hoje.", "Hoje está a ser dos bons."],
         bodies: [
-            "Keep it rolling.",
-            "Whatever you're doing, more of that.",
-            "You've got a good thing going.",
-            "I've nothing to add, which is high praise.",
-            "We're well ahead of where days usually are.",
-            "No notes from me.",
-            "Let's not jinx it, but this is working.",
-            "It's nice to watch, honestly.",
-            "You're making this look quite easy.",
-            "I may have to find something to complain about.",
-            "Just carry on as you are.",
-            "Good pace. Good everything.",
-            "You're doing the thing where it all goes fine.",
-            "A few more like this and I'll start to expect it.",
-            "That score is looking quite pleased with itself.",
-            "Today seems to like you back."
+            "Mantém o embalo.",
+            "Seja o que for que estás a fazer, mais disso.",
+            "Isto está a correr-te bem.",
+            "Não tenho nada a acrescentar, o que é um grande elogio.",
+            "Estamos bem à frente do que os dias costumam estar.",
+            "Da minha parte, nenhum reparo.",
+            "Não quero agoirar, mas isto está a resultar.",
+            "Sinceramente, dá gosto ver.",
+            "Estás a fazer isto parecer bastante fácil.",
+            "Se calhar vou ter de arranjar algo de que me queixar.",
+            "Não mudes nada.",
+            "Bom ritmo. Bom tudo.",
+            "Estás naquela fase em que tudo corre bem.",
+            "Mais uns quantos assim e começo a habituar-me.",
+            "Essa pontuação está com ar bem satisfeito.",
+            "Parece que o dia também gosta de ti."
         ],
-        closers: ["Carry on.", "Lovely.", "Nice work.", "I'm enjoying this.", "More of that.", "Good stuff."]
+        closers: ["Continua.", "Que bom.", "Bom trabalho.", "Estou a gostar disto.", "Venham mais.", "Muito bem."]
     )
 
     static let generic = PhrasePool(
-        openers: ["Hi.", "Still here.", "Just me.", "Hello again.", "Quick hello.", "Pip here."],
+        openers: ["Olá.", "Ainda por aqui.", "Sou só eu.", "Olá outra vez.", "Um olá rápido.", "Daqui fala o Pip."],
         bodies: [
-            "You're doing fine.",
-            "Nothing urgent. I just like to check in.",
-            "How's it going over there?",
-            "I'm around if you need me.",
-            "You and I are doing all right.",
-            "Everything's under control, more or less.",
-            "Take a breath. That's free.",
-            "No news is good news, I think.",
-            "I don't have much to report, but I wanted to say hi.",
-            "Don't mind me, I'm only standing here.",
-            "Is there anything small you could finish right now?",
-            "I've been watering my sprout. Anyway, you're doing well.",
-            "It's a decent moment to stretch a bit.",
-            "It's a good day to be small and orange, and a fine one to be you.",
-            "We've got this, in the loose sense of having it.",
-            "You look like someone who has things in hand."
+            "Estás a ir bem.",
+            "Nada urgente. Só gosto de vir ver como estás.",
+            "Como vão as coisas por aí?",
+            "Ando por aqui, se precisares de mim.",
+            "Tu e eu estamos a safar-nos bem.",
+            "Está tudo sob controlo, mais ou menos.",
+            "Respira fundo. É de graça.",
+            "Sem novidades, boas novidades, acho eu.",
+            "Não tenho muito a relatar, mas queria dizer olá.",
+            "Não ligues, só estou aqui a fazer companhia.",
+            "Há alguma coisa pequena que pudesses acabar agora?",
+            "Estive a regar o meu rebento. Enfim, estás a fazer um bom trabalho.",
+            "É uma boa altura para te espreguiçares um pouco.",
+            "Hoje é um bom dia para ser pequeno e cor de laranja, e um ótimo dia para ser tu.",
+            "Isto está nas nossas mãos, mais coisa menos coisa.",
+            "Tens ar de quem sabe o que está a fazer."
         ],
-        closers: ["Carry on.", "That's all.", "As you were.", "I'm off to look at a leaf.", "See you in a bit.", "Bye for now."]
+        closers: ["Continua.", "É só isto.", "Faz de conta que não vim.", "Vou ali ver uma folha.", "Até já.", "Adeusinho."]
     )
 
     static let focusing = PhrasePool(
-        openers: ["Focusing.", "Head down.", "Focus time.", "Shh.", "In the zone, I see."],
+        openers: ["Em foco.", "Concentração total.", "Hora de foco.", "Chiu.", "Em plena concentração, estou a ver."],
         bodies: [
-            "I'll be quiet.",
-            "Not a word from me.",
-            "I'm on tiptoe.",
-            "I'll hold your calls.",
-            "You won't hear me.",
-            "I'm just going to sit here and grow.",
-            "Pretend I'm a plant.",
-            "I'm keeping the noise down."
+            "Não faço barulho.",
+            "Nem uma palavra da minha parte.",
+            "Ando em bicos de pés.",
+            "Eu fico a filtrar as chamadas.",
+            "Nem vais dar por mim.",
+            "Vou só ficar aqui a crescer.",
+            "Faz de conta que sou uma planta.",
+            "Baixei o volume."
         ],
-        closers: ["Carry on.", "As you were.", "Back later.", "Don't mind me."]
+        closers: ["Continua.", "Tudo como estava.", "Volto mais tarde.", "Esquece que estou aqui."]
     )
 }

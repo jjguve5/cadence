@@ -44,7 +44,7 @@ struct PipPage: View {
                         tapped = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { tapped = false }
                     }
-                Text("“\(store.pipLine())”")
+                Text("«\(store.pipLine())»")
                     .font(.geist(15)).multilineTextAlignment(.center).foregroundStyle(Color.ink)
                     .padding(12).frame(maxWidth: .infinity)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color(hex: 0xFFF3E3, opacity: 0.1)))
@@ -52,7 +52,7 @@ struct PipPage: View {
             .frame(maxWidth: .infinity)
 
             Card {
-                HStack { Eyebrow(text: "How Pip feels"); Spacer(); Text(mood.label).font(.geist(14, .bold)).foregroundStyle(Color.good) }
+                HStack { Eyebrow(text: "Como está o Pip"); Spacer(); Text(mood.label).font(.geist(14, .bold)).foregroundStyle(Color.good) }
                 ForEach(store.pipReasons()) { r in
                     HStack {
                         Text(r.text).font(.geist(14))
@@ -65,7 +65,7 @@ struct PipPage: View {
             let open = store.due().filter { store.status($0) == nil }
             if !open.isEmpty {
                 Card {
-                    HStack { Eyebrow(text: "Cheer Pip up today"); Spacer(); Text("+\(open.count * 10) pts").font(.mono(12)).foregroundStyle(Color.soft) }
+                    HStack { Eyebrow(text: "Anima o Pip hoje"); Spacer(); Text("+\(open.count * 10) pts").font(.mono(12)).foregroundStyle(Color.soft) }
                     ForEach(open) { p in
                         HStack {
                             Image(systemName: p.icon).foregroundStyle(Color.soft).frame(width: 20)
@@ -79,15 +79,15 @@ struct PipPage: View {
 
             Card(tint: .mint) {
                 HStack {
-                    Eyebrow(text: "Level \(level.level) · \(store.totalPoints.formatted()) / \(level.next.formatted()) pts", color: .mint)
+                    Eyebrow(text: "Nível \(level.level) · \(store.totalPoints.formatted()) / \(level.next.formatted()) pts", color: .mint)
                     Spacer()
-                    Text(pipAccessories.first { $0.level > level.level }.map { "Level \($0.level): \($0.name.lowercased())" } ?? "Everything unlocked").font(.geist(12)).foregroundStyle(Color.soft)
+                    Text(pipAccessories.first { $0.level > level.level }.map { "Nível \($0.level): \($0.name.lowercased())" } ?? "Tudo desbloqueado").font(.geist(12)).foregroundStyle(Color.soft)
                 }
                 Bar(progress: Double(level.into) / Double(max(1, level.span)), area: .mint)
             }
 
             WardrobePicker()
-            Text("Pip's mood always comes from your real day. It never guilt-trips you: on a bad day it gets sleepy or a little sad and names one small thing that would help.")
+            Text("O humor do Pip vem sempre do teu dia real. Nunca te faz sentir culpa: num dia mau, fica com sono ou um pouco triste e sugere uma pequena coisa que ajudaria.")
                 .font(.geist(12)).foregroundStyle(Color.faint)
         }
         .navigationTitle("Pip")
