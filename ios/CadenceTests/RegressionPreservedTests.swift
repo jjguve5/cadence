@@ -124,7 +124,8 @@ final class RegressionTrainingTests: RegressionCase {
         let store = try makeStore { s in
             s.add(self.finished("old", start: 1_000, [(15, 12)]))
             s.add(self.finished("new", start: 5_000, [(17.5, 10), (17.5, 9)]))
-            s.add(WorkoutSession(id: "open", date: Fixed.saturday, name: "Legs", start: 9_000, order: [],
+            // in progress today (D36: an open session dated in the past now reads as partial, so a past date no longer stands for this)
+            s.add(WorkoutSession(id: "open", date: Day.today, name: "Legs", start: 9_000, order: [],
                                  sets: [SetLog(exerciseId: "leg-extension", weight: 30, reps: 10, done: true)]))
             s.add(WorkoutSession(id: "warm", date: Fixed.saturday, name: "Legs", start: 7_000, end: 8_000, order: [],
                                  sets: [SetLog(exerciseId: "leg-extension", kind: .warmup, weight: 10, reps: 10, done: true)]))

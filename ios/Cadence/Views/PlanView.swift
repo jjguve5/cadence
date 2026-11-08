@@ -646,6 +646,12 @@ struct PlanView: View {
                       prev: { showMonth(previous) }, next: { showMonth(following) }, home: { chosenMonth = nil; picked = nil })
             monthGrid(month, today: today, pick: pick, repeating: repeating)
             monthLegend
+            // an empty day outside what was read isn't a free day
+            if PlanRules.monthCells(month).contains(where: { $0.map { !agenda.covers($0) } ?? false }) {
+                Text("O calendário só foi lido para alguns destes dias. Nos outros, os eventos não aparecem aqui.")
+                    .font(.geist(11)).foregroundStyle(Color.soft).padding(.horizontal, 4)
+                    .accessibilityIdentifier("plan.month.partial")
+            }
             if let pick {
                 monthSummary(pick, today: today, repeating: repeating)
             } else {
@@ -679,11 +685,11 @@ struct PlanView: View {
     }
 
     /// Today has an outline, the chosen day is filled; a lighter background is a fuller day. Daily-repeating events
-    /// don't mark it. A day the calendar wasn't read for has no shade: a dashed outline and the «sem dados» mark, so it
-    /// never looks free.
+    /// don't mark it. A day the calendar wasn't read for has no shade and VoiceOver says «sem dados do calendário»; on
+    /// screen one line under the legend says it (the calendar is read for 9 days, so a mark per cell would cover most
+    /// of the board, which has none).
     private func monthCell(_ d: String, today: String, pick: String?, repeating: Set<String>) -> some View {
-        let known = agenda.covers(d)
-        let info = store.monthDay(d, today: today, repeating: repeating, kept: kept, known: known)
+        let info = store.monthDay(d, today: today, repeating: repeating, kept: kept, known: agenda.covers(d))
         let selected = d == pick
         let isToday = d == today
         let shades: [Double] = [0, 0.045, 0.09, 0.15]
@@ -697,7 +703,7 @@ struct PlanView: View {
             VStack(spacing: 4) {
                 Text(String(Int(d.suffix(2)) ?? 0)).font(.geist(13, selected || isToday ? .bold : .medium))
                 HStack(spacing: 2) {
-                    ForEach(info.marks, id: \.self) { MarkShape(mark: $0, onFill: selected) }
+                    ForEach(info.marks.filter { $0 != .noData }, id: \.self) { MarkShape(mark: $0, onFill: selected) }
                 }
                 .frame(height: 9)
             }
@@ -707,8 +713,6 @@ struct PlanView: View {
             .overlay {
                 if isToday {
                     RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.mint, lineWidth: 2)
-                } else if !known && !selected {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.32), style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
                 }
             }
             .contentShape(Rectangle())
@@ -727,9 +731,8 @@ struct PlanView: View {
             HStack(spacing: 12) {
                 legendItem(.trainingLogged, word: "registado")
                 legendItem(.trainingNoRecord, word: "sem registo")
-                legendItem(.noData, word: "sem dados")
             }
-            Text("Fundo mais claro: dia mais cheio. Contorno tracejado: sem dados do calendário.").font(.geist(11)).foregroundStyle(Color.soft)
+            Text("Fundo mais claro: dia mais cheio.").font(.geist(11)).foregroundStyle(Color.soft)
         }
         .padding(.horizontal, 4)
         .accessibilityElement(children: .combine)
