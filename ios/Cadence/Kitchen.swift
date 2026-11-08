@@ -71,6 +71,11 @@ struct ShoppingItem: Record, Equatable {
     var aisle = "Other"
     var bought = false
     var reason = "added by you"
+    /// Phase 2.10, optional so older builds read and ignore them: where you buy it, what it's for (free text, as you
+    /// type it), and the day you bought it (for «comprado por ti hoje»)
+    var shop: String?
+    var occasion: String?
+    var boughtOn: String?
 }
 
 let aisles = ["Fruit and veg", "Meat and fish", "Dairy", "Bakery", "Pantry", "Frozen", "Drinks", "Household", "Health", "Other"]
@@ -96,6 +101,46 @@ struct ListLine: Identifiable {
     var reason: String
     var price: Double?
     var manual: ShoppingItem?
+    /// Where the need comes from: "recipe", "pantry", "medicine", "brush" or "manual" (your own item)
+    var origin = "manual"
+    var shop: String? = nil
+    var occasion: String? = nil
+    /// The other sources of the same product, folded into this line (one line per product); bought with it
+    var merged: [ListLine] = []
+    /// Each source's reason, as saved, when the line has more than one
+    var reasons: [String] = []
+
+    /// On your list: you added it (alone or with other sources). A line the app works out alone is a suggestion,
+    /// which you add, adjust or ignore (phase 2.10)
+    var mine: Bool { manual != nil || merged.contains { $0.manual != nil } }
+
+    /// Your own item behind the line, to adjust it
+    var yourItem: ShoppingItem? { manual ?? merged.compactMap(\.manual).first }
+
+    /// The shop it's grouped under: yours if you set one; otherwise health products at the pharmacy, the rest at the
+    /// supermarket (shown only)
+    var shopLabel: String { shop ?? (aisle == "Health" ? "Farmácia ou parafarmácia" : "Supermercado") }
+
+    /// The occasion it's grouped under: yours if you set one; otherwise what the need comes from (shown only)
+    var occasionLabel: String {
+        if let occasion { return occasion }
+        switch origin {
+        case "recipe": return "Preparação da semana"
+        case "pantry", "medicine", "brush": return "Reposição"
+        default: return "Sem ocasião"
+        }
+    }
+
+    /// The area the need comes from, for a suggestion's «Porquê»
+    var originLabel: String {
+        switch origin {
+        case "recipe": return "da Cozinha, para"
+        case "pantry": return "da despensa:"
+        case "medicine": return "dos medicamentos:"
+        case "brush": return "da Higiene:"
+        default: return ""
+        }
+    }
 }
 
 @MainActor
@@ -163,14 +208,17 @@ extension Store {
         return Int(p.qty / perDay)
     }
 
-    /// The list: the week's recipes minus what you have, pantry items running low, medicine refills, and your own
+    /// The list: the week's recipes minus what you have, pantry items running low, medicine refills, and your own.
+    /// One line per product, wherever the need comes from (phase 2.10): the same product from several places is one
+    /// line whose reason names each source. What the app works out comes first, so the line keeps its computed id
+    /// (and its bought mark); your own items fold into it.
     func shoppingList() -> [ListLine] {
         var lines: [String: ListLine] = [:]
         let pantry = all(PantryItem.self)
         for (r, n) in plan(for: week) {
             for ing in r.ingredients {
                 let key = ing.name.lowercased()
-                var line = lines[key] ?? ListLine(id: key, name: ing.name, qty: 0, unit: ing.unit, aisle: ing.aisle, reason: r.name, price: prices[key])
+                var line = lines[key] ?? ListLine(id: key, name: ing.name, qty: 0, unit: ing.unit, aisle: ing.aisle, reason: r.name, price: prices[key], origin: "recipe")
                 line.qty += ing.qty * Double(n) / Double(max(1, r.portions))
                 if !line.reason.contains(r.name) { line.reason += ", " + r.name }
                 lines[key] = line
@@ -183,19 +231,77 @@ extension Store {
         }
         for p in pantry {
             let key = p.name.lowercased()
-            if let days = runOut(p), days <= 10, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: days == 1 ? "acaba em 1 dia" : "acaba em \(days) dias", price: p.price) }
-            else if p.lowAt > 0, p.qty <= p.lowAt, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: "a acabar", price: p.price) }
+            if let days = runOut(p), days <= 10, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: days == 1 ? "acaba em 1 dia" : "acaba em \(days) dias", price: p.price, origin: "pantry") }
+            else if p.lowAt > 0, p.qty <= p.lowAt, lines[key] == nil { lines[key] = ListLine(id: key, name: p.name, qty: 1, unit: "", aisle: p.aisle, reason: "a acabar", price: p.price, origin: "pantry") }
         }
         for m in all(Medicine.self) {
-            if let left = dosesLeft(m), Double(left.doses) <= m.refillAt { lines["med-" + m.id] = ListLine(id: "med-" + m.id, name: m.name, qty: 1, unit: "", aisle: "Health", reason: left.doses == 1 ? "resta 1 dose" : "restam \(left.doses) doses") }
+            if let left = dosesLeft(m), Double(left.doses) <= m.refillAt { lines["med-" + m.id] = ListLine(id: "med-" + m.id, name: m.name, qty: 1, unit: "", aisle: "Health", reason: left.doses == 1 ? "resta 1 dose" : "restam \(left.doses) doses", origin: "medicine") }
         }
-        if brushHeadDue { lines["brush"] = ListLine(id: "brush", name: "Cabeças de escova de dentes", qty: 1, unit: "", aisle: "Health", reason: "3 meses de uso") }
-        for s in all(ShoppingItem.self) where !s.bought {
-            lines["s-" + s.id] = ListLine(id: "s-" + s.id, name: s.name, qty: s.qty, unit: s.unit, aisle: s.aisle, reason: s.reason, price: prices[s.name.lowercased()], manual: s)
-        }
+        if brushHeadDue { lines["brush"] = ListLine(id: "brush", name: "Cabeças de escova de dentes", qty: 1, unit: "", aisle: "Health", reason: "3 meses de uso", origin: "brush") }
         let marks = records("bought")
         let bought = { (id: String) in marks[Store.boughtKey(week: self.week, line: id)] != nil || marks["\(self.week)|\(id)"] != nil }
-        return lines.values.filter { $0.qty > 0 && !bought($0.id) }.sorted { ($0.aisle, $0.name) < ($1.aisle, $1.name) }
+        let worked = lines.values.filter { $0.qty > 0 && !bought($0.id) }.sorted { $0.id < $1.id }
+        let yours = all(ShoppingItem.self).filter { !$0.bought }.sorted { $0.id < $1.id }.map { s in
+            ListLine(id: "s-" + s.id, name: s.name, qty: s.qty, unit: s.unit, aisle: s.aisle, reason: s.reason, price: prices[s.name.lowercased()], manual: s, origin: "manual", shop: s.shop, occasion: s.occasion)
+        }.filter { $0.qty > 0 && !bought($0.id) }
+        var out: [ListLine] = []
+        for line in worked + yours {
+            if let i = out.firstIndex(where: { Store.productKey($0.name) == Store.productKey(line.name) }) { out[i] = Store.fold(line, into: out[i]) } else { out.append(line) }
+        }
+        return out.sorted { ($0.aisle, $0.name) < ($1.aisle, $1.name) }
+    }
+
+    /// The same product, whatever the source: the name without case or surrounding spaces
+    nonisolated static func productKey(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// One line for two sources of the same product: the first line's id, name and aisle; the larger quantity when
+    /// the units agree (otherwise the first one's); every source's reason, each once
+    nonisolated static func fold(_ other: ListLine, into line: ListLine) -> ListLine {
+        var out = line
+        var reasons: [String] = []
+        for r in (line.reasons.isEmpty ? [line.reason] : line.reasons) + (other.reasons.isEmpty ? [other.reason] : other.reasons) where !reasons.contains(r) {
+            reasons.append(r)
+        }
+        out.reasons = reasons
+        out.reason = reasons.count == 1 ? reasons[0] : reasons.map(shoppingReasonLabel).joined(separator: " · ")
+        if other.unit == line.unit { out.qty = max(line.qty, other.qty) }
+        out.price = line.price ?? other.price
+        out.shop = line.shop ?? other.shop
+        out.occasion = line.occasion ?? other.occasion
+        var single = other
+        single.merged = []
+        single.reasons = []
+        out.merged = line.merged + [single] + other.merged
+        return out
+    }
+
+    /// Buying a line (the circle): what tick(_:) does, plus every other source folded into the line, so none comes
+    /// back on its own; your items keep the day. Returns the Desfazer: the marks come off and the pantry goes back
+    @discardableResult
+    func buy(_ line: ListLine) -> () -> Void {
+        let week: String = self.week // the Monday of this week (Store also has a week(_:upTo:) method)
+        let pantryBefore = all(PantryItem.self).first { $0.name.lowercased() == line.name.lowercased() }
+        tick(line)
+        for other in line.merged {
+            if var m = other.manual { m.bought = true; save(m) } else { put("bought", Store.boughtKey(week: week, line: other.id), .object(["at": .number(nowMs())])) }
+        }
+        for item in ([line] + line.merged).compactMap(\.manual) {
+            if var m = record(ShoppingItem.self, item.id) { m.boughtOn = Day.today; save(m) }
+        }
+        return { [weak self] in
+            guard let self else { return }
+            for l in [line] + line.merged {
+                if let m = l.manual { self.save(m) } else { self.put("bought", Store.boughtKey(week: week, line: l.id), nil) }
+            }
+            if let p = pantryBefore { self.save(p) }
+        }
+    }
+
+    /// Your items bought today, shown crossed out («comprado por ti hoje»)
+    var boughtToday: [ShoppingItem] {
+        all(ShoppingItem.self).filter { $0.bought && $0.boughtOn == Day.today }.sorted { $0.name < $1.name }
     }
 
     var prices: [String: Double] {

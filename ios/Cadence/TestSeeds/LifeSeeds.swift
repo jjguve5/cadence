@@ -5,5 +5,22 @@ import Foundation
 @MainActor
 enum LifeSeeds {
     static func apply(_ store: Store, scenario: String) {
+        switch scenario {
+        case "life.wardrobe":
+            // A piece never worn since its wash, and one at its limit (suggested for washing, still available)
+            store.save(Garment(id: "T1", name: "T-shirt cinzenta", type: "top", colors: ["9AA3B2"], wearsBeforeWash: 3, totalWears: 12))
+            store.save(Garment(id: "B1", name: "Ganga azul", type: "bottom", colors: ["3E5C8A"], wearsBeforeWash: 4, wears: 4, state: "worn", totalWears: 30))
+        case "life.laundry":
+            // One piece drying, one waiting to be washed
+            store.save(Garment(id: "D1", name: "Toalha de treino", type: "gym", washGroup: "towels 60°", wearsBeforeWash: 1, wears: 1, state: "drying", totalWears: 5))
+            store.save(Garment(id: "W1", name: "T-shirt treino preta", type: "gym", washGroup: "gym 30°", wearsBeforeWash: 1, wears: 1, state: "wash", totalWears: 8))
+        case "life.shopping":
+            // The same product from the pantry (running out) and by hand, and another item of yours
+            store.save(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30, aisle: "Health"))
+            store.save(ShoppingItem(id: "S1", name: "Whey"))
+            store.save(ShoppingItem(id: "S2", name: "Ovos", qty: 12, aisle: "Dairy"))
+        default:
+            break
+        }
     }
 }

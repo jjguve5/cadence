@@ -7,40 +7,9 @@ import XCTest
 @testable import Cadence
 
 final class RegressionPlannedChangeTests: RegressionCase {
-    /// Phase 2.10 (Vida): the wear count goes back to zero only when you confirm «Arrumada» (put away), not when the
-    /// load is washed. Update: after washed(), wears stays as it was; after putAway(), it is 0.
-    @MainActor
-    func testCurrentWashingResetsTheWearCountBeforePuttingAway() throws {
-        let store = try makeStore { $0.add(Garment(id: "J1", name: "Jeans", type: "bottom", washGroup: "darks 30°", wears: 3, state: "wash")) }
-        store.washed("darks 30°")
-        let drying = try XCTUnwrap(store.record(Garment.self, "J1"))
-        XCTAssertEqual(drying.state, "drying")
-        XCTAssertEqual(drying.wears, 0, "today: reset when washed")
-        store.putAway()
-        XCTAssertEqual(store.record(Garment.self, "J1")?.state, "clean")
-    }
-
-    /// Phase 2.10 (Vida): a piece worn fewer times than its wash limit can still be suggested. Update: the worn top
-    /// below its limit is offered; one at its limit, in the wash or drying is never offered.
-    @MainActor
-    func testCurrentAPieceWornOnceIsNotSuggestedAgainUntilWashed() throws {
-        let store = try makeStore { s in
-            s.add(Garment(id: "T1", name: "Grey T-shirt", type: "top", wearsBeforeWash: 3, wears: 1, state: "worn"))
-            s.add(Garment(id: "B1", name: "Jeans", type: "bottom"))
-        }
-        XCTAssertFalse(store.outfit(for: Fixed.saturday).map(\.id).contains("T1"), "today: only clean pieces are suggested")
-    }
-
-    /// Phases 2.5 and 2.10: one line per product, wherever the need comes from. Update: one "Whey" line whose reason
-    /// names both sources.
-    @MainActor
-    func testCurrentTheSameProductFromThePantryAndByHandIsListedTwice() throws {
-        let store = try makeStore { s in
-            s.add(PantryItem(id: "PW", name: "Whey", qty: 300, usePerDay: 30))
-            s.add(ShoppingItem(id: "S1", name: "Whey"))
-        }
-        XCTAssertEqual(store.shoppingList().map(\.name), ["Whey", "Whey"], "today: no check for duplicates across sources")
-    }
+    // Phase 2.10 (Vida) updated its three tests (washing keeps the wear count until «Arrumada», a piece worn below its
+    // limit can be suggested again, one shopping line per product) and moved them to RegressionPreservedTests
+    // (RegressionWardrobeTests and RegressionCareAndShoppingTests).
 
     /// Phase 2.7 (Comida): the food group is chosen per item and a flavour isn't a fruit. Update: a protein drink
     /// "aroma manga" counts for no group (an old entry without a stored group may keep the name rule).
