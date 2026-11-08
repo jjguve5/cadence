@@ -91,6 +91,11 @@ jobs:
             if [ "$2" = "seed" ]; then
               mkdir -p "$C/Documents"; python3 ios/ci/rollback_fixture.py > "$C/Documents/cadence.json"; cp "$C/Documents/cadence.json" r/0-fixture.json
               echo "put here once, before the first launch" > "$C/Documents/rollback-marker.txt"
+              # the one-off migrations ran long ago on the phone; marked done here so none runs in a 20 s window and
+              # changes the data mid-test (it decided whether the reference was taken before or after them)
+              P="$C/Library/Preferences/$BUNDLE.plist"; mkdir -p "$C/Library/Preferences"
+              for k in anchors1 evenings2 plan1; do /usr/libexec/PlistBuddy -c "Add :$k bool true" "$P"; done
+              /usr/libexec/PlistBuddy -c "Print" "$P" > r/0-defaults.txt
             fi
             if [ "$2" = "control" ]; then cp r/1-old.json "$C/Documents/cadence.json"; fi # a file the old build wrote itself
             xcrun simctl launch "$SIM" "$BUNDLE"

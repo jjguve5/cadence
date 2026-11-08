@@ -27,6 +27,11 @@ def warn(cond, what):
     if not cond: warnings.append(what)
 
 queue = lambda s: (s.get("dirty") or {}, sorted(s.get("tombstones") or []), s.get("rev"))
+# Phase 2.2 answers carry a "source"; the 2 Nov build doesn't know the field and drops it when it saves (then the
+# origin reads as unknown, never as yours). Records are compared without it; what happens to it is checked apart.
+bare = lambda logs: {k: {f: v for f, v in r.items() if f != "source"} for k, r in (logs or {}).items()}
+sources = lambda logs: {k: r.get("source") for k, r in (logs or {}).items()}
+old_steps = {"1-old", "3-old-again", "5-old-control"}
 
 # The container's content survives every install (the marker was put in once, at the start)
 for s in steps:
@@ -35,8 +40,14 @@ for s in steps:
 
 # The first (old) run is the reference: it may fill profile defaults and starter content
 ref = snaps["1-old"]
-for cat in ["logs", "days", "feedback", "health"]:
+check(bare(ref.get("logs")) == bare(fixture["logs"]), "1-old: kept logs exactly as given (besides where each answer came from)")
+for cat in ["days", "feedback", "health"]:
     check(ref.get(cat) == fixture[cat], f"1-old: kept {cat} exactly as given")
+warn(sources(ref.get("logs")) == sources(fixture["logs"]), "1-old: the 2 Nov build kept where each answer came from")
+# The one-off migrations are marked done before the first launch, as on the phone: none may run here
+check(ref["profile"].get("windDownLead") == fixture["profile"]["windDownLead"] and
+      "Brush teeth, morning" not in {p.get("title") for p in ref["promises"].values()},
+      "1-old: no one-off migration ran (already done, as on the phone)")
 for t, recs in fixture["extra"].items():
     for i, v in recs.items():
         check(ref.get("extra", {}).get(t, {}).get(i) == v, f"1-old: kept extra/{t}/{i}")
@@ -46,8 +57,14 @@ check("P1" in ref["promises"], "1-old: kept the habit")
 starter = {"Protein shake", "Read 30 min", "Brush teeth, night"}
 for s in steps[1:]:
     snap = snaps[s]
-    for cat in ["promises", "logs", "days", "feedback", "profile", "health", "connection"]:
+    for cat in ["promises", "days", "feedback", "profile", "health", "connection"]:
         check(snap.get(cat) == ref.get(cat), f"{s}: {cat} identical")
+    check(bare(snap.get("logs")) == bare(ref.get("logs")), f"{s}: logs identical (besides where each answer came from)")
+    before = snaps[steps[steps.index(s) - 1]]
+    if s in old_steps:
+        warn(sources(snap.get("logs")) == sources(before.get("logs")), f"{s}: the 2 Nov build kept where each answer came from")
+    else:
+        check(sources(snap.get("logs")) == sources(before.get("logs")), f"{s}: the new build kept where each answer came from, as loaded")
     for t, recs in ref.get("extra", {}).items():
         if t == "prediction": continue  # worked out again at each launch from the same data
         for i, v in recs.items():

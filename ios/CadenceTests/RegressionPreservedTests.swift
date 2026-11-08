@@ -257,13 +257,31 @@ final class RegressionCareAndShoppingTests: RegressionCase {
         XCTAssertEqual(lines.count, 2)
         for line in lines { store.tick(line) }
         let marks = store.records("bought")
-        XCTAssertEqual(Set(marks.keys), ["\(week)_whey", "\(week)_maca-gala"], "accents dropped, anything else becomes -")
+        XCTAssertEqual(marks.count, 2)
+        XCTAssertNotNil(marks["\(week)_whey"], "a line already in the server's characters keeps its plain id, which older builds also read")
+        XCTAssertTrue(marks.keys.contains { $0.hasPrefix("\(week)_maca-gala_") }, "accents dropped, anything else becomes -, then a hash: \(marks.keys)")
         for (id, value) in marks {
             XCTAssertTrue(takes(id), "\(id) is an id the server skips")
             guard case .object = value else { return XCTFail("\(id): the server skips values that aren't objects") }
         }
         XCTAssertTrue(store.shoppingList().isEmpty, "once bought, the lines go")
         XCTAssertEqual(Store.boughtKey(week: "2026-11-02", line: String(repeating: "x", count: 100)).count, 80, "never longer than the server takes")
+    }
+
+    /// Two lines that clean to the same text, or share their first 70 characters, never share a bought mark: buying one
+    /// must not take the other off the list
+    func testBoughtMarksNeverCollide() throws {
+        let week = "2026-11-02"
+        let long = String(repeating: "arroz basmati ", count: 8)
+        let pairs = [("café", "cafe"), ("pão de forma", "pão-de-forma"), ("maçã", "maca"), (long + "a", long + "b")]
+        let server = try NSRegularExpression(pattern: "^[A-Za-z0-9_.:-]{1,80}$")
+        for (a, b) in pairs {
+            let ka = Store.boughtKey(week: week, line: a), kb = Store.boughtKey(week: week, line: b)
+            XCTAssertNotEqual(ka, kb, "\(a) and \(b)")
+            for k in [ka, kb] { XCTAssertNotNil(server.firstMatch(in: k, range: NSRange(k.startIndex..., in: k)), k) }
+            XCTAssertEqual(ka, Store.boughtKey(week: week, line: a), "the same line always gives the same mark")
+        }
+        XCTAssertEqual(Store.boughtKey(week: week, line: "med-M1"), "2026-11-02_med-M1", "ids already safe stay as they are")
     }
 
     /// A bought mark saved before phase 2.2 ("<week>|<line>" with a bare true) still takes the line off the list
@@ -451,13 +469,14 @@ final class RegressionRingKeyTests: RegressionCase {
 final class RegressionAnswerSourceTests: RegressionCase {
     private let walk = PromiseItem(id: "W1", title: "10k steps", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 9 * 60))
 
-    /// An answer you give has no source: it counts as yours
+    /// An answer you give is marked as yours; with no answer there is no origin
     @MainActor
-    func testAnAnswerYouGiveHasNoSource() throws {
+    func testAnAnswerYouGiveIsMarkedAsYours() throws {
         let store = try makeStore { $0.promises[self.walk.id] = self.walk }
+        XCTAssertNil(store.answerOrigin(walk))
         store.log(walk, .done)
         XCTAssertEqual(store.status(walk), .done)
-        XCTAssertNil(store.answerSource(walk))
+        XCTAssertEqual(store.answerOrigin(walk), .you)
     }
 
     /// The steps goal ticked by the band's data is saved as imported from the health source the profile uses, and
@@ -472,9 +491,9 @@ final class RegressionAnswerSourceTests: RegressionCase {
             }
             store.autoComplete()
             XCTAssertEqual(store.status(walk), .done)
-            XCTAssertEqual(store.answerSource(walk), healthSource)
+            XCTAssertEqual(store.answerOrigin(walk), .imported(healthSource))
             store.log(walk, .done)
-            XCTAssertNil(store.answerSource(walk), "answered by you now")
+            XCTAssertEqual(store.answerOrigin(walk), .you, "answered by you now")
         }
     }
 
@@ -489,18 +508,24 @@ final class RegressionAnswerSourceTests: RegressionCase {
         XCTAssertNil(store.status(walk))
     }
 
-    /// Older files have no source and read as answers you gave; an answer without a source is saved exactly as before
-    /// (no new key), so older builds see the same shape
-    func testOlderLogsWithoutASourceStillRead() throws {
+    /// An answer saved before phase 2.2, or one that went through an older build (which drops the field when it saves),
+    /// has no source: it still reads, still counts as done, and its origin is unknown, never taken as yours
+    @MainActor
+    func testOlderLogsWithoutASourceReadAsUnknown() throws {
         let old = #"{"promiseId":"W1","date":"2026-11-02","status":"done","at":1}"#
         let decoded = try JSONDecoder().decode(PromiseLog.self, from: Data(old.utf8))
         XCTAssertNil(decoded.source)
-        let mine = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
-        XCTAssertEqual(Set(mine.keys), ["promiseId", "date", "status", "at"])
+        let store = try makeStore { s in
+            s.promises[self.walk.id] = self.walk
+            s.logs[decoded.id] = decoded
+        }
+        XCTAssertEqual(store.status(walk, on: "2026-11-02"), .done)
+        XCTAssertEqual(store.answerOrigin(walk, on: "2026-11-02"), .unknown)
+        let keys = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any]).keys
+        XCTAssertEqual(Set(keys), ["promiseId", "date", "status", "at"], "an unknown origin is saved as it came, with nothing added")
         var imported = decoded
         imported.source = "fitbit"
-        let back = try JSONDecoder().decode(PromiseLog.self, from: JSONEncoder().encode(imported))
-        XCTAssertEqual(back.source, "fitbit")
+        XCTAssertEqual(try JSONDecoder().decode(PromiseLog.self, from: JSONEncoder().encode(imported)).source, "fitbit")
     }
 }
 
