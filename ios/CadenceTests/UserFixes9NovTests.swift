@@ -36,6 +36,28 @@ final class HabitFoodTests: RegressionCase {
     }
 
     @MainActor
+    func testOnlyWithinAnHourEitherWay() throws {
+        let store = try makeStore { [shake] in $0.promises[shake.id] = shake }
+        store.save(food(label, at: 15 * 60 - 1))
+        store.save(food(label, at: 17 * 60 + 1, id: "F2"))
+        XCTAssertNil(store.foodToAsk(about: shake), "outside the hour it doesn't ask")
+        store.save(food(label, at: 17 * 60, id: "F3"))
+        let asked = try XCTUnwrap(store.foodToAsk(about: shake))
+        XCTAssertEqual(asked.id, "F3")
+        store.acceptHabitFood(shake, asked)
+        let taught = try XCTUnwrap(store.promises["SH"])
+        store.undo(taught)
+        store.remove(try XCTUnwrap(store.record(FoodEntry.self, "F3")))
+
+        store.save(food(label, at: 14 * 60, id: "F4"))
+        XCTAssertNil(store.status(taught), "taught, but two hours early: it doesn't mark")
+        store.save(food(label, at: 15 * 60, id: "F5"))
+        XCTAssertEqual(store.status(taught), .done, "an hour early does")
+        store.remove(try XCTUnwrap(store.record(FoodEntry.self, "F5")))
+        XCTAssertNil(store.status(taught), "the one left is outside the hour: it doesn't hold the answer")
+    }
+
+    @MainActor
     func testABreakfastYoghurtIsNotTheAfternoonShake() throws {
         let store = try makeStore { [shake] in $0.promises[shake.id] = shake }
         store.save(food("+ Proteína Aroma Baunilha", at: 9 * 60 + 26))

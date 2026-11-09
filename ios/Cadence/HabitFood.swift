@@ -1,12 +1,12 @@
 // A habit that is also food (a shake with its kcal): logging that food in Comida didn't tell the habit, so it kept asking.
 // Nothing is assumed from a name: the first time, «Agora» asks whether that food is the habit. «É este» remembers the
-// food's name, and from then on logging it answers the habit by itself. The food is already in the day, so answering this
-// way never adds the habit's own kcal again.
+// food's name, and from then on logging it answers the habit by itself. Either way only within an hour of the habit's
+// time (the user's rule, 9 Nov). The food is already in the day, so answering this way never adds the habit's own kcal again.
 import Foundation
 
 enum HabitFoodRules {
-    /// A similar food counts from this long before the habit's time: a protein yoghurt at breakfast isn't the 16:00 shake
-    static let askedFrom = 240
+    /// How near the habit's time a food has to be, either way. Outside this it neither asks nor answers
+    static let near = 60
     /// PromiseLog.source of an answer that came from a food you had already said was this habit
     static let fromFood = "food"
     /// Words that name the same thing in a habit and on a product's label
@@ -26,18 +26,20 @@ enum HabitFoodRules {
         return !f.isDisjoint(with: sameThing) && !h.isDisjoint(with: sameThing)
     }
 
+    static func isNear(_ minute: Int, habitTime: Int) -> Bool { abs(minute - habitTime) <= near }
+
     static func dismissEvent(_ promise: String) -> String { "food." + promise }
 }
 
 @MainActor
 extension Store {
     /// The food of `day` to ask about: the habit logs food, has no answer, you haven't said no today, and a similar food was
-    /// logged from four hours before its time. nil when there's nothing to ask.
+    /// logged within an hour of its time. nil when there's nothing to ask.
     func foodToAsk(about p: PromiseItem, on day: String = Day.today) -> FoodEntry? {
         guard p.kcal != nil || p.protein != nil, status(p, on: day) == nil,
               record(NowDismiss.self, NowRule.dismissKey(day: day, event: HabitFoodRules.dismissEvent(p.id))) == nil else { return nil }
-        let from = time(of: p, on: day) - HabitFoodRules.askedFrom
-        return foods(on: day).last { $0.promiseId == nil && $0.minute >= from && HabitFoodRules.resembles(food: $0.name, habit: p.title) }
+        let at = time(of: p, on: day)
+        return foods(on: day).last { $0.promiseId == nil && HabitFoodRules.isNear($0.minute, habitTime: at) && HabitFoodRules.resembles(food: $0.name, habit: p.title) }
     }
 
     /// «É este»: the habit is done with the food already logged, and that food's name is remembered. With Desfazer.
@@ -69,7 +71,7 @@ extension Store {
         let name = HabitFoodRules.folded(food.name)
         var asks = false
         for p in due(on: food.date) where status(p, on: food.date) == nil {
-            if (p.foods ?? []).contains(name) {
+            if (p.foods ?? []).contains(name) && HabitFoodRules.isNear(food.minute, habitTime: time(of: p, on: food.date)) {
                 log(p, on: food.date, .done, source: HabitFoodRules.fromFood, addFood: false)
             } else if foodToAsk(about: p, on: food.date) != nil {
                 asks = true
@@ -82,9 +84,10 @@ extension Store {
     func habitsHear(removed food: FoodEntry) {
         guard food.promiseId == nil else { return }
         let name = HabitFoodRules.folded(food.name)
-        guard !foods(on: food.date).contains(where: { HabitFoodRules.folded($0.name) == name }) else { return }
         for p in due(on: food.date) where (p.foods ?? []).contains(name) && answerOrigin(p, on: food.date) == .imported(HabitFoodRules.fromFood) {
-            undo(p, on: food.date)
+            let at = time(of: p, on: food.date)
+            let stillThere = foods(on: food.date).contains { HabitFoodRules.folded($0.name) == name && HabitFoodRules.isNear($0.minute, habitTime: at) }
+            if !stillThere { undo(p, on: food.date) }
         }
     }
 }
