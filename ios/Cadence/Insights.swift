@@ -183,9 +183,10 @@ extension Store {
         return Int(got.rounded())
     }
 
+    /// The points of the days you closed, as they were saved, plus what today has earned so far (Points.swift)
     var totalPoints: Int {
         let closed = days.values.compactMap(\.points).reduce(0, +)
-        return closed + (self.day().closedAt == nil ? score() : 0)
+        return closed + (self.day().closedAt == nil ? points() : 0)
     }
 
     static func levelFloor(_ level: Int) -> Int { 50 * level * (level - 1) }

@@ -81,7 +81,7 @@ struct CloseDayView: View {
                     if done { dismiss(); return }
                     let score = store.score()
                     entry.score = score
-                    entry.points = score
+                    entry.points = store.points(closing: true) // by difficulty; the score above stays how the day went
                     entry.closedAt = nowMs()
                     store.save(entry)
                     let next = Day.add(1, to: Day.today)

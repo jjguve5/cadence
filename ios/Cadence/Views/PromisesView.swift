@@ -56,6 +56,10 @@ struct PromiseEditor: View {
                 Section {
                     TextField("O quê", text: $promise.title)
                     Picker("Tipo", selection: $promise.kind) { ForEach(PromiseKind.allCases, id: \.self) { Text($0.label).tag($0) } }
+                    Picker("Dificuldade", selection: Binding(get: { promise.effort ?? HabitEffort.medium.rawValue }, set: { promise.effort = $0 })) {
+                        ForEach(HabitEffort.allCases) { e in Text("\(e.label) · \(e.points) pts").tag(e.rawValue) }
+                    }
+                    .accessibilityIdentifier("promise.effort")
                     Toggle("Ativo", isOn: $promise.active)
                 } footer: {
                     Text(promise.kind == .mustDo ? "Um essencial avisa à hora marcada, outra vez 90 e 150 minutos depois, e o desacelerar espera até responderes." : "Uma rotina avisa uma vez, dentro do teu limite de notificações.")

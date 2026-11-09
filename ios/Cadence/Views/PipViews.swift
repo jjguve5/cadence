@@ -62,20 +62,24 @@ struct PipPage: View {
                 }
             }
 
-            let open = store.due().filter { store.status($0) == nil }
-            if !open.isEmpty {
-                Card {
-                    HStack { Eyebrow(text: "Anima o Pip hoje"); Spacer(); Text("+\(open.count * 10) pts").font(.mono(12)).foregroundStyle(Color.soft) }
-                    ForEach(open) { p in
-                        HStack {
-                            Image(systemName: p.icon).foregroundStyle(Color.soft).frame(width: 20)
-                            Text(p.title).font(.geist(14))
-                            Spacer()
-                            Chip(text: "+10")
-                        }
+            let lines = store.pointLines()
+            Card {
+                HStack {
+                    Eyebrow(text: "Pontos de hoje")
+                    Spacer()
+                    Text("\(lines.filter(\.earned).map(\.points).reduce(0, +)) pts").font(.mono(12)).foregroundStyle(Color.soft)
+                }
+                ForEach(lines) { line in
+                    HStack {
+                        Image(systemName: line.earned ? "checkmark.circle.fill" : line.icon).foregroundStyle(line.earned ? Color.good : Color.soft).frame(width: 20)
+                        Text(line.title).font(.geist(14)).foregroundStyle(line.earned ? Color.soft : Color.ink)
+                        Spacer()
+                        Chip(text: "+\(line.points)", color: line.earned ? .good : .ink)
                     }
                 }
+                Text("O que é mais difícil dá mais pontos. A dificuldade de cada hábito escolhes tu, ao editá-lo.").font(.geist(11.5)).foregroundStyle(Color.faint)
             }
+            .accessibilityIdentifier("pip.points")
 
             Card(tint: .mint) {
                 HStack {

@@ -138,4 +138,34 @@ final class PipRewardsTests: RegressionCase {
         store.wear(scarf, slot: "neck")
         XCTAssertEqual(store.pipOutfit.map(\.id), ["scarf"])
     }
+
+    @MainActor
+    func testHarderGivesMorePoints() throws {
+        var easy = PromiseItem(id: "E", title: "Água ao acordar", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 480))
+        easy.effort = 1
+        var hard = PromiseItem(id: "H", title: "Estudar 1 hora", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 600))
+        hard.effort = 3
+        let plain = PromiseItem(id: "P", title: "Ler", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 1300))
+        let store = try makeStore { s in
+            for p in [easy, hard, plain] { s.promises[p.id] = p }
+        }
+        XCTAssertEqual(store.points(), 0, "nothing done: nothing earned")
+        store.log(easy, .done)
+        XCTAssertEqual(store.points(), 5)
+        store.log(hard, .done)
+        XCTAssertEqual(store.points(), 25)
+        store.log(plain, .tiny)
+        XCTAssertEqual(store.points(), 30, "no difficulty chosen is medium, and the minimum version is half")
+        store.log(hard, .skipped)
+        XCTAssertEqual(store.points(), 10, "not done gives nothing, and takes nothing else away")
+        XCTAssertEqual(store.points(closing: true), 15)
+        XCTAssertEqual(store.totalPoints, 10, "today counts as it stands")
+        XCTAssertEqual(store.pointLines().first { $0.id == "habit.H" }?.points, 20, "still open: what it would give")
+    }
+
+    @MainActor
+    func testClosedDaysKeepThePointsTheyHad() throws {
+        let store = try makeStore { $0.days = self.days(2, points: 80) }
+        XCTAssertEqual(store.totalPoints, 160, "nothing in the history is recalculated")
+    }
 }

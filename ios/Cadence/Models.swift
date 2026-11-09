@@ -121,6 +121,8 @@ struct PromiseItem: Codable, Identifiable, Equatable {
     var kcal: Double?
     var protein: Double?
     var created: Double = nowMs()
+    /// How hard it is for you: 1 easy, 2 medium, 3 hard (HabitEffort). Harder gives more points. Optional: none saved is medium
+    var effort: Int?
     /// The foods (folded names) you said are this habit: logging one answers it (HabitFood.swift). Optional: older records read as before
     var foods: [String]?
 
