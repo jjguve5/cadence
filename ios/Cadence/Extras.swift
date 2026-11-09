@@ -121,10 +121,15 @@ struct PipAccessory: Identifiable {
     var level: Int
     var layer: String
     var icon: String
+    var rarity: PipRarity? = nil // nil: unlocked by level; otherwise it comes from a chest (PipRewards.swift)
+    var emoji: String? = nil
 }
 
-/// Pip's wardrobe, unlocked by level: one piece per slot
-let pipAccessories: [PipAccessory] = [
+/// Everything Pip can wear: one piece per slot
+let pipAccessories: [PipAccessory] = pipLevelAccessories + pipChestAccessories
+
+/// The pieces unlocked by level
+let pipLevelAccessories: [PipAccessory] = [
     PipAccessory(id: "scarf", name: "Cachecol", slot: "neck", level: 2, layer: "Acc Scarf", icon: "wind"),
     PipAccessory(id: "sweatband", name: "Fita de testa", slot: "head", level: 3, layer: "Acc Sweatband", icon: "figure.run"),
     PipAccessory(id: "glasses", name: "Óculos de ler", slot: "face", level: 5, layer: "Acc Glasses", icon: "eyeglasses"),
@@ -272,12 +277,12 @@ extension Store {
 
     // MARK: Pip
 
-    /// What Pip is wearing: one unlocked piece per slot
+    /// What Pip is wearing: one piece you own per slot
     var pipOutfit: [PipAccessory] {
         let look = records("pipLook")
         return pipAccessories.filter { a in
-            guard a.level <= level.level, case .string(let id)? = look[a.slot] else { return false }
-            return id == a.id
+            guard case .string(let id)? = look[a.slot], id == a.id else { return false }
+            return owns(a)
         }
     }
 

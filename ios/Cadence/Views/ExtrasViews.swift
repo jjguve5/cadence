@@ -180,10 +180,6 @@ fileprivate func paydayJobLabel(_ job: String) -> String {
 }
 
 /// What each of Pip's slots shows; the English slot is what's saved
-fileprivate func pipSlotLabel(_ slot: String) -> String {
-    ["head": "Cabeça", "face": "Cara", "neck": "Pescoço"][slot] ?? slot.capitalized
-}
-
 struct PaydayPlanner: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -213,38 +209,3 @@ struct PaydayPlanner: View {
     }
 }
 
-struct WardrobePicker: View {
-    @EnvironmentObject var store: Store
-    var body: some View {
-        Card(tint: .fuel) {
-            Eyebrow(text: "Roupeiro do Pip · desbloqueado por nível", icon: "tshirt.fill", color: .fuel)
-            ForEach(["head", "face", "neck"], id: \.self) { slot in
-                Text(pipSlotLabel(slot)).font(.geist(11.5, .semibold)).foregroundStyle(Color.soft)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        let worn = store.pipOutfit.first { $0.slot == slot }
-                        item(name: "Nada", icon: "xmark", open: true, on: worn == nil) { store.wear(nil, slot: slot) }
-                        ForEach(pipAccessories.filter { $0.slot == slot }) { a in
-                            let open = a.level <= store.level.level
-                            item(name: open ? a.name : "Nível \(a.level)", icon: open ? a.icon : "lock.fill", open: open, on: worn?.id == a.id) { if open { store.wear(a, slot: slot) } }
-                        }
-                    }
-                }
-            }
-            Text("Cada peça fica vestida em todas as animações. Desbloqueias mais ao subir de nível.").font(.geist(11.5)).foregroundStyle(Color.faint)
-        }
-    }
-
-    private func item(name: String, icon: String, open: Bool, on: Bool, tap: @escaping () -> Void) -> some View {
-        Button(action: tap) {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.geist(18)).foregroundStyle(open ? Color.ink : Color.faint).frame(width: 50, height: 50)
-                    .background(Circle().fill(.white.opacity(on ? 0.18 : 0.06)))
-                    .overlay(Circle().stroke(on ? Color.mint : .clear, lineWidth: 2))
-                Text(name).font(.geist(10.5)).foregroundStyle(open ? Color.ink : Color.faint).lineLimit(1)
-            }
-            .frame(width: 74)
-        }
-        .buttonStyle(.plain)
-    }
-}

@@ -123,9 +123,13 @@ struct TodayView: View {
                         Text("\(store.pipNotices)").font(.geist(11, .bold)).foregroundStyle(.white)
                             .frame(minWidth: 18, minHeight: 18).background(Circle().fill(Color.red)).offset(x: 4, y: -2)
                     }
+                    // a chest is waiting on Pip's page
+                    if !store.chestsReady.isEmpty {
+                        Text("🎁").font(.system(size: 16)).offset(x: 6, y: 32).accessibilityHidden(true)
+                    }
                 }
             }
-            .accessibilityLabel(store.pipNotices > 0 ? "Pip, \(store.pipNotices) à espera" : "Pip")
+            .accessibilityLabel(store.pipNotices > 0 ? "Pip, \(store.pipNotices) à espera" : store.chestsReady.isEmpty ? "Pip" : "Pip, baú por abrir")
         }
         .padding(.top, 8)
     }

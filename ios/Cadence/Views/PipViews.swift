@@ -22,7 +22,7 @@ struct PipHead: View {
     var body: some View {
         ZStack {
             Image(mood.head).resizable().scaledToFit()
-            ForEach(store.pipOutfit.filter { $0.slot != "neck" }) { a in Image("\(mood.head)-\(a.id)").resizable().scaledToFit() }
+            ForEach(store.pipOutfit.filter { $0.slot == "head" || $0.slot == "face" }) { a in Image("\(mood.head)-\(a.id)").resizable().scaledToFit() }
         }
         .frame(width: size, height: size)
     }
@@ -38,8 +38,8 @@ struct PipPage: View {
         let level = store.level
         Screen(glow: Color(hex: 0x8A5A1E)) {
             VStack(spacing: 4) {
-                PipAnimation(mood: tapped ? .tapped : mood)
-                    .frame(width: 190, height: 190)
+                PipRoomView(mood: tapped ? .tapped : mood)
+                    .padding(.bottom, 8)
                     .onTapGesture {
                         tapped = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { tapped = false }
@@ -86,7 +86,9 @@ struct PipPage: View {
                 Bar(progress: Double(level.into) / Double(max(1, level.span)), area: .mint)
             }
 
+            ChestCard()
             WardrobePicker()
+            HousePicker()
             Text("O humor do Pip vem sempre do teu dia real. Nunca te faz sentir culpa: num dia mau, fica com sono ou um pouco triste e sugere uma pequena coisa que ajudaria.")
                 .font(.geist(12)).foregroundStyle(Color.faint)
         }
