@@ -157,9 +157,25 @@ struct CareProduct: Record, Equatable {
 enum CareRules {
     /// Morning until 14:00, night from then on (decision for phase 2.5)
     static let middayMinute = 14 * 60
+    /// «Agora» stops asking for the morning's at lunchtime, and only asks for the night's from the evening
+    static let morningAskedUntil = 12 * 60
+    static let nightAskedFrom = 19 * 60 + 30
     /// The shopping suggestion shows when a product runs out within this many days (design: «acaba em cerca de 3 semanas»)
     static let refillWithin = 21
     static let msPerDay: Double = 86_400_000
+
+    /// Whether «Agora» asks for this routine at this minute. With its own time: until 90 minutes after it (morning), from it
+    /// (night). Higiene keeps showing what's to confirm all day.
+    static func asksInAgora(_ routine: CareRoutine, minute: Int) -> Bool {
+        switch moment(of: routine) {
+        case .morning: return minute < max(morningAskedUntil, (routine.minute ?? 0) + 90)
+        case .night: return minute >= min(nightAskedFrom, routine.minute ?? nightAskedFrom)
+        case nil: return false
+        }
+    }
+
+    /// What «Hoje não» hides for the day, as a NowDismiss
+    static func agoraKey(_ routine: CareRoutine) -> String { "routine." + routine.id }
 
     static func moment(at minute: Int) -> RoutineMoment { ((minute % 1440) + 1440) % 1440 < middayMinute ? .morning : .night }
 
@@ -629,6 +645,26 @@ extension Store {
     func routineDueNow(minute: Int = Clock.minute(), day: String = Day.today) -> CareRoutine? {
         guard profile.on("care") else { return nil }
         return routinesOfTheMoment(minute: minute).first { !pendingSteps($0, on: day).isEmpty }
+    }
+
+    /// The routine «Agora» asks for: of the moment, in its hours, with steps to confirm, and not put away today
+    func agoraRoutine(minute: Int, day: String = Day.today) -> CareRoutine? {
+        guard profile.on("care") else { return nil }
+        return routinesOfTheMoment(minute: minute).first {
+            CareRules.asksInAgora($0, minute: minute) && !pendingSteps($0, on: day).isEmpty
+                && record(NowDismiss.self, NowRule.dismissKey(day: day, event: CareRules.agoraKey($0))) == nil
+        }
+    }
+
+    /// «Hoje não», or finishing it with steps skipped: «Agora» stops asking today. Nothing is confirmed: Higiene still has it to do.
+    func skipRoutineToday(_ routine: CareRoutine, day: String = Day.today, undoable: Bool = true) {
+        guard canChange else { return }
+        let event = CareRules.agoraKey(routine)
+        let id = NowRule.dismissKey(day: day, event: event)
+        let before = records(NowDismiss.kind)[id]
+        save(NowDismiss(id: id, date: day, event: event, action: NowDismiss.gone))
+        guard undoable else { return }
+        UndoCenter.shared.show("Hoje já não pergunto") { [weak self] in self?.put(NowDismiss.kind, id, before) }
     }
 
     /// Of the last `days` days up to `day`: how many had every step confirmed and how many only some

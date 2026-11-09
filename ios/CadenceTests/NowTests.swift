@@ -194,13 +194,13 @@ final class NowTests: RegressionCase {
     /// and once the routine is confirmed the next habit is
     @MainActor
     func testAntesDeSairComesBeforeTheRoutineAndBothGoWhenDone() throws {
-        let creatine = PromiseItem(id: "H1", title: "Creatina", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 18 * 60))
+        let creatine = PromiseItem(id: "H1", title: "Creatina", schedule: Schedule(rule: .daily, start: "2026-01-01", minute: 20 * 60))
         let store = try makeStore { s in
             s.promises[creatine.id] = creatine
             s.add(CareRoutine(id: "RN", title: "Rotina da noite", icon: "moon.stars", steps: [RoutineStep(id: "RN1", title: "Lavar a cara", seconds: 60)]))
-            s.add(PlanBlock(id: "B", date: Day.today, start: 18 * 60 + 30, minutes: 60, title: "Pernas", type: "training"))
+            s.add(PlanBlock(id: "B", date: Day.today, start: 20 * 60 + 30, minutes: 60, title: "Pernas", type: "training"))
         }
-        let minute = 17 * 60 + 20
+        let minute = 19 * 60 + 40
         XCTAssertEqual(store.nowStep(minute: minute, events: []), .beforeLeaving)
         store.finishLeaving()
         XCTAssertEqual(store.nowStep(minute: minute, events: []), .routine, "everything seen: the routine of the moment")

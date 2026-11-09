@@ -599,7 +599,7 @@ struct TodayNowCard: View {
     /// The routine of the moment (D3, step 4): Higiene's routine still to confirm; «Começar» opens its player with the
     /// steps left, which confirms each as you go
     @ViewBuilder private var routine: some View {
-        if let r = store.routineDueNow(minute: minute) {
+        if let r = store.agoraRoutine(minute: minute) {
             let pending = store.pendingSteps(r)
             let seconds = pending.map { $0.seconds }.reduce(0, +)
             Card {
@@ -625,6 +625,9 @@ struct TodayNowCard: View {
                     .buttonStyle(Pressable())
                     .accessibilityLabel("Começar \(r.title)").accessibilityIdentifier("next.action")
                 }
+                Button("Hoje não") { store.skipRoutineToday(r) }
+                    .font(.geist(13, .semibold)).foregroundStyle(Color.soft).frame(minHeight: 44)
+                    .accessibilityIdentifier("now.routine.skip")
                 laterRow
             }
             .accessibilityElement(children: .contain).accessibilityIdentifier("now.routine")
@@ -659,6 +662,11 @@ struct TodayNowCard: View {
         let brush = p.title.lowercased().contains("brush"), read = p.title.lowercased().hasPrefix("read")
         return Card {
             Eyebrow(text: "Agora", color: .mint)
+            if let food = store.foodToAsk(about: p) {
+                Text(p.title).font(.geist(16, .bold))
+                Text("Registaste «\(food.name)» às \(clock(food.minute)). É este?").font(.geist(12.5)).foregroundStyle(Color.soft).fixedSize(horizontal: false, vertical: true)
+                DecisionButtons(accept: "É este", adjust: nil, ignore: "Não é", onAccept: { store.acceptHabitFood(p, food) }, onIgnore: { store.rejectHabitFood(p) })
+            } else {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(p.title).font(.geist(16, .bold))
@@ -670,6 +678,7 @@ struct TodayNowCard: View {
                         .frame(width: 44, height: 44).background(Circle().fill(Area.mint.gradient))
                 }
                 .accessibilityLabel(brush || read ? "Começar \(p.title)" : "Marcar \(p.title) como feito").accessibilityIdentifier("next.action")
+            }
             }
             laterRow
         }

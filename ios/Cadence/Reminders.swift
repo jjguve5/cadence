@@ -78,7 +78,7 @@ final class Reminders: NSObject, UNUserNotificationCenterDelegate {
             let first = planned.count
             let plan = store.sleepPlan(for: day)
             let wind = Day.at(plan.windDown, on: day)
-            for promise in store.due(on: day) where store.status(promise, on: day) == nil {
+            for promise in store.due(on: day) where store.status(promise, on: day) == nil && store.foodToAsk(about: promise, on: day) == nil {
                 let at = Day.at(store.time(of: promise, on: day), on: day)
                 if promise.kind == .mustDo {
                     let asks: [(Int, String)] = [(0, "\(promise.title) · agora"), (90, "\(promise.title) ainda por fazer"), (150, "\(promise.title): último aviso antes de desacelerar")]

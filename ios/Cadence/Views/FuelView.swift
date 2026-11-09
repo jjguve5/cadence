@@ -263,6 +263,8 @@ struct FoodLogSheet: View {
     @State private var scanning = false
     @State private var message: String?
     @State private var choosing: CommonFood?
+    @State private var building: BuildFood? // a food you put together, on its own screen
+    @State private var built: FoodItem? // joins the meal once that screen has closed
     @State private var results: [OFFResult] = []
     @State private var searching = false
     @State private var group = "Eating out"
@@ -367,6 +369,14 @@ struct FoodLogSheet: View {
                     }
                 }
             }
+            .sheet(item: $building, onDismiss: {
+                if let item = built {
+                    built = nil
+                    add(item)
+                }
+            }) { food in
+                FoodBuildView(food: food) { built = $0 }
+            }
             .navigationDestination(isPresented: $confirming) {
                 FoodConfirmView(items: $draft, onAddMore: { confirming = false }, onBack: { confirming = false }, onFinish: { dismiss() })
             }
@@ -419,11 +429,13 @@ extension FoodLogSheet {
     }
 
     func foodRow(_ f: CommonFood) -> some View {
-        Button { choosing = f } label: {
+        let build = FoodBuilds.named(f.name)
+        let usual = build.map { $0.total($0.start).rounded }
+        return Button { if let build { building = build } else { choosing = f } } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 1) { Text(f.name).foregroundStyle(Color.ink); Text(f.portion).font(.caption).foregroundStyle(Color.faint) }
+                VStack(alignment: .leading, spacing: 1) { Text(f.name).foregroundStyle(Color.ink); Text(build == nil ? f.portion : "Escolhe o que leva").font(.caption).foregroundStyle(Color.faint) }
                 Spacer()
-                Text("≈ \(Int(f.kcal)) · \(Int(f.protein)) g").font(.caption.monospaced()).foregroundStyle(Color.soft)
+                Text("≈ \(Int(usual?.kcal ?? f.kcal)) · \(Int(usual?.protein ?? f.protein)) g").font(.caption.monospaced()).foregroundStyle(Color.soft)
             }
         }
     }

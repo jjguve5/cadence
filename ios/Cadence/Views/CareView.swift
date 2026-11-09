@@ -842,6 +842,8 @@ struct RoutinePlayer: View {
     private func saveAtTheEnd() {
         guard !saved else { return }
         saved = true
+        // skipped steps stay to confirm in Higiene, but «Agora» doesn't keep asking today
+        if playback.done.count < routine.steps.count { store.skipRoutineToday(routine, undoable: false) }
         guard !playback.done.isEmpty else { return }
         let s: Store = store, r = routine, day = Day.today, n = playback.done.count
         let before = s.confirmSteps(playback.done, of: r, on: day)

@@ -2,7 +2,7 @@
 //   1. an event that needs you to leave within 45 min («Preparar para sair» · «Adiar 10 min» · «Já não vou»);
 //   2. a workout in progress (continue it);
 //   3. Antes de sair: a departure within 60 min with something on the list still to see (phase 2.9, Night.swift);
-//   4. the routine of the moment still to confirm, Higiene's routineDueNow() (phase 2.5, wired here by phase 2.9);
+//   4. the routine of the moment still to confirm, in the hours «Agora» asks for it (Store.agoraRoutine);
 //   4b. Higiene's reminders (decision D40): the shower at its time, what's overdue from 19:30 (and earlier when no habit is next);
 //   5. the next habit (what "A seguir" did before);
 //   6. nothing: no card.
@@ -221,9 +221,9 @@ extension Store {
         return LeaveRules.isStep(leaveDepartures(on: day, events: events), minute: minute, pending: pending) ? .beforeLeaving : nil
     }
 
-    /// Step 4, the routine of the moment still to confirm: Higiene's routineDueNow() (phase 2.5), as it is
+    /// Step 4, the routine of the moment still to confirm, unless its hours are over or you put it away today
     func nowRoutine(minute: Int, day: String = Day.today) -> NowStep? {
-        routineDueNow(minute: minute, day: day) == nil ? nil : .routine
+        agoraRoutine(minute: minute, day: day) == nil ? nil : .routine
     }
 
     /// Step 4b (decision D40), what Higiene is already saying: the shower at its planned time, and what's overdue among

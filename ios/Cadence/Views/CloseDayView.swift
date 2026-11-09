@@ -277,7 +277,7 @@ struct DayReviewView: View {
         case .done:
             if case .imported(let source)? = origin {
                 state = .imported
-                text = "Feito · " + (source == "apple" ? "Apple Health" : source == "fitbit" ? "Fitbit" : source)
+                text = "Feito · " + (source == "apple" ? "Apple Health" : source == "fitbit" ? "Fitbit" : source == HabitFoodRules.fromFood ? "Comida" : source)
             } else {
                 state = origin == .you ? .confirmed : .done
             }

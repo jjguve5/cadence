@@ -121,6 +121,8 @@ struct PromiseItem: Codable, Identifiable, Equatable {
     var kcal: Double?
     var protein: Double?
     var created: Double = nowMs()
+    /// The foods (folded names) you said are this habit: logging one answers it (HabitFood.swift). Optional: older records read as before
+    var foods: [String]?
 
     var timeLabel: String { clock(schedule.minute) }
 }

@@ -387,14 +387,15 @@ final class Store: ObservableObject {
 
     /// `source` is "you" for an answer you gave, or the data source for one imported from it (see PromiseLog.source).
     /// `notApplicable` marks a skip as «Não se aplica» (the end-of-day review, phase 2.8; see PromiseLog.notApplicable).
-    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus, source: String = PromiseLog.byYou, notApplicable: Bool? = nil) {
+    /// `addFood` false: the food is already in the day (HabitFood.swift), so the habit's own kcal aren't added.
+    func log(_ promise: PromiseItem, on day: String = Day.today, _ status: LogStatus, source: String = PromiseLog.byYou, notApplicable: Bool? = nil, addFood: Bool = true) {
         guard canChange else { return }
         let entry = PromiseLog(promiseId: promise.id, date: day, status: status, source: source, notApplicable: notApplicable)
         logs[entry.id] = entry
         mark("log:\(entry.id)")
         Reminders.shared.clear(promise: promise.id, day: day)
         // Routines that log food: ticking the 17:00 shake adds its calories and protein
-        if status != .skipped, promise.kcal != nil || promise.protein != nil {
+        if addFood, status != .skipped, promise.kcal != nil || promise.protein != nil {
             save(FoodEntry(id: "promise-\(promise.id)-\(day)", date: day, minute: time(of: promise, on: day), name: promise.title, kcal: promise.kcal ?? 0, protein: promise.protein ?? 0, promiseId: promise.id))
         }
     }

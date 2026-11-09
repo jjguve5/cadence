@@ -17,7 +17,13 @@ extension Store {
 
     func record<T: Record>(_ type: T.Type, _ id: String) -> T? { records(T.kind)[id]?.decode(T.self) }
 
-    func save<T: Record>(_ record: T) { put(T.kind, record.id, JSONValue.from(record)) }
+    func save<T: Record>(_ record: T) {
+        put(T.kind, record.id, JSONValue.from(record))
+        if let food = record as? FoodEntry { habitsHear(saved: food) }
+    }
 
-    func remove<T: Record>(_ record: T) { put(T.kind, record.id, nil) }
+    func remove<T: Record>(_ record: T) {
+        put(T.kind, record.id, nil)
+        if let food = record as? FoodEntry { habitsHear(removed: food) }
+    }
 }
